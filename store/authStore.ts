@@ -125,6 +125,12 @@ export const useAuthStore = create<AuthState>()(
         } catch {}
       }
 
+      // Put stored tokens into the store BEFORE calling refresh(),
+      // otherwise refresh() reads get().tokens === null and immediately returns false.
+      set((s) => {
+        s.tokens = stored;
+      });
+
       // Try refresh
       const refreshed = await get().refresh();
       if (!refreshed) {

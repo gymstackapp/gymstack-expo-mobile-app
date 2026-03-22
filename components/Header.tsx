@@ -1,6 +1,6 @@
 // mobile/src/components/common/Header.tsx
 // Reusable page header with optional back button and right action slot.
-import { Colors, Radius, Spacing, Typography } from "@/theme";
+import { Colors, Spacing, Typography } from "@/theme";
 import { useNavigation } from "@react-navigation/native";
 import React from "react";
 import {
@@ -80,8 +80,8 @@ const styles = StyleSheet.create({
   backBtn: {
     width: 38,
     height: 38,
-    borderRadius: Radius.md,
-    backgroundColor: Colors.surfaceRaised,
+    // borderRadius: Radius.md,
+    // backgroundColor: Colors.surfaceRaised,
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,

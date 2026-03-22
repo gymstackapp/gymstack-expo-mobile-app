@@ -13,4 +13,5 @@ export { ListRow } from "./Listrow";
 // export { Screen } from "./Screen";
 // export { SectionHeader } from "./Sectionheader";
 export { Skeleton, SkeletonGroup } from "./Skeleton";
-// export { StatCard } from "./Statcard";
+export { StatCard } from "./StatCard";
+

@@ -26,7 +26,8 @@ async function getValidToken(): Promise<string | null> {
   if (store.tokens.accessExpiresAt - 30_000 < Date.now()) {
     const ok = await store.refresh();
     if (!ok) {
-      await store.logout();
+      // Refresh token is dead — session is unrecoverable, force logout now.
+      await useAuthStore.getState().logout();
       return null;
     }
   }
@@ -63,13 +64,18 @@ export async function apiRequest<T = any>(
     body: body ? JSON.stringify(body) : undefined,
   });
 
-  // 401 — auth failed, force logout
-  if (response.status === 401) {
-    await useAuthStore.getState().logout();
-    throw new ApiError("Session expired. Please log in again.", 401);
-  }
-
   const data = await response.json().catch(() => ({}));
+
+  // 401 — the server uses this for both auth failures AND permission/subscription
+  // gates. We no longer logout here; session expiry is handled in getValidToken()
+  // where a failed refresh triggers logout before any request is made.
+  if (response.status === 401) {
+    throw new ApiError(
+      data.error ?? data.message ?? "Session expired. Please log in again.",
+      401,
+      data.upgradeRequired,
+    );
+  }
 
   if (!response.ok) {
     throw new ApiError(
