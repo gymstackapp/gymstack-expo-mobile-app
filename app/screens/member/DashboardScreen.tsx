@@ -9,6 +9,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
+import { DrawerActions, useNavigation } from '@react-navigation/native';
 
 const C = {
   bg: '#0A0A0A',
@@ -37,6 +38,7 @@ const UPCOMING = [
 
 export default function MemberDashboard() {
   const { user, logout } = useAuth();
+  const navigation = useNavigation();
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
 
@@ -46,7 +48,13 @@ export default function MemberDashboard() {
 
         {/* Header */}
         <View style={styles.header}>
-          <View>
+          <TouchableOpacity
+            onPress={() => navigation.dispatch(DrawerActions.openDrawer())}
+            style={styles.menuBtn}
+          >
+            <Ionicons name="menu-outline" size={24} color={C.text} />
+          </TouchableOpacity>
+          <View style={{ flex: 1 }}>
             <Text style={styles.greeting}>{greeting},</Text>
             <Text style={styles.name}>{user?.name ?? 'Member'} 💪</Text>
           </View>
@@ -126,7 +134,9 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     paddingTop: 20,
     marginBottom: 12,
+    gap: 8,
   },
+  menuBtn: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center' },
   greeting: { fontSize: 14, color: C.textSub },
   name: { fontSize: 24, fontWeight: '800', color: C.text, marginTop: 2 },
   logoutBtn: {

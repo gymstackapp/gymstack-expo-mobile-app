@@ -219,6 +219,7 @@ const OwnerGymsScreen = () => {
     <SafeAreaView style={styles.safe}>
       <View style={styles.headerWrap}>
         <Header
+          menu
           title="My Gyms"
           subtitle={`${gyms.length} location${gyms.length !== 1 ? "s" : ""}`}
           right={

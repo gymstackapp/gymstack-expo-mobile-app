@@ -481,10 +481,7 @@ const OwnerGymDetailScreen = () => {
                   style={styles.listItem}
                   activeOpacity={0.7}
                   onPress={() =>
-                    (navigation as any).navigate("More", {
-                      screen: "OwnerTrainers",
-                      params: { gymId },
-                    })
+                    (navigation as any).navigate("OwnerTrainers", { gymId })
                   }
                 >
                   <Avatar

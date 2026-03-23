@@ -197,13 +197,13 @@ import { useNavigation } from "@react-navigation/native";
 import { Image } from "expo-image";
 import React, { useState } from "react";
 import {
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 export function LoginScreen() {
   const navigation = useNavigation();
@@ -304,8 +304,8 @@ export function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
-  scroll: { flexGrow: 1, padding: Spacing.xl, justifyContent: "center" },
-  logo: { alignItems: "center", marginBottom: Spacing.xxxl },
+  scroll: { flexGrow: 1, padding: Spacing.xl },
+  logo: { alignItems: "center", marginBottom: Spacing.xxxl, marginTop: 100 },
   logoIcon: {
     width: 64,
     height: 64,

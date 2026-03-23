@@ -63,7 +63,7 @@ function AppContent() {
         translucent={false}
       />
       <RootNavigator />
-      <Toast />
+      <Toast position="bottom" bottomOffset={40} />
     </>
   );
 }

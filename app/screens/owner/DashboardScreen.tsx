@@ -510,7 +510,7 @@ import type {
   DashboardRecentMember,
   DashboardResponse,
 } from "@/types/api";
-import { useNavigation } from "@react-navigation/native";
+import { DrawerActions, useNavigation } from "@react-navigation/native";
 import { useQuery } from "@tanstack/react-query";
 import React, { useState } from "react";
 import {
@@ -661,7 +661,14 @@ export default function OwnerDashboardScreen() {
       >
         {/* ── Header ─────────────────────────────────────────── */}
         <View style={styles.header}>
-          <View>
+          <TouchableOpacity
+            onPress={() => navigation.dispatch(DrawerActions.openDrawer())}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            style={styles.menuBtn}
+          >
+            <Icon name="menu" size={24} color={Colors.textPrimary} />
+          </TouchableOpacity>
+          <View style={{ flex: 1 }}>
             <Text style={styles.greeting}>Good {getGreeting()} 👋</Text>
             <Text style={styles.name}>{firstName}</Text>
           </View>
@@ -948,6 +955,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     marginBottom: Spacing.xl,
+    gap: Spacing.md,
+  },
+  menuBtn: {
+    width: 38,
+    height: 38,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
   },
   greeting: { color: Colors.textMuted, fontSize: Typography.sm },
   name: {

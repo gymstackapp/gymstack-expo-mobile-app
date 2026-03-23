@@ -105,6 +105,7 @@ const OwnerMembersScreen = () => {
     <SafeAreaView style={styles.safe}>
       <View style={styles.topBar}>
         <Header
+          menu
           title="Members"
           subtitle={`${total} total`}
           right={

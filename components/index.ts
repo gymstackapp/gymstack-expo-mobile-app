@@ -9,9 +9,12 @@ export { EmptyState } from "./EmptyState";
 export { Header } from "./Header";
 export { Input } from "./Input";
 export { ListRow } from "./Listrow";
-// export { PlanGate } from "./Plangate";
+export { PlanGate } from "./Plangate";
 // export { Screen } from "./Screen";
-// export { SectionHeader } from "./Sectionheader";
+export { SectionHeader } from "./Sectionheader";
 export { Skeleton, SkeletonGroup } from "./Skeleton";
 export { StatCard } from "./StatCard";
+
+export { Dropdown } from "./Dropdown";
+export { ImageUpload, MultiImageUpload } from "./ImageUpload";
 

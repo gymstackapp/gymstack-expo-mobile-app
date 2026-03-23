@@ -1,82 +1,21 @@
-// import React from 'react';
-// import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-// import { Ionicons } from '@expo/vector-icons';
-// import OwnerDashboard from '../screens/owner/OwnerDashboard';
+// app/navigation/OwnerNavigator.tsx
+// Architecture:
+//   DrawerNavigator (slides from left, custom sidebar)
+//   └── MainTabs  ← BottomTabNavigator
+//       ├── Dashboard → DashboardStack
+//       ├── Gyms      → GymsStack
+//       ├── Members   → MembersStack
+//       └── Profile   → ProfileScreen
+//   └── Drawer-level stacks (Trainers, Attendance, Payments, …)
 
-// export type OwnerTabParamList = {
-//   Dashboard: undefined;
-//   Members: undefined;
-//   Schedule: undefined;
-//   Settings: undefined;
-// };
-
-// const Tab = createBottomTabNavigator<OwnerTabParamList>();
-
-// const COLORS = {
-//   primary: '#FF3B30',
-//   background: '#0A0A0A',
-//   surface: '#1A1A1A',
-//   text: '#FFFFFF',
-//   inactive: '#555555',
-// };
-
-// function PlaceholderScreen({ title }: { title: string }) {
-//   const { View, Text } = require('react-native');
-//   return (
-//     <View style={{ flex: 1, backgroundColor: COLORS.background, justifyContent: 'center', alignItems: 'center' }}>
-//       <Text style={{ color: COLORS.text, fontSize: 20, fontWeight: '600' }}>{title}</Text>
-//       <Text style={{ color: COLORS.inactive, marginTop: 8 }}>Coming soon</Text>
-//     </View>
-//   );
-// }
-
-// export default function OwnerNavigator() {
-//   return (
-//     <Tab.Navigator
-//       screenOptions={({ route }) => ({
-//         headerShown: false,
-//         tabBarStyle: {
-//           backgroundColor: COLORS.surface,
-//           borderTopColor: '#2C2C2E',
-//           borderTopWidth: 1,
-//           height: 60,
-//           paddingBottom: 8,
-//         },
-//         tabBarActiveTintColor: COLORS.primary,
-//         tabBarInactiveTintColor: COLORS.inactive,
-//         tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
-//         tabBarIcon: ({ focused, color, size }) => {
-//           const icons: Record<string, { active: string; inactive: string }> = {
-//             Dashboard: { active: 'grid', inactive: 'grid-outline' },
-//             Members: { active: 'people', inactive: 'people-outline' },
-//             Schedule: { active: 'calendar', inactive: 'calendar-outline' },
-//             Settings: { active: 'settings', inactive: 'settings-outline' },
-//           };
-//           const icon = icons[route.name];
-//           return (
-//             <Ionicons
-//               name={(focused ? icon.active : icon.inactive) as any}
-//               size={size}
-//               color={color}
-//             />
-//           );
-//         },
-//       })}
-//     >
-//       <Tab.Screen name="Dashboard" component={OwnerDashboard} />
-//       <Tab.Screen name="Members" children={() => <PlaceholderScreen title="Members" />} />
-//       <Tab.Screen name="Schedule" children={() => <PlaceholderScreen title="Schedule" />} />
-//       <Tab.Screen name="Settings" children={() => <PlaceholderScreen title="Settings" />} />
-//     </Tab.Navigator>
-//   );
-// }
-
-// mobile/src/navigation/OwnerNavigator.tsx
 import { Colors, Typography } from "@/theme";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
+import { createDrawerNavigator } from "@react-navigation/drawer";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import React from "react";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
+
+// ── Screens ──────────────────────────────────────────────────────────────────
 
 // Dashboard
 import DashboardScreen from "../screens/owner/DashboardScreen";
@@ -92,32 +31,37 @@ import OwnerMembersScreen from "../screens/owner/MembersScreen";
 import AddTrainerScreen from "../screens/owner/AddTrainerScreen";
 import TrainersScreen from "../screens/owner/TrainersScreen";
 // Attendance
-import AttendanceScreen from "../screens/owner/AttendanceScreen";
+import OwnerAttendanceScreen from "../screens/owner/AttendanceScreen";
 // Payments
-import PaymentsScreen from "../screens/owner/PaymentsScreen";
+import OwnerPaymentsScreen from "../screens/owner/PaymentsScreen";
 // Plans
-import PlansScreen from "../screens/owner/PlansScreen";
+import OwnerPlansScreen from "../screens/owner/PlansScreen";
 // Supplements
 import SupplementsScreen from "../screens/owner/SupplementsScreen";
 // Workouts & Diets
-import DietsScreen from "../screens/owner/DietsScreen";
-import WorkoutsScreen from "../screens/owner/WorkoutsScreen";
+import OwnerDietsScreen from "../screens/owner/DietsScreen";
+import OwnerWorkoutsScreen from "../screens/owner/WorkoutsScreen";
 // Reports
 import ReportsScreen from "../screens/owner/ReportsScreen";
 // Notifications
-import NotificationsScreen from "../screens/owner/NotificationsScreen";
+import OwnerNotificationsScreen from "../screens/owner/NotificationsScreen";
 // Referral
 import ReferralScreen from "../screens/owner/ReferralScreen";
 // Billing
 import BillingScreen from "../screens/owner/BillingScreen";
-// Settings / Profile
-import MoreScreen from "../screens/owner/MoreScreen";
+// Profile
 import { ProfileScreen } from "../screens/shared/ProfileScreen";
 
+import AddDietPlanScreen from "../screens/owner/AddDietPlanScreen";
+import { OwnerDrawerContent } from "./OwnerDrawerContent";
+
+// ── Navigators ────────────────────────────────────────────────────────────────
+
+const Drawer = createDrawerNavigator();
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
 
-// ── Tab screens (primary nav) ────────────────────────────────────────────────
+// ── Tab stacks ────────────────────────────────────────────────────────────────
 
 function DashboardStack() {
   return (
@@ -138,7 +82,7 @@ function GymsStack() {
       <Stack.Screen name="OwnerGyms" component={OwnerGymsScreen} />
       <Stack.Screen name="OwnerGymDetail" component={OwnerGymDetailScreen} />
       <Stack.Screen name="OwnerAddGym" component={AddGymScreen} />
-      <Stack.Screen name="OwnerPlans" component={PlansScreen} />
+      <Stack.Screen name="OwnerPlans" component={OwnerPlansScreen} />
     </Stack.Navigator>
   );
 }
@@ -156,29 +100,117 @@ function MembersStack() {
   );
 }
 
-function MoreStack() {
+function ProfileStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="OwnerMore" component={MoreScreen} />
-      <Stack.Screen name="OwnerTrainers" component={TrainersScreen} />
-      <Stack.Screen name="OwnerAddTrainer" component={AddTrainerScreen} />
-      <Stack.Screen name="OwnerAttendance" component={AttendanceScreen} />
-      <Stack.Screen name="OwnerPayments" component={PaymentsScreen} />
-      <Stack.Screen name="OwnerSupplements" component={SupplementsScreen} />
-      <Stack.Screen name="OwnerWorkouts" component={WorkoutsScreen} />
-      <Stack.Screen name="OwnerDiets" component={DietsScreen} />
-      <Stack.Screen name="OwnerReports" component={ReportsScreen} />
-      <Stack.Screen name="OwnerNotifications" component={NotificationsScreen} />
-      <Stack.Screen name="OwnerReferral" component={ReferralScreen} />
-      <Stack.Screen name="OwnerBilling" component={BillingScreen} />
-      <Stack.Screen name="Profile" component={ProfileScreen} />
+      <Stack.Screen name="OwnerProfile" component={ProfileScreen} />
     </Stack.Navigator>
   );
 }
 
-// ── Bottom tabs ───────────────────────────────────────────────────────────────
+// ── Drawer-level stacks (accessed from sidebar) ───────────────────────────────
 
-export function OwnerNavigator() {
+function TrainersStack() {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="OwnerTrainersList" component={TrainersScreen} />
+      <Stack.Screen name="OwnerAddTrainer" component={AddTrainerScreen} />
+    </Stack.Navigator>
+  );
+}
+
+function AttendanceStack() {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen
+        name="OwnerAttendanceScreen"
+        component={OwnerAttendanceScreen}
+      />
+    </Stack.Navigator>
+  );
+}
+
+function PaymentsStack() {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen
+        name="OwnerPaymentsScreen"
+        component={OwnerPaymentsScreen}
+      />
+    </Stack.Navigator>
+  );
+}
+
+function SupplementsStack() {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen
+        name="OwnerSupplementsScreen"
+        component={SupplementsScreen}
+      />
+    </Stack.Navigator>
+  );
+}
+
+function WorkoutsStack() {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen
+        name="OwnerWorkoutsScreen"
+        component={OwnerWorkoutsScreen}
+      />
+      <Stack.Screen name="OwnerAddWorkoutPlan" component={AddDietPlanScreen} />
+    </Stack.Navigator>
+  );
+}
+
+function DietsStack() {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="OwnerDietsScreen" component={OwnerDietsScreen} />
+      <Stack.Screen name="OwnerAddDietPlan" component={AddDietPlanScreen} />
+    </Stack.Navigator>
+  );
+}
+
+function ReportsStack() {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="OwnerReportsScreen" component={ReportsScreen} />
+    </Stack.Navigator>
+  );
+}
+
+function NotificationsStack() {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen
+        name="OwnerNotificationsScreen"
+        component={OwnerNotificationsScreen}
+      />
+    </Stack.Navigator>
+  );
+}
+
+function ReferralStack() {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="OwnerReferralScreen" component={ReferralScreen} />
+    </Stack.Navigator>
+  );
+}
+
+function BillingStack() {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="OwnerBillingScreen" component={BillingScreen} />
+    </Stack.Navigator>
+  );
+}
+
+// ── Bottom tab navigator ───────────────────────────────────────────────────────
+
+function MainTabs() {
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -199,7 +231,7 @@ export function OwnerNavigator() {
             Dashboard: "view-dashboard-outline",
             Gyms: "dumbbell",
             Members: "account-group-outline",
-            More: "dots-horizontal",
+            Profile: "account-circle-outline",
           };
           return (
             <Icon
@@ -214,7 +246,39 @@ export function OwnerNavigator() {
       <Tab.Screen name="Dashboard" component={DashboardStack} />
       <Tab.Screen name="Gyms" component={GymsStack} />
       <Tab.Screen name="Members" component={MembersStack} />
-      <Tab.Screen name="More" component={MoreStack} />
+      <Tab.Screen name="Profile" component={ProfileStack} />
     </Tab.Navigator>
+  );
+}
+
+// ── Root drawer navigator ──────────────────────────────────────────────────────
+
+export function OwnerNavigator() {
+  return (
+    <Drawer.Navigator
+      drawerContent={(props) => <OwnerDrawerContent {...props} />}
+      screenOptions={{
+        headerShown: false,
+        drawerType: "front",
+        drawerStyle: { width: 280, backgroundColor: Colors.surface },
+        overlayColor: "rgba(0,0,0,0.6)",
+        swipeEdgeWidth: 40,
+      }}
+    >
+      {/* Main tab app — listed first so it's the default screen */}
+      <Drawer.Screen name="MainTabs" component={MainTabs} />
+
+      {/* Drawer-accessible stacks */}
+      <Drawer.Screen name="OwnerTrainers" component={TrainersStack} />
+      <Drawer.Screen name="OwnerAttendance" component={AttendanceStack} />
+      <Drawer.Screen name="OwnerPayments" component={PaymentsStack} />
+      <Drawer.Screen name="OwnerSupplements" component={SupplementsStack} />
+      <Drawer.Screen name="OwnerWorkouts" component={WorkoutsStack} />
+      <Drawer.Screen name="OwnerDiets" component={DietsStack} />
+      <Drawer.Screen name="OwnerReports" component={ReportsStack} />
+      <Drawer.Screen name="OwnerNotifications" component={NotificationsStack} />
+      <Drawer.Screen name="OwnerReferral" component={ReferralStack} />
+      <Drawer.Screen name="OwnerBilling" component={BillingStack} />
+    </Drawer.Navigator>
   );
 }

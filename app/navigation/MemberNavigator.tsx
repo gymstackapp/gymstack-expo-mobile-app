@@ -1,99 +1,8 @@
-// import { Ionicons } from "@expo/vector-icons";
-// import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
-// import React from "react";
-// import MemberDashboard from "../screens/member/MemberDashboard";
+// app/navigation/MemberNavigator.tsx
+// DrawerNavigator → MemberTabs (Home, Discover, Profile) + drawer screens
 
-// export type MemberTabParamList = {
-//   Dashboard: undefined;
-//   Workouts: undefined;
-//   Progress: undefined;
-//   Settings: undefined;
-// };
-
-// const Tab = createBottomTabNavigator<MemberTabParamList>();
-
-// const COLORS = {
-//   primary: "#FF3B30",
-//   background: "#0A0A0A",
-//   surface: "#1A1A1A",
-//   text: "#FFFFFF",
-//   inactive: "#555555",
-// };
-
-// function PlaceholderScreen({ title }: { title: string }) {
-//   const { View, Text } = require("react-native");
-//   return (
-//     <View
-//       style={{
-//         flex: 1,
-//         backgroundColor: COLORS.background,
-//         justifyContent: "center",
-//         alignItems: "center",
-//       }}
-//     >
-//       <Text style={{ color: COLORS.text, fontSize: 20, fontWeight: "600" }}>
-//         {title}
-//       </Text>
-//       <Text style={{ color: COLORS.inactive, marginTop: 8 }}>Coming soon</Text>
-//     </View>
-//   );
-// }
-
-// export default function MemberNavigator() {
-//   return (
-//     <Tab.Navigator
-//       screenOptions={({ route }) => ({
-//         headerShown: false,
-//         tabBarStyle: {
-//           backgroundColor: COLORS.surface,
-//           borderTopColor: "#2C2C2E",
-//           borderTopWidth: 1,
-//           height: 60,
-//           paddingBottom: 8,
-//         },
-//         tabBarActiveTintColor: COLORS.primary,
-//         tabBarInactiveTintColor: COLORS.inactive,
-//         tabBarLabelStyle: { fontSize: 11, fontWeight: "600" },
-//         tabBarIcon: ({ focused, color, size }) => {
-//           const icons: Record<string, { active: string; inactive: string }> = {
-//             Dashboard: { active: "home", inactive: "home-outline" },
-//             Workouts: { active: "barbell", inactive: "barbell-outline" },
-//             Progress: {
-//               active: "trending-up",
-//               inactive: "trending-up-outline",
-//             },
-//             Settings: { active: "settings", inactive: "settings-outline" },
-//           };
-//           const icon = icons[route.name];
-//           return (
-//             <Ionicons
-//               name={(focused ? icon.active : icon.inactive) as any}
-//               size={size}
-//               color={color}
-//             />
-//           );
-//         },
-//       })}
-//     >
-//       <Tab.Screen name="Dashboard" component={MemberDashboard} />
-//       <Tab.Screen
-//         name="Workouts"
-//         children={() => <PlaceholderScreen title="Workouts" />}
-//       />
-//       <Tab.Screen
-//         name="Progress"
-//         children={() => <PlaceholderScreen title="Progress" />}
-//       />
-//       <Tab.Screen
-//         name="Settings"
-//         children={() => <PlaceholderScreen title="Settings" />}
-//       />
-//     </Tab.Navigator>
-//   );
-// }
-
-// mobile/src/navigation/MemberNavigator.tsx
 import { Colors, Typography } from "@/theme";
+import { createDrawerNavigator } from "@react-navigation/drawer";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import React from "react";
@@ -104,13 +13,14 @@ import MemberDashboard from "../screens/member/DashboardScreen";
 import DietScreen from "../screens/member/DietScreen";
 import DiscoverScreen from "../screens/member/DiscoverScreen";
 import GymDetailScreen from "../screens/member/GymDetailScreen";
-import MoreScreen from "../screens/member/MoreScreen";
 import NotificationsScreen from "../screens/member/NotificationsScreen";
 import PaymentsScreen from "../screens/member/PaymentsScreen";
 import ReferralScreen from "../screens/member/ReferralScreen";
 import WorkoutsScreen from "../screens/member/WorkoutsScreen";
 import { ProfileScreen } from "../screens/shared/ProfileScreen";
+import { MemberDrawerContent } from "./MemberDrawerContent";
 
+const Drawer = createDrawerNavigator();
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
 
@@ -133,23 +43,47 @@ function DiscoverStack() {
   );
 }
 
-function MemberMoreStack() {
+function ProfileStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="MemberMore" component={MoreScreen} />
-      <Stack.Screen name="MemberAttendance" component={AttendanceScreen} />
-      <Stack.Screen name="MemberPayments" component={PaymentsScreen} />
-      <Stack.Screen
-        name="MemberNotifications"
-        component={NotificationsScreen}
-      />
-      <Stack.Screen name="MemberReferral" component={ReferralScreen} />
-      <Stack.Screen name="Profile" component={ProfileScreen} />
+      <Stack.Screen name="MemberProfile" component={ProfileScreen} />
     </Stack.Navigator>
   );
 }
 
-export function MemberNavigator() {
+function AttendanceStack() {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="MemberAttendanceScreen" component={AttendanceScreen} />
+    </Stack.Navigator>
+  );
+}
+
+function PaymentsStack() {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="MemberPaymentsScreen" component={PaymentsScreen} />
+    </Stack.Navigator>
+  );
+}
+
+function NotificationsStack() {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="MemberNotificationsScreen" component={NotificationsScreen} />
+    </Stack.Navigator>
+  );
+}
+
+function ReferralStack() {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="MemberReferralScreen" component={ReferralScreen} />
+    </Stack.Navigator>
+  );
+}
+
+function MemberTabs() {
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -169,21 +103,36 @@ export function MemberNavigator() {
           const icons: Record<string, string> = {
             Home: "home-outline",
             Discover: "compass-outline",
-            More: "dots-horizontal",
+            Profile: "account-circle-outline",
           };
-          return (
-            <Icon
-              name={icons[route.name] ?? "circle"}
-              size={size}
-              color={color}
-            />
-          );
+          return <Icon name={icons[route.name] ?? "circle"} size={size} color={color} />;
         },
       })}
     >
       <Tab.Screen name="Home" component={HomeStack} />
       <Tab.Screen name="Discover" component={DiscoverStack} />
-      <Tab.Screen name="More" component={MemberMoreStack} />
+      <Tab.Screen name="Profile" component={ProfileStack} />
     </Tab.Navigator>
+  );
+}
+
+export function MemberNavigator() {
+  return (
+    <Drawer.Navigator
+      drawerContent={(props) => <MemberDrawerContent {...props} />}
+      screenOptions={{
+        headerShown: false,
+        drawerType: "front",
+        drawerStyle: { width: 280, backgroundColor: Colors.surface },
+        overlayColor: "rgba(0,0,0,0.6)",
+        swipeEdgeWidth: 40,
+      }}
+    >
+      <Drawer.Screen name="MemberTabs" component={MemberTabs} />
+      <Drawer.Screen name="MemberAttendance" component={AttendanceStack} />
+      <Drawer.Screen name="MemberPayments" component={PaymentsStack} />
+      <Drawer.Screen name="MemberNotifications" component={NotificationsStack} />
+      <Drawer.Screen name="MemberReferral" component={ReferralStack} />
+    </Drawer.Navigator>
   );
 }

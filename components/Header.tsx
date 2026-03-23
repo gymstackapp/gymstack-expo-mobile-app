@@ -1,7 +1,7 @@
 // mobile/src/components/common/Header.tsx
 // Reusable page header with optional back button and right action slot.
 import { Colors, Spacing, Typography } from "@/theme";
-import { useNavigation } from "@react-navigation/native";
+import { DrawerActions, useNavigation } from "@react-navigation/native";
 import React from "react";
 import {
     StyleSheet,
@@ -16,6 +16,7 @@ interface HeaderProps {
   title: string;
   subtitle?: string;
   back?: boolean; // show back arrow
+  menu?: boolean; // show hamburger icon that opens the drawer
   onBack?: () => void; // override default navigation.goBack()
   right?: React.ReactNode; // right-side action slot (button, icon, etc.)
   style?: ViewStyle;
@@ -25,6 +26,7 @@ export function Header({
   title,
   subtitle,
   back,
+  menu,
   onBack,
   right,
   style,
@@ -39,10 +41,22 @@ export function Header({
     if (navigation.canGoBack()) navigation.goBack();
   };
 
+  const handleMenu = () => {
+    navigation.dispatch(DrawerActions.openDrawer());
+  };
+
   return (
     <View style={[styles.row, style]}>
-      {/* Back button */}
-      {back ? (
+      {/* Hamburger / back button */}
+      {menu ? (
+        <TouchableOpacity
+          onPress={handleMenu}
+          style={styles.backBtn}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Icon name="menu" size={22} color={Colors.textPrimary} />
+        </TouchableOpacity>
+      ) : back ? (
         <TouchableOpacity
           onPress={handleBack}
           style={styles.backBtn}
