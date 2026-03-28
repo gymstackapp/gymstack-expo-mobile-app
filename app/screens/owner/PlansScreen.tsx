@@ -1,5 +1,6 @@
 // mobile/src/screens/owner/PlansScreen.tsx
 import { gymsApi, membershipPlansApi } from "@/api/endpoints";
+import { showAlert } from "@/components/AppAlert";
 import {
   Button,
   Card,
@@ -14,7 +15,6 @@ import { useRoute } from "@react-navigation/native";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import React, { useState } from "react";
 import {
-  Alert,
   FlatList,
   Modal,
   RefreshControl,
@@ -273,7 +273,7 @@ export default function OwnerPlansScreen() {
                 </View>
                 <TouchableOpacity
                   onPress={() =>
-                    Alert.alert("Delete Plan", `Delete "${p.name}"?`, [
+                    showAlert("Delete Plan", `Delete "${p.name}"?`, [
                       { text: "Cancel", style: "cancel" },
                       {
                         text: "Delete",

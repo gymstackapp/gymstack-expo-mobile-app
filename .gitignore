@@ -8,7 +8,8 @@ node_modules/
 dist/
 web-build/
 expo-env.d.ts
-
+gymstackapp-37d32-firebase-adminsdk-fbsvc-0caf2ec68e.json
+google-services.json
 # Native
 .kotlin/
 *.orig.*

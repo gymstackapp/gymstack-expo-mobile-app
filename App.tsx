@@ -19,15 +19,17 @@
 //   );
 // }
 
+import { usePushNotifications } from "@/utils/pushNotifications";
+import { NavigationContainerRef } from "@react-navigation/native";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import React from "react";
+import React, { useRef } from "react";
 import { LogBox, StatusBar } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
+import { AppAlert } from "./components/AppAlert";
 import { RootNavigator } from "./app/navigation/RootNavigator";
 import { Colors } from "./theme";
-// import { usePushNotifications, registerBackgroundHandler } from "@/utils/pushNotifications"
 
 // Suppress known harmless warnings
 LogBox.ignoreLogs([
@@ -54,6 +56,8 @@ const queryClient = new QueryClient({
 
 function AppContent() {
   // usePushNofitications();
+  const navigationRef = useRef<NavigationContainerRef<any>>(null);
+  usePushNotifications(navigationRef);
 
   return (
     <>
@@ -64,6 +68,7 @@ function AppContent() {
       />
       <RootNavigator />
       <Toast position="bottom" bottomOffset={40} />
+      <AppAlert />
     </>
   );
 }

@@ -2,6 +2,7 @@
 // Custom drawer sidebar — mirrors the web admin sidebar design.
 
 import { Avatar } from "@/components";
+import { showAlert } from "@/components/AppAlert";
 import { useSubscription } from "@/hooks/useSubsciption";
 import { useAuthStore } from "@/store/authStore";
 import { Colors, Radius, Spacing, Typography } from "@/theme";
@@ -9,7 +10,6 @@ import { DrawerContentComponentProps } from "@react-navigation/drawer";
 import { DrawerActions } from "@react-navigation/native";
 import React from "react";
 import {
-  Alert,
   ScrollView,
   StyleSheet,
   Text,
@@ -58,6 +58,8 @@ const NAV_ITEMS: NavItem[] = [
     screen: "OwnerWorkouts",
   },
   { icon: "food-apple-outline", label: "Diet Plans", screen: "OwnerDiets" },
+  { icon: "locker-outline", label: "Lockers", screen: "OwnerLockers" },
+  { icon: "receipt-outline", label: "Expenses", screen: "OwnerExpenses" },
   { icon: "gift-outline", label: "Refer & Earn", screen: "OwnerReferral" },
   {
     icon: "bell-outline",
@@ -111,7 +113,7 @@ export function OwnerDrawerContent(props: DrawerContentComponentProps) {
   };
 
   const onLogout = () => {
-    Alert.alert("Sign Out", "Are you sure you want to sign out?", [
+    showAlert("Sign Out", "Are you sure you want to sign out?", [
       { text: "Cancel", style: "cancel" },
       { text: "Sign Out", style: "destructive", onPress: logout },
     ]);

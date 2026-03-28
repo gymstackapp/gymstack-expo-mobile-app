@@ -6,6 +6,7 @@
 
 import { dietsApi, gymsApi, membersApi } from "@/api/endpoints";
 import { Button, Card, Header, Input, Skeleton } from "@/components";
+import { showAlert } from "@/components/AppAlert";
 import { Colors, Radius, Spacing, Typography } from "@/theme";
 import type {
     DietPlan,
@@ -17,7 +18,6 @@ import { useNavigation, useRoute } from "@react-navigation/native";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import React, { useEffect, useState } from "react";
 import {
-    Alert,
     ScrollView,
     StyleSheet,
     Text,
@@ -638,10 +638,12 @@ export default function AddDietPlanScreen() {
     queryKey: ["ownerGyms"],
     queryFn: () => gymsApi.list() as Promise<Gym[]>,
     staleTime: 5 * 60_000,
-    onSuccess: (data: Gym[]) => {
-      if (!form.gymId && data.length > 0) set("gymId", data[0].id);
-    },
   });
+
+  useEffect(() => {
+    if (!form.gymId && gyms.length > 0) set("gymId", gyms[0].id);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gyms]);
 
   // Load existing plan for edit
   const { data: allPlans = [] } = useQuery<DietPlan[]>({
@@ -811,7 +813,7 @@ export default function AddDietPlanScreen() {
   };
 
   const handleDiscard = () => {
-    Alert.alert("Discard Changes", "Discard this plan?", [
+    showAlert("Discard Changes", "Discard this plan?", [
       { text: "Keep Editing", style: "cancel" },
       {
         text: "Discard",

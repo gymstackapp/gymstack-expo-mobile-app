@@ -1,110 +1,64 @@
 // mobile/src/screens/owner/AddMemberScreen.tsx
 import { gymsApi, membersApi, membershipPlansApi } from "@/api/endpoints";
-import { Button, Card, Header, Input, PlanGate } from "@/components";
+import { Button, Card, Dropdown, Header, Input, PlanGate } from "@/components";
+import { ImageUpload } from "@/components/ImageUpload";
 import { useSubscription } from "@/hooks/useSubsciption";
-import { Colors, Radius, Spacing, Typography } from "@/theme";
+import { Colors, Spacing, Typography } from "@/theme";
 import { useNavigation } from "@react-navigation/native";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import React, { useEffect, useState } from "react";
-import { ScrollView, Text, TouchableOpacity, View } from "react-native";
+import { ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
-import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 
-function Select({
-  label,
-  value,
-  options,
-  onSelect,
-}: {
-  label: string;
-  value: string;
-  options: { label: string; value: string }[];
-  onSelect: (v: string) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const selected = options.find((o) => o.value === value);
+const GENDER_OPTIONS = [
+  { label: "Male", value: "Male" },
+  { label: "Female", value: "Female" },
+  { label: "Other", value: "Other" },
+];
+
+const BLOOD_GROUP_OPTIONS = [
+  "A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-",
+].map((b) => ({ label: b, value: b }));
+
+const FITNESS_GOAL_OPTIONS = [
+  { label: "Weight Loss", value: "Weight Loss" },
+  { label: "Muscle Gain", value: "Muscle Gain" },
+  { label: "General Fitness", value: "General Fitness" },
+  { label: "Endurance", value: "Endurance" },
+  { label: "Flexibility", value: "Flexibility" },
+  { label: "Rehabilitation", value: "Rehabilitation" },
+];
+
+const WORKOUT_TIME_OPTIONS = [
+  { label: "Early Morning (5am–7am)", value: "Early Morning" },
+  { label: "Morning (7am–10am)", value: "Morning" },
+  { label: "Afternoon (12pm–3pm)", value: "Afternoon" },
+  { label: "Evening (5pm–8pm)", value: "Evening" },
+  { label: "Night (8pm–11pm)", value: "Night" },
+];
+
+function addMonths(dateStr: string, months: number): string {
+  const d = new Date(dateStr);
+  d.setMonth(d.getMonth() + months);
+  return d.toISOString().split("T")[0];
+}
+
+function SectionLabel({ text }: { text: string }) {
   return (
-    <View style={{ marginBottom: Spacing.md }}>
-      <Text
-        style={{
-          color: Colors.textMuted,
-          fontSize: Typography.xs,
-          fontWeight: "500",
-          marginBottom: 6,
-        }}
-      >
-        {label}
-      </Text>
-      <TouchableOpacity
-        onPress={() => setOpen(!open)}
-        style={{
-          flexDirection: "row",
-          alignItems: "center",
-          backgroundColor: Colors.surfaceRaised,
-          borderRadius: Radius.lg,
-          borderWidth: 1,
-          borderColor: Colors.border,
-          paddingHorizontal: Spacing.md,
-          height: 52,
-        }}
-      >
-        <Text
-          style={{
-            flex: 1,
-            color: selected ? Colors.textPrimary : Colors.textMuted,
-            fontSize: Typography.base,
-          }}
-        >
-          {selected?.label ?? `Select ${label}`}
-        </Text>
-        <Icon
-          name={open ? "chevron-up" : "chevron-down"}
-          size={18}
-          color={Colors.textMuted}
-        />
-      </TouchableOpacity>
-      {open && (
-        <View
-          style={{
-            backgroundColor: Colors.surfaceRaised,
-            borderRadius: Radius.lg,
-            borderWidth: 1,
-            borderColor: Colors.border,
-            marginTop: 4,
-            overflow: "hidden",
-          }}
-        >
-          {options.map((o) => (
-            <TouchableOpacity
-              key={o.value}
-              onPress={() => {
-                onSelect(o.value);
-                setOpen(false);
-              }}
-              style={{
-                paddingHorizontal: Spacing.md,
-                paddingVertical: Spacing.md,
-                borderBottomWidth: 1,
-                borderBottomColor: Colors.border,
-                flexDirection: "row",
-                alignItems: "center",
-                justifyContent: "space-between",
-              }}
-            >
-              <Text
-                style={{ color: Colors.textPrimary, fontSize: Typography.sm }}
-              >
-                {o.label}
-              </Text>
-              {value === o.value && (
-                <Icon name="check" size={16} color={Colors.primary} />
-              )}
-            </TouchableOpacity>
-          ))}
-        </View>
-      )}
-    </View>
+    <Text
+      style={{
+        color: Colors.textMuted,
+        fontSize: Typography.xs,
+        fontWeight: "700",
+        letterSpacing: 0.8,
+        textTransform: "uppercase",
+        marginTop: Spacing.md,
+        marginBottom: Spacing.sm,
+      }}
+    >
+      {text}
+    </Text>
   );
 }
 
@@ -113,6 +67,7 @@ export default function OwnerAddMemberScreen() {
   const qc = useQueryClient();
   const { canAddMember } = useSubscription();
 
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [form, setForm] = useState({
     gymId: "",
     fullName: "",
@@ -120,8 +75,17 @@ export default function OwnerAddMemberScreen() {
     mobileNumber: "",
     membershipPlanId: "",
     startDate: new Date().toISOString().split("T")[0],
+    endDate: "",
     city: "",
+    address: "",
     gender: "",
+    dateOfBirth: "",
+    bloodGroup: "",
+    healthConditions: "",
+    fitnessGoal: "",
+    preferredWorkoutTime: "",
+    emergencyContactName: "",
+    emergencyContactPhone: "",
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [plans, setPlans] = useState<any[]>([]);
@@ -132,14 +96,30 @@ export default function OwnerAddMemberScreen() {
     staleTime: 5 * 60_000,
   });
 
+  // Load plans when gym changes
   useEffect(() => {
     if (form.gymId) {
       membershipPlansApi
         .list(form.gymId)
         .then(setPlans)
         .catch(() => setPlans([]));
+    } else {
+      setPlans([]);
     }
   }, [form.gymId]);
+
+  // Auto-calculate end date when plan or start date changes
+  useEffect(() => {
+    if (form.membershipPlanId && form.startDate) {
+      const plan = plans.find((p) => p.id === form.membershipPlanId);
+      if (plan?.durationMonths) {
+        setForm((f) => ({
+          ...f,
+          endDate: addMonths(form.startDate, plan.durationMonths),
+        }));
+      }
+    }
+  }, [form.membershipPlanId, form.startDate, plans]);
 
   const set = (key: string, val: string) => {
     setForm((f) => ({ ...f, [key]: val }));
@@ -147,11 +127,15 @@ export default function OwnerAddMemberScreen() {
   };
 
   const mutation = useMutation({
-    mutationFn: () => membersApi.create(form),
+    mutationFn: () =>
+      membersApi.create({
+        ...form,
+        avatarUrl: avatarUrl ?? undefined,
+      }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["ownerMembers"] });
       qc.invalidateQueries({ queryKey: ["ownerSubscription"] });
-      Toast.show({ type: "success", text1: "Member added! 🎉" });
+      Toast.show({ type: "success", text1: "Member added!" });
       navigation.goBack();
     },
     onError: (err: any) =>
@@ -176,12 +160,10 @@ export default function OwnerAddMemberScreen() {
   }));
   const planOptions = [
     { label: "No plan", value: "" },
-    ...plans.map((p) => ({ label: `${p.name} — ₹${p.price}`, value: p.id })),
-  ];
-  const genderOptions = [
-    { label: "Male", value: "Male" },
-    { label: "Female", value: "Female" },
-    { label: "Other", value: "Other" },
+    ...plans.map((p) => ({
+      label: `${p.name} — ₹${p.price} · ${p.durationMonths}mo`,
+      value: p.id,
+    })),
   ];
 
   return (
@@ -191,31 +173,35 @@ export default function OwnerAddMemberScreen() {
           contentContainerStyle={{
             padding: Spacing.lg,
             paddingBottom: 40,
-            gap: Spacing.md,
           }}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
           <Header title="Add Member" back />
+
+          {/* Avatar */}
+          <View style={{ alignItems: "center", marginVertical: Spacing.lg }}>
+            <ImageUpload
+              value={avatarUrl}
+              onChange={setAvatarUrl}
+              folder="avatars"
+              size={90}
+              shape="circle"
+              placeholder="Add Photo"
+            />
+          </View>
+
           <Card>
-            <Select
+            <SectionLabel text="Basic Info" />
+            <Dropdown
               label="Gym *"
               value={form.gymId}
+              onChange={(v) => set("gymId", v)}
               options={gymOptions}
-              onSelect={(v) => set("gymId", v)}
+              placeholder="Select gym"
+              leftIcon="dumbbell"
+              error={errors.gymId}
             />
-            {errors.gymId ? (
-              <Text
-                style={{
-                  color: Colors.error,
-                  fontSize: Typography.xs,
-                  marginTop: -8,
-                  marginBottom: Spacing.md,
-                }}
-              >
-                {errors.gymId}
-              </Text>
-            ) : null}
             <Input
               label="Full Name *"
               value={form.fullName}
@@ -240,6 +226,23 @@ export default function OwnerAddMemberScreen() {
               keyboardType="phone-pad"
               leftIcon="phone-outline"
             />
+            <Dropdown
+              label="Gender"
+              value={form.gender}
+              onChange={(v) => set("gender", v)}
+              options={GENDER_OPTIONS}
+              placeholder="Select gender"
+              leftIcon="gender-male-female"
+            />
+            <Input
+              label="Date of Birth"
+              value={form.dateOfBirth}
+              onChangeText={(v) => set("dateOfBirth", v)}
+              placeholder="YYYY-MM-DD"
+              leftIcon="cake-variant-outline"
+            />
+
+            <SectionLabel text="Address" />
             <Input
               label="City"
               value={form.city}
@@ -247,34 +250,103 @@ export default function OwnerAddMemberScreen() {
               placeholder="City"
               leftIcon="city-variant-outline"
             />
-            <Select
-              label="Gender"
-              value={form.gender}
-              options={genderOptions}
-              onSelect={(v) => set("gender", v)}
+            <Input
+              label="Address"
+              value={form.address}
+              onChangeText={(v) => set("address", v)}
+              placeholder="Street address"
+              leftIcon="map-marker-outline"
+              multiline
+              numberOfLines={2}
             />
-            <Select
+
+            <SectionLabel text="Membership" />
+            <Dropdown
               label="Membership Plan"
               value={form.membershipPlanId}
+              onChange={(v) => set("membershipPlanId", v)}
               options={planOptions}
-              onSelect={(v) => set("membershipPlanId", v)}
+              placeholder="Select a plan"
+              leftIcon="tag-outline"
             />
             <Input
               label="Start Date *"
               value={form.startDate}
               onChangeText={(v) => set("startDate", v)}
               placeholder="YYYY-MM-DD"
-              leftIcon="calendar-outline"
+              leftIcon="calendar-start"
               error={errors.startDate}
             />
+            <Input
+              label="End Date (auto-calculated)"
+              value={form.endDate}
+              onChangeText={(v) => set("endDate", v)}
+              placeholder="Auto-filled from plan"
+              leftIcon="calendar-end"
+            />
+
+            <SectionLabel text="Health Info" />
+            <Dropdown
+              label="Blood Group"
+              value={form.bloodGroup}
+              onChange={(v) => set("bloodGroup", v)}
+              options={BLOOD_GROUP_OPTIONS}
+              placeholder="Select blood group"
+              leftIcon="water-outline"
+            />
+            <Input
+              label="Health Conditions"
+              value={form.healthConditions}
+              onChangeText={(v) => set("healthConditions", v)}
+              placeholder="e.g. Diabetes, Hypertension (if any)"
+              leftIcon="heart-pulse"
+              multiline
+              numberOfLines={2}
+            />
+            <Dropdown
+              label="Fitness Goal"
+              value={form.fitnessGoal}
+              onChange={(v) => set("fitnessGoal", v)}
+              options={FITNESS_GOAL_OPTIONS}
+              placeholder="Select fitness goal"
+              leftIcon="bullseye-arrow"
+            />
+            <Dropdown
+              label="Preferred Workout Time"
+              value={form.preferredWorkoutTime}
+              onChange={(v) => set("preferredWorkoutTime", v)}
+              options={WORKOUT_TIME_OPTIONS}
+              placeholder="Select preferred time"
+              leftIcon="clock-outline"
+            />
+
+            <SectionLabel text="Emergency Contact" />
+            <Input
+              label="Emergency Contact Name"
+              value={form.emergencyContactName}
+              onChangeText={(v) => set("emergencyContactName", v)}
+              placeholder="Contact person's name"
+              leftIcon="account-alert-outline"
+            />
+            <Input
+              label="Emergency Contact Phone"
+              value={form.emergencyContactPhone}
+              onChangeText={(v) => set("emergencyContactPhone", v)}
+              placeholder="+91 98765 43210"
+              keyboardType="phone-pad"
+              leftIcon="phone-alert-outline"
+            />
           </Card>
-          <Button
-            label="Add Member"
-            onPress={() => {
-              if (validate()) mutation.mutate();
-            }}
-            loading={mutation.isPending}
-          />
+
+          <View style={{ marginTop: Spacing.lg }}>
+            <Button
+              label="Add Member"
+              onPress={() => {
+                if (validate()) mutation.mutate();
+              }}
+              loading={mutation.isPending}
+            />
+          </View>
         </ScrollView>
       </PlanGate>
     </SafeAreaView>

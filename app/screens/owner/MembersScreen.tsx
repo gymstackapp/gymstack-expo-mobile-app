@@ -1,5 +1,5 @@
 import { gymsApi, membersApi } from "@/api/endpoints";
-import { Avatar, Badge, EmptyState, Header, SkeletonGroup } from "@/components";
+import { Avatar, Badge, Dropdown, EmptyState, Header, SkeletonGroup } from "@/components";
 import { useSubscription } from "@/hooks/useSubsciption";
 import { Colors, Radius, Spacing, Typography } from "@/theme";
 import type { Gym, GymMemberListItem, MembersListResponse } from "@/types/api";
@@ -18,7 +18,12 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 
-const STATUS_FILTERS = ["All", "ACTIVE", "EXPIRED", "SUSPENDED"];
+const STATUS_OPTIONS = [
+  { label: "All Statuses", value: "All" },
+  { label: "Active", value: "ACTIVE" },
+  { label: "Expired", value: "EXPIRED" },
+  { label: "Suspended", value: "SUSPENDED" },
+];
 
 function MemberRow({
   member,
@@ -144,27 +149,14 @@ const OwnerMembersScreen = () => {
             </TouchableOpacity>
           ) : null}
         </View>
-        <View style={styles.filterRow}>
-          {STATUS_FILTERS.map((f) => (
-            <TouchableOpacity
-              key={f}
-              onPress={() => setStatus(f)}
-              style={[
-                styles.filterPill,
-                status === f && styles.filterPillActive,
-              ]}
-            >
-              <Text
-                style={[
-                  styles.filterText,
-                  status === f && styles.filterTextActive,
-                ]}
-              >
-                {f === "All" ? "All" : f.charAt(0) + f.slice(1).toLowerCase()}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
+        <Dropdown
+          value={status}
+          onChange={setStatus}
+          options={STATUS_OPTIONS}
+          placeholder="Filter by status"
+          leftIcon="filter-outline"
+          containerStyle={{ marginBottom: 0 }}
+        />
 
         {gyms.length > 1 && (
           <View style={styles.filterRow}>

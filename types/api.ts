@@ -277,6 +277,7 @@ export interface WorkoutPlan {
     fullName: string;
   };
   assignedMember: {
+    id: string;
     profile: { fullName: string; avatarUrl: string | null };
   } | null;
 }
@@ -303,6 +304,7 @@ export interface DietPlan {
     fullName: string;
   };
   assignedMember: {
+    id: string;
     profile: { fullName: string; avatarUrl: string | null };
   } | null;
 }

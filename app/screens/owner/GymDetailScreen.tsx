@@ -5,6 +5,7 @@ import {
   trainersApi,
 } from "@/api/endpoints";
 import { Avatar, Badge, Card, Header, ListRow, Skeleton } from "@/components";
+import { showAlert } from "@/components/AppAlert";
 import { Colors, Radius, Spacing, Typography } from "@/theme";
 import type {
   Gym,
@@ -18,7 +19,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Image,
   RefreshControl,
   ScrollView,
@@ -238,7 +238,7 @@ const OwnerGymDetailScreen = () => {
     });
 
   const confirmDeletePlan = (planId: string, planName: string) => {
-    Alert.alert("Delete Plan", `Delete "${planName}"?`, [
+    showAlert("Delete Plan", `Delete "${planName}"?`, [
       { text: "Cancel", style: "cancel" },
       {
         text: "Delete",

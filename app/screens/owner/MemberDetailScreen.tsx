@@ -1,6 +1,7 @@
 // mobile/src/screens/owner/MemberDetailScreen.tsx
 import { membersApi } from "@/api/endpoints";
 import { Avatar, Badge, Card, Header, ListRow, Skeleton } from "@/components";
+import { showAlert } from "@/components/AppAlert";
 import { Colors, Radius, Spacing, Typography } from "@/theme";
 import type {
   AttendanceRecord,
@@ -11,7 +12,6 @@ import { useNavigation, useRoute } from "@react-navigation/native";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import React, { useState } from "react";
 import {
-  Alert,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -204,7 +204,7 @@ export default function OwnerMemberDetailScreen() {
             <TouchableOpacity
               style={styles.actionBtn}
               onPress={() =>
-                Alert.alert(
+                showAlert(
                   "Renew Membership",
                   `Renew ${plan.name} for ₹${plan.price}?`,
                   [
@@ -421,6 +421,30 @@ export default function OwnerMemberDetailScreen() {
         {/* Payments tab */}
         {tab === "payments" && (
           <View style={{ gap: Spacing.sm }}>
+            <TouchableOpacity
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 6,
+                backgroundColor: Colors.primary,
+                borderRadius: 10,
+                paddingVertical: 12,
+              }}
+              onPress={() =>
+                (navigation as any).navigate("OwnerAddPayment", {
+                  memberId,
+                  gymId: data.gym?.id,
+                })
+              }
+            >
+              <Icon name="plus" size={18} color="#fff" />
+              <Text
+                style={{ color: "#fff", fontWeight: "700", fontSize: 14 }}
+              >
+                Add Payment
+              </Text>
+            </TouchableOpacity>
             {(data.payments?.length ?? 0) === 0 ? (
               <View style={styles.emptyTab}>
                 <Icon

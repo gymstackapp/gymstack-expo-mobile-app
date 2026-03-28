@@ -8,7 +8,9 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Role, useAuth } from "../../context/AuthContext";
+import { useAuthStore } from "@/store/authStore";
+
+type Role = "owner" | "member" | "trainer";
 
 const { width } = Dimensions.get("window");
 
@@ -51,14 +53,11 @@ const ROLES: RoleOption[] = [
 ];
 
 export default function SelectRoleScreen() {
-  const { selectRole, user } = useAuth();
+  const { profile } = useAuthStore();
   const [selected, setSelected] = useState<Role | null>(null);
 
   const handleContinue = () => {
-    if (selected) {
-      selectRole(selected);
-      // RootNavigator will automatically switch to the role's navigator
-    }
+    // Role is assigned server-side on login; this screen is a fallback only.
   };
 
   return (
@@ -70,7 +69,7 @@ export default function SelectRoleScreen() {
             <Ionicons name="barbell" size={28} color={C.primary} />
           </View>
           <Text style={styles.greeting}>
-            Hey, {user?.name?.split(" ")[0] ?? "there"}!
+            Hey, {profile?.fullName?.split(" ")[0] ?? "there"}!
           </Text>
           <Text style={styles.title}>How will you use{"\n"}GymStack?</Text>
           <Text style={styles.subtitle}>

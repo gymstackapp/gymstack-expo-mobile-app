@@ -529,6 +529,7 @@ type ExtendedDashboard = DashboardResponse & {
   rangeExpenses: number;
   todayExpenses: number;
   netRevenue: number;
+  dailyExpenses: { date: string; amount: number }[];
   recentExpenses: {
     id: string;
     title: string;
@@ -553,23 +554,55 @@ function fmt(n: number) {
   return `₹${n.toLocaleString("en-IN")}`;
 }
 
-function SparkLine({ data }: { data: { date: string; revenue: number }[] }) {
-  if (!data?.length) return null;
-  const max = Math.max(...data.map((d) => d.revenue), 1);
-  const W = 200;
-  const H = 40;
-  const pts = data.map((d, i) => ({
-    x: (i / (data.length - 1)) * W,
-    y: H - (d.revenue / max) * H,
-  }));
-  const path = pts
-    .map((p, i) => `${i === 0 ? "M" : "L"}${p.x},${p.y}`)
-    .join(" ");
-  const fill = `${path} L${W},${H} L0,${H} Z`;
+function SparkLine({
+  revenue,
+  expenses,
+}: {
+  revenue: { date: string; revenue: number }[];
+  expenses?: { date: string; amount: number }[];
+}) {
+  if (!revenue?.length) return null;
+  const expMap: Record<string, number> = {};
+  for (const e of expenses ?? []) expMap[e.date] = e.amount;
+
+  const allValues = [
+    ...revenue.map((d) => d.revenue),
+    ...revenue.map((d) => expMap[d.date] ?? 0),
+    1,
+  ];
+  const max = Math.max(...allValues);
+  const H = 44;
 
   return (
-    <View style={{ height: H, overflow: "hidden" }}>
-      {/* Simple SVG-like representation using View bars */}
+    <View>
+      <View style={{ flexDirection: "row", gap: 6, marginBottom: 6 }}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+          <View
+            style={{
+              width: 10,
+              height: 10,
+              borderRadius: 2,
+              backgroundColor: Colors.primary,
+            }}
+          />
+          <Text style={{ color: Colors.textMuted, fontSize: 10 }}>Revenue</Text>
+        </View>
+        {(expenses?.length ?? 0) > 0 && (
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+            <View
+              style={{
+                width: 10,
+                height: 10,
+                borderRadius: 2,
+                backgroundColor: Colors.error,
+              }}
+            />
+            <Text style={{ color: Colors.textMuted, fontSize: 10 }}>
+              Expenses
+            </Text>
+          </View>
+        )}
+      </View>
       <View
         style={{
           flexDirection: "row",
@@ -578,19 +611,40 @@ function SparkLine({ data }: { data: { date: string; revenue: number }[] }) {
           gap: 3,
         }}
       >
-        {data.map((d, i) => {
-          const barH = max > 0 ? (d.revenue / max) * H : 2;
+        {revenue.map((d, i) => {
+          const revH = max > 0 ? (d.revenue / max) * H : 2;
+          const expH = max > 0 ? ((expMap[d.date] ?? 0) / max) * H : 0;
           return (
             <View
               key={i}
               style={{
                 flex: 1,
-                height: Math.max(barH, 2),
-                backgroundColor: Colors.primary,
-                borderRadius: 2,
-                opacity: 0.7,
+                flexDirection: "row",
+                alignItems: "flex-end",
+                gap: 1,
               }}
-            />
+            >
+              <View
+                style={{
+                  flex: 1,
+                  height: Math.max(revH, 2),
+                  backgroundColor: Colors.primary,
+                  borderRadius: 2,
+                  opacity: 0.8,
+                }}
+              />
+              {expH > 0 && (
+                <View
+                  style={{
+                    flex: 1,
+                    height: Math.max(expH, 2),
+                    backgroundColor: Colors.error,
+                    borderRadius: 2,
+                    opacity: 0.7,
+                  }}
+                />
+              )}
+            </View>
           );
         })}
       </View>
@@ -771,8 +825,24 @@ export default function OwnerDashboardScreen() {
                   {fmt(data?.rangeSupplementRevenue ?? 0)}
                 </Text>
               </View>
+              {(data?.rangeExpenses ?? 0) > 0 && (
+                <View>
+                  <Text style={styles.revenueSplitLabel}>Expenses</Text>
+                  <Text
+                    style={[
+                      styles.revenueSplitValue,
+                      { color: Colors.error },
+                    ]}
+                  >
+                    −{fmt(data?.rangeExpenses ?? 0)}
+                  </Text>
+                </View>
+              )}
             </View>
-            <SparkLine data={data?.dailyRevenue ?? []} />
+            <SparkLine
+              revenue={data?.dailyRevenue ?? []}
+              expenses={data?.dailyExpenses ?? []}
+            />
           </Card>
         )}
 
@@ -873,7 +943,14 @@ export default function OwnerDashboardScreen() {
         {/* ── Recent check-ins ───────────────────────────────── */}
         {(data?.todayCheckins?.length ?? 0) > 0 && (
           <View style={{ marginTop: Spacing.lg }}>
-            <Text style={styles.sectionTitle}>Today's Check-ins</Text>
+            <View style={styles.rowBetween}>
+              <Text style={styles.sectionTitle}>Today's Check-ins</Text>
+              <TouchableOpacity
+                onPress={() => (navigation as any).navigate("Attendance")}
+              >
+                <Text style={styles.seeAll}>View all</Text>
+              </TouchableOpacity>
+            </View>
             {data!.todayCheckins.slice(0, 5).map((c: DashboardCheckin) => (
               <View key={c.id} style={styles.listRow}>
                 <Avatar

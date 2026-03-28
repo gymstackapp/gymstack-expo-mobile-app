@@ -1,13 +1,13 @@
 // mobile/src/screens/shared/ProfileScreen.tsx
 import { profileApi } from "@/api/endpoints";
 import { Button, Card, Dropdown, Header, ImageUpload, Input } from "@/components";
+import { showAlert } from "@/components/AppAlert";
 import { useAuthStore } from "@/store/authStore";
 import { Colors, Radius, Spacing, Typography } from "@/theme";
 import { useMutation } from "@tanstack/react-query";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   ScrollView,
   StyleSheet,
   Text,
@@ -95,7 +95,7 @@ export function ProfileScreen() {
   };
 
   const onChangePasswordPress = () => {
-    Alert.alert(
+    showAlert(
       "Change Password",
       "You'll need your current password to set a new one. Continue?",
       [
@@ -124,7 +124,7 @@ export function ProfileScreen() {
       });
       return;
     }
-    Alert.alert(
+    showAlert(
       "Confirm Password Change",
       "Are you sure you want to update your password?",
       [
@@ -143,7 +143,7 @@ export function ProfileScreen() {
   };
 
   const onLogout = () => {
-    Alert.alert("Sign Out", "Are you sure you want to sign out?", [
+    showAlert("Sign Out", "Are you sure you want to sign out?", [
       { text: "Cancel", style: "cancel" },
       { text: "Sign Out", style: "destructive", onPress: logout },
     ]);

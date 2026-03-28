@@ -1,5 +1,6 @@
 // mobile/src/screens/owner/NotificationsScreen.tsx
 import { gymsApi, notificationsApi } from "@/api/endpoints";
+import { showAlert } from "@/components/AppAlert";
 import {
   Button,
   Card,
@@ -13,7 +14,6 @@ import { Colors, Radius, Spacing, Typography } from "@/theme";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import React, { useState } from "react";
 import {
-  Alert,
   FlatList,
   Modal,
   RefreshControl,
@@ -259,7 +259,7 @@ export default function OwnerNotificationsScreen() {
                 </View>
                 <TouchableOpacity
                   onPress={() =>
-                    Alert.alert("Delete", "Delete this announcement?", [
+                    showAlert("Delete", "Delete this announcement?", [
                       { text: "Cancel", style: "cancel" },
                       {
                         text: "Delete",

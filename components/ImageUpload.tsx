@@ -4,6 +4,7 @@
 // and shows loading/error states.
 // Uses expo-image-picker via utils/imageUpload.
 
+import { showAlert } from "@/components/AppAlert";
 import { Colors, Radius, Spacing, Typography } from "@/theme";
 import {
     pickAndUploadMultiple,
@@ -13,7 +14,6 @@ import {
 import React, { useState } from "react";
 import {
     ActivityIndicator,
-    Alert,
     Image,
     StyleSheet,
     Text,
@@ -51,7 +51,7 @@ export function ImageUpload({
   const radius = shape === "circle" ? size / 2 : Radius.xl;
 
   const handlePick = () => {
-    Alert.alert("Choose Image", undefined, [
+    showAlert("Choose Image", undefined, [
       { text: "Camera", onPress: () => doUpload("camera") },
       { text: "Photo Library", onPress: () => doUpload("gallery") },
       {
@@ -64,7 +64,7 @@ export function ImageUpload({
   };
 
   const handlePickNew = () => {
-    Alert.alert("Choose Image", undefined, [
+    showAlert("Choose Image", undefined, [
       { text: "Camera", onPress: () => doUpload("camera") },
       { text: "Photo Library", onPress: () => doUpload("gallery") },
       { text: "Cancel", style: "cancel" },
@@ -79,7 +79,7 @@ export function ImageUpload({
       if (result) onChange(result.url);
     } catch (err: any) {
       setError(err.message);
-      Alert.alert("Upload Failed", err.message);
+      showAlert("Upload Failed", err.message);
     } finally {
       setLoading(false);
     }
@@ -200,7 +200,7 @@ export function MultiImageUpload({
       }
     } catch (err: any) {
       setError(err.message);
-      Alert.alert("Upload Failed", err.message);
+      showAlert("Upload Failed", err.message);
     } finally {
       setLoading(false);
     }

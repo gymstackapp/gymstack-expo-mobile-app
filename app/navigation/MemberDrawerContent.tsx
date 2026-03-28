@@ -1,12 +1,12 @@
 // app/navigation/MemberDrawerContent.tsx
 import { Avatar } from "@/components";
+import { showAlert } from "@/components/AppAlert";
 import { useAuthStore } from "@/store/authStore";
 import { Colors, Radius, Spacing, Typography } from "@/theme";
 import { DrawerContentComponentProps } from "@react-navigation/drawer";
 import { DrawerActions } from "@react-navigation/native";
 import React from "react";
 import {
-  Alert,
   ScrollView,
   StyleSheet,
   Text,
@@ -67,7 +67,7 @@ export function MemberDrawerContent(props: DrawerContentComponentProps) {
   };
 
   const onLogout = () => {
-    Alert.alert("Sign Out", "Are you sure you want to sign out?", [
+    showAlert("Sign Out", "Are you sure you want to sign out?", [
       { text: "Cancel", style: "cancel" },
       { text: "Sign Out", style: "destructive", onPress: logout },
     ]);

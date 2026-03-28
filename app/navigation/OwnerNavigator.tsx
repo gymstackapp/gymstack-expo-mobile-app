@@ -53,6 +53,9 @@ import BillingScreen from "../screens/owner/BillingScreen";
 import { ProfileScreen } from "../screens/shared/ProfileScreen";
 
 import AddDietPlanScreen from "../screens/owner/AddDietPlanScreen";
+import AddPaymentScreen from "../screens/owner/AddPaymentScreen";
+import ExpensesScreen from "../screens/owner/ExpensesScreen";
+import LockersScreen from "../screens/owner/LockersScreen";
 import { OwnerDrawerContent } from "./OwnerDrawerContent";
 
 // ── Navigators ────────────────────────────────────────────────────────────────
@@ -72,6 +75,8 @@ function DashboardStack() {
         name="OwnerMemberDetail"
         component={OwnerMemberDetailScreen}
       />
+      <Stack.Screen name="OwnerAddPayment" component={AddPaymentScreen} />
+      <Stack.Screen name="Attendance" component={OwnerAttendanceScreen} />
     </Stack.Navigator>
   );
 }
@@ -96,6 +101,7 @@ function MembersStack() {
         component={OwnerMemberDetailScreen}
       />
       <Stack.Screen name="OwnerAddMember" component={AddMemberScreen} />
+      <Stack.Screen name="OwnerAddPayment" component={AddPaymentScreen} />
     </Stack.Navigator>
   );
 }
@@ -208,6 +214,22 @@ function BillingStack() {
   );
 }
 
+function ExpensesStack() {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="OwnerExpensesScreen" component={ExpensesScreen} />
+    </Stack.Navigator>
+  );
+}
+
+function LockersStack() {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="OwnerLockersScreen" component={LockersScreen} />
+    </Stack.Navigator>
+  );
+}
+
 // ── Bottom tab navigator ───────────────────────────────────────────────────────
 
 function MainTabs() {
@@ -279,6 +301,8 @@ export function OwnerNavigator() {
       <Drawer.Screen name="OwnerNotifications" component={NotificationsStack} />
       <Drawer.Screen name="OwnerReferral" component={ReferralStack} />
       <Drawer.Screen name="OwnerBilling" component={BillingStack} />
+      <Drawer.Screen name="OwnerExpenses" component={ExpensesStack} />
+      <Drawer.Screen name="OwnerLockers" component={LockersStack} />
     </Drawer.Navigator>
   );
 }

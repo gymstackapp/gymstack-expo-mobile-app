@@ -477,10 +477,10 @@ import { useSubscription } from "@/hooks/useSubsciption";
 import { Colors, Radius, Spacing, Typography } from "@/theme";
 import type { Gym, WorkoutPlan } from "@/types/api";
 import { useNavigation } from "@react-navigation/native";
+import { showAlert } from "@/components/AppAlert";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import React, { useState } from "react";
 import {
-  Alert,
   FlatList,
   RefreshControl,
   StyleSheet,
@@ -533,7 +533,7 @@ export default function OwnerWorkoutsScreen() {
   });
 
   const confirmDelete = (plan: WorkoutPlan) => {
-    Alert.alert("Archive Plan", `Archive "${plan.title}"?`, [
+    showAlert("Archive Plan", `Archive "${plan.title}"?`, [
       { text: "Cancel", style: "cancel" },
       {
         text: "Archive",
