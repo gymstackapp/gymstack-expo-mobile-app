@@ -1,6 +1,5 @@
 // mobile/src/screens/owner/NotificationsScreen.tsx
 import { gymsApi, notificationsApi } from "@/api/endpoints";
-import { showAlert } from "@/components/AppAlert";
 import {
   Button,
   Card,
@@ -9,6 +8,7 @@ import {
   Input,
   SkeletonGroup,
 } from "@/components";
+import { showAlert } from "@/components/AppAlert";
 import { useSubscription } from "@/hooks/useSubsciption";
 import { Colors, Radius, Spacing, Typography } from "@/theme";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";

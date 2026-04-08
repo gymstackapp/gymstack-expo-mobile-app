@@ -46,11 +46,11 @@ interface AuthState {
   profile: AuthProfile | null;
   tokens: StoredTokens | null;
   isLoading: boolean;
-  isHydrated: boolean;        // true once Keychain read is done — drives nav
-  isAuthenticating: boolean;  // true while login() is in progress — prevents nav flash
-  invitedProfile: boolean;    // true when logged-in profile has status=INVITED
-  hasActivePlan: boolean;     // for owners: whether they have an active SaaS subscription
-  hasFetchedPlan: boolean;    // true once subscription check has completed for owner
+  isHydrated: boolean; // true once Keychain read is done — drives nav
+  isAuthenticating: boolean; // true while login() is in progress — prevents nav flash
+  invitedProfile: boolean; // true when logged-in profile has status=INVITED
+  hasActivePlan: boolean; // for owners: whether they have an active SaaS subscription
+  hasFetchedPlan: boolean; // true once subscription check has completed for owner
 
   hydrate: () => Promise<void>;
   login: (email: string, password: string) => Promise<{ error?: string }>;
@@ -77,7 +77,9 @@ async function saveTokens(tokens: StoredTokens) {
 
 async function loadTokens(): Promise<StoredTokens | null> {
   try {
-    const creds = await Keychain.getGenericPassword({ service: KEYCHAIN_SERVICE });
+    const creds = await Keychain.getGenericPassword({
+      service: KEYCHAIN_SERVICE,
+    });
     if (!creds || !creds.password) return null;
     return JSON.parse(creds.password) as StoredTokens;
   } catch {
@@ -100,7 +102,9 @@ async function saveProfile(profile: AuthProfile) {
 
 async function loadProfile(): Promise<AuthProfile | null> {
   try {
-    const creds = await Keychain.getGenericPassword({ service: KEYCHAIN_PROFILE_KEY });
+    const creds = await Keychain.getGenericPassword({
+      service: KEYCHAIN_PROFILE_KEY,
+    });
     if (!creds || !creds.password) return null;
     return JSON.parse(creds.password) as AuthProfile;
   } catch {
@@ -122,7 +126,9 @@ async function apiPost(
   method: "POST" | "DELETE" = "POST",
   token?: string,
 ) {
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
   if (token) headers["Authorization"] = `Bearer ${token}`;
   return fetch(`${API_BASE}${path}`, {
     method,
@@ -152,7 +158,10 @@ async function fetchOwnerHasActivePlan(accessToken: string): Promise<boolean> {
     });
     if (!res.ok) return true; // treat network error as "active" to avoid blocking
     const data = await res.json();
-    return data?.isActive === true;
+    return (
+      data?.subscription?.status === "ACTIVE" &&
+      data?.subscription?.isExpired === false
+    );
   } catch {
     return true;
   }
@@ -168,7 +177,7 @@ export const useAuthStore = create<AuthState>()(
     isHydrated: false,
     isAuthenticating: false,
     invitedProfile: false,
-    hasActivePlan: true,     // default true prevents false "no plan" flashes
+    hasActivePlan: true, // default true prevents false "no plan" flashes
     hasFetchedPlan: false,
 
     // ── Hydrate ─────────────────────────────────────────────────────────────
@@ -176,7 +185,9 @@ export const useAuthStore = create<AuthState>()(
       const stored = await loadTokens();
 
       if (!stored) {
-        set((s) => { s.isHydrated = true; });
+        set((s) => {
+          s.isHydrated = true;
+        });
         return;
       }
 
@@ -204,14 +215,21 @@ export const useAuthStore = create<AuthState>()(
               saveProfile(freshProfile).catch(() => {});
 
               // For owners: check subscription in background
-              if (freshProfile.role === "owner" && freshProfile.status !== "INVITED") {
-                const active = await fetchOwnerHasActivePlan(stored.accessToken);
+              if (
+                freshProfile.role === "owner" &&
+                freshProfile.status !== "INVITED"
+              ) {
+                const active = await fetchOwnerHasActivePlan(
+                  stored.accessToken,
+                );
                 set((s) => {
                   s.hasActivePlan = active;
                   s.hasFetchedPlan = true;
                 });
               } else {
-                set((s) => { s.hasFetchedPlan = true; });
+                set((s) => {
+                  s.hasFetchedPlan = true;
+                });
               }
             }
           })
@@ -233,7 +251,9 @@ export const useAuthStore = create<AuthState>()(
           s.isHydrated = true;
         });
       } else {
-        set((s) => { s.isHydrated = true; });
+        set((s) => {
+          s.isHydrated = true;
+        });
       }
     },
 
@@ -244,11 +264,16 @@ export const useAuthStore = create<AuthState>()(
         s.isAuthenticating = true;
       });
       try {
-        const res = await apiPost("/api/auth/mobile-login", { email, password });
+        const res = await apiPost("/api/auth/mobile-login", {
+          email,
+          password,
+        });
         const data = await res.json();
 
         if (!res.ok) {
-          set((s) => { s.isLoading = false; });
+          set((s) => {
+            s.isLoading = false;
+          });
           return { error: data.error ?? "Login failed" };
         }
 
@@ -279,7 +304,9 @@ export const useAuthStore = create<AuthState>()(
             });
           });
         } else {
-          set((s) => { s.hasFetchedPlan = true; });
+          set((s) => {
+            s.hasFetchedPlan = true;
+          });
         }
 
         return {};
@@ -300,10 +327,16 @@ export const useAuthStore = create<AuthState>()(
       });
       try {
         // Step 1: Login
-        const loginRes = await apiPost("/api/auth/mobile-login", { email, password });
+        const loginRes = await apiPost("/api/auth/mobile-login", {
+          email,
+          password,
+        });
         const loginData = await loginRes.json();
         if (!loginRes.ok) {
-          set((s) => { s.isLoading = false; s.isAuthenticating = false; });
+          set((s) => {
+            s.isLoading = false;
+            s.isAuthenticating = false;
+          });
           return { error: loginData.error ?? "Login failed" };
         }
 
@@ -335,13 +368,21 @@ export const useAuthStore = create<AuthState>()(
             s.isAuthenticating = false;
             s.hasFetchedPlan = true;
           });
-          return { error: (roleData as any).error ?? "Failed to set role. Please pick your role manually." };
+          return {
+            error:
+              (roleData as any).error ??
+              "Failed to set role. Please pick your role manually.",
+          };
         }
 
         // Step 3: Fetch fresh profile
         const freshProfile = await fetchProfile(tokens.accessToken);
         if (!freshProfile) {
-          const minProfile: AuthProfile = { ...loginData.profile, role, status: "ACTIVE" };
+          const minProfile: AuthProfile = {
+            ...loginData.profile,
+            role,
+            status: "ACTIVE",
+          };
           await saveProfile(minProfile);
           set((s) => {
             s.tokens = tokens;
@@ -375,7 +416,9 @@ export const useAuthStore = create<AuthState>()(
             });
           });
         } else {
-          set((s) => { s.hasFetchedPlan = true; });
+          set((s) => {
+            s.hasFetchedPlan = true;
+          });
         }
 
         return {};
@@ -393,7 +436,9 @@ export const useAuthStore = create<AuthState>()(
       const { tokens } = get();
 
       if (tokens?.refreshToken) {
-        apiPost("/api/auth/mobile-logout", { refreshToken: tokens.refreshToken }).catch(() => {});
+        apiPost("/api/auth/mobile-logout", {
+          refreshToken: tokens.refreshToken,
+        }).catch(() => {});
       }
 
       try {
@@ -403,10 +448,19 @@ export const useAuthStore = create<AuthState>()(
           Constants.default.expoConfig?.extra?.eas?.projectId ??
           Constants.default.easConfig?.projectId;
         if (projectId && tokens?.accessToken) {
-          const { data: expoToken } = await Notifications.getExpoPushTokenAsync({ projectId });
-          apiPost("/api/push/register-device", { expoPushToken: expoToken }, "DELETE", tokens.accessToken).catch(() => {});
+          const { data: expoToken } = await Notifications.getExpoPushTokenAsync(
+            { projectId },
+          );
+          apiPost(
+            "/api/push/register-device",
+            { expoPushToken: expoToken },
+            "DELETE",
+            tokens.accessToken,
+          ).catch(() => {});
         }
-      } catch { /* non-fatal */ }
+      } catch {
+        /* non-fatal */
+      }
 
       await clearTokens();
       await clearProfile();
@@ -425,7 +479,9 @@ export const useAuthStore = create<AuthState>()(
       if (!tokens?.refreshToken) return false;
 
       try {
-        const res = await apiPost("/api/auth/mobile-refresh", { refreshToken: tokens.refreshToken });
+        const res = await apiPost("/api/auth/mobile-refresh", {
+          refreshToken: tokens.refreshToken,
+        });
         if (!res.ok) return false;
 
         const data = await res.json();
@@ -446,7 +502,9 @@ export const useAuthStore = create<AuthState>()(
             s.invitedProfile = profile.status === "INVITED";
           });
         } else {
-          set((s) => { s.tokens = newTokens; });
+          set((s) => {
+            s.tokens = newTokens;
+          });
         }
 
         return true;
@@ -464,7 +522,9 @@ export const useAuthStore = create<AuthState>()(
           if (partial.status && partial.status !== "INVITED") {
             s.invitedProfile = false;
           }
-          saveProfile({ ...s.profile, ...partial } as AuthProfile).catch(() => {});
+          saveProfile({ ...s.profile, ...partial } as AuthProfile).catch(
+            () => {},
+          );
         }
       });
     },

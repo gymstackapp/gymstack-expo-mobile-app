@@ -741,7 +741,6 @@ import { useOnboardingStore } from "@/store/onboardingStore";
 import { Colors, Radius, Spacing, Typography } from "@/theme";
 import React, { useRef, useState } from "react";
 import {
-  Animated,
   Dimensions,
   FlatList,
   Image,
@@ -752,9 +751,15 @@ import {
   View,
 } from "react-native";
 import LinearGradient from "react-native-linear-gradient";
+import Animated, {
+  Extrapolation,
+  interpolate,
+  useAnimatedScrollHandler,
+  useAnimatedStyle,
+  useSharedValue,
+} from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
-
 const { width: SW, height: SH } = Dimensions.get("window");
 const LOGO = require("../../../assets/images/logo.png");
 
@@ -811,7 +816,7 @@ const OWNER_FEATURES = [
   { icon: "food-apple-outline", label: "Diet Plans", color: "#34d399" },
   { icon: "shopping-outline", label: "Supplements", color: "#facc15" },
   { icon: "receipt-outline", label: "Expenses", color: "#f87171" },
-  { icon: "locker-outline", label: "Lockers", color: "#60a5fa" },
+  { icon: "lock-outline", label: "Lockers", color: "#60a5fa" },
   { icon: "chart-bar", label: "Reports", color: Colors.primary },
   { icon: "bullhorn-outline", label: "Announcements", color: "#a78bfa" },
   { icon: "gift-outline", label: "Refer & Earn", color: "#facc15" },
@@ -1094,7 +1099,7 @@ function SlidePick({
             <View style={[sl.pickIcon, { backgroundColor: opt.color + "25" }]}>
               <Icon name={opt.icon} size={28} color={opt.color} />
             </View>
-            <View style={{ flex: 1 }}>
+            <View>
               <Text style={[sl.pickLabel, { color: opt.color }]}>
                 {opt.label}
               </Text>
@@ -1120,12 +1125,38 @@ function SlidePick({
 // ── Main screen ───────────────────────────────────────────────────────────────
 export function OnboardingScreen() {
   const flatRef = useRef<FlatList>(null);
-  const scrollX = useRef(new Animated.Value(0)).current;
+  const scrollX = useSharedValue(0);
   const [index, setIndex] = useState(0);
 
   // NO navigation.reset() calls in this screen.
   // We update onboardingStore; RootNavigator reacts and routes automatically.
   const { setPendingRoleAndFinish, finishWithoutRole } = useOnboardingStore();
+
+  const scrollHandler = useAnimatedScrollHandler({
+    onScroll: (event) => {
+      scrollX.value = event.contentOffset.x;
+    },
+  });
+
+  // Create animated styles for dots
+  const dotStyles = SLIDES.map((_, i) =>
+    useAnimatedStyle(() => {
+      const inputRange = [(i - 1) * SW, i * SW, (i + 1) * SW];
+      const width = interpolate(
+        scrollX.value,
+        inputRange,
+        [8, 20, 8],
+        Extrapolation.CLAMP,
+      );
+      const opacity = interpolate(
+        scrollX.value,
+        inputRange,
+        [0.3, 1, 0.3],
+        Extrapolation.CLAMP,
+      );
+      return { width, opacity };
+    }),
+  );
 
   const goToSlide = (i: number) => {
     flatRef.current?.scrollToIndex({ index: i, animated: true });
@@ -1184,10 +1215,7 @@ export function OnboardingScreen() {
         pagingEnabled
         showsHorizontalScrollIndicator={false}
         scrollEventThrottle={16}
-        onScroll={Animated.event(
-          [{ nativeEvent: { contentOffset: { x: scrollX } } }],
-          { useNativeDriver: true },
-        )}
+        onScroll={scrollHandler}
         onMomentumScrollEnd={(e) => {
           const i = Math.round(e.nativeEvent.contentOffset.x / SW);
           setIndex(i);
@@ -1204,22 +1232,9 @@ export function OnboardingScreen() {
         <View style={ob.bottom}>
           {/* Dot indicators */}
           <View style={ob.dots}>
-            {SLIDES.map((_, i) => {
-              const inputRange = [(i - 1) * SW, i * SW, (i + 1) * SW];
-              const width = scrollX.interpolate({
-                inputRange,
-                outputRange: [8, 20, 8],
-                extrapolate: "clamp",
-              });
-              const opacity = scrollX.interpolate({
-                inputRange,
-                outputRange: [0.3, 1, 0.3],
-                extrapolate: "clamp",
-              });
-              return (
-                <Animated.View key={i} style={[ob.dot, { width, opacity }]} />
-              );
-            })}
+            {SLIDES.map((_, i) => (
+              <Animated.View key={i} style={[ob.dot, dotStyles[i]]} />
+            ))}
           </View>
 
           {/* Next button */}
@@ -1251,6 +1266,8 @@ const sl = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.xl,
     gap: Spacing.lg,
+    alignItems: "center",
+    justifyContent: "center",
   },
   logo: { width: SW * 0.55, height: SW * 0.55, alignSelf: "center" },
   logoSmall: { width: SW * 0.35, height: SW * 0.35, alignSelf: "center" },
@@ -1291,7 +1308,12 @@ const sl = StyleSheet.create({
     fontWeight: "700",
   },
   // Owner / Trainer / Member slides
-  headerRow: { flexDirection: "row", alignItems: "center", gap: Spacing.md },
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.md,
+    justifyContent: "center",
+  },
   badge: {
     width: 48,
     height: 48,
@@ -1424,7 +1446,12 @@ const ob = StyleSheet.create({
     paddingTop: Spacing.md,
   },
   dots: { flexDirection: "row", alignItems: "center", gap: 6 },
-  dot: { height: 8, borderRadius: 4, backgroundColor: Colors.primary },
+  dot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: Colors.primary,
+  },
   nextBtn: { borderRadius: Radius.full, overflow: "hidden" },
   nextGrad: {
     flexDirection: "row",

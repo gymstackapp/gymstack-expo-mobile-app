@@ -47,7 +47,7 @@ import ReportsScreen from "../screens/owner/ReportsScreen";
 // Notifications
 import OwnerNotificationsScreen from "../screens/owner/NotificationsScreen";
 // Referral
-import ReferralScreen from "../screens/owner/ReferralScreen";
+// import ReferralScreen from "../screens/owner/ReferralScreen";
 // Billing
 import BillingScreen from "../screens/owner/BillingScreen";
 // Profile
@@ -199,13 +199,13 @@ function NotificationsStack() {
   );
 }
 
-function ReferralStack() {
-  return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="OwnerReferralScreen" component={ReferralScreen} />
-    </Stack.Navigator>
-  );
-}
+// function ReferralStack() {
+//   return (
+//     <Stack.Navigator screenOptions={{ headerShown: false }}>
+//       <Stack.Screen name="OwnerReferralScreen" component={ReferralScreen} />
+//     </Stack.Navigator>
+//   );
+// }
 
 function BillingStack() {
   return (
@@ -301,7 +301,7 @@ export function OwnerNavigator() {
       <Drawer.Screen name="OwnerDiets" component={DietsStack} />
       <Drawer.Screen name="OwnerReports" component={ReportsStack} />
       <Drawer.Screen name="OwnerNotifications" component={NotificationsStack} />
-      <Drawer.Screen name="OwnerReferral" component={ReferralStack} />
+      {/* <Drawer.Screen name="OwnerReferral" component={ReferralStack} /> */}
       <Drawer.Screen name="OwnerBilling" component={BillingStack} />
       <Drawer.Screen name="OwnerExpenses" component={ExpensesStack} />
       <Drawer.Screen name="OwnerLockers" component={LockersStack} />

@@ -356,28 +356,30 @@ const { width: SW } = Dimensions.get("window");
 const MEM_COLOR = Colors.primary; // orange-amber
 const SUPP_COLOR = "#22c55e"; // green
 const LINE_COLOR = Colors.primary; // member growth line
+const LOCKER_COLOR = "hsl(217 91% 60%)"; // purple-blue
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface RevenueBucket {
-  month: string;
-  revenue: number;
+  label: string;
+  total: number;
   membershipRev: number;
   supplementRev: number;
+  lockerRev: number;
 }
 
 interface GrowthBucket {
-  month: string;
-  members: number;
+  label: string;
+  count: number;
 }
 
 interface GymReport {
   name: string;
-  members: number;
+  activeMembers: number;
   newMembers: number;
   attendance: number;
   membershipRev: number;
   supplementRev: number;
-  revenue: number;
+  totalRevenue: number;
   expenses: number;
   netRevenue: number;
 }
@@ -394,8 +396,8 @@ interface ReportSummary {
 }
 
 interface ReportData {
-  revenue: RevenueBucket[];
-  memberGrowth: GrowthBucket[];
+  revenueSeries: RevenueBucket[];
+  memberGrowthSeries: GrowthBucket[];
   topGyms: GymReport[];
   summary: ReportSummary;
   range: string;
@@ -417,16 +419,17 @@ const RANGES = [
 function fmt(n: number) {
   if (n >= 100000) return `₹${(n / 100000).toFixed(1)}L`;
   if (n >= 1000) return `₹${(n / 1000).toFixed(1)}K`;
-  return `₹${n.toLocaleString("en-IN")}`;
+  return `₹${n?.toLocaleString("en-IN")}`;
 }
 
 // ── Stacked bar chart (membership + supplement) ───────────────────────────────
 // Bars are stacked vertically: supplement on top, membership below.
 // Both values use the same scale so relative heights are meaningful.
 function StackedBarChart({ data }: { data: RevenueBucket[] }) {
+  console.log("barc data", data);
   if (!data?.length) return null;
 
-  const max = Math.max(...data.map((d) => d.revenue), 1);
+  const max = Math.max(...data.map((d) => d.total), 1);
   const BAR_H = 80;
   const showEvery = data.length > 12 ? Math.ceil(data.length / 6) : 1;
 
@@ -442,6 +445,10 @@ function StackedBarChart({ data }: { data: RevenueBucket[] }) {
           <View style={[ch.legendDot, { backgroundColor: SUPP_COLOR }]} />
           <Text style={ch.legendTxt}>Supplements</Text>
         </View>
+        <View style={ch.legendItem}>
+          <View style={[ch.legendDot, { backgroundColor: LOCKER_COLOR }]} />
+          <Text style={ch.legendTxt}>Lockers</Text>
+        </View>
       </View>
 
       {/* Bars */}
@@ -449,20 +456,27 @@ function StackedBarChart({ data }: { data: RevenueBucket[] }) {
         {data.map((d, i) => {
           // Heights as px, stacked: supp on top, membership below
           const memH =
-            d.revenue > 0
+            d.total > 0
               ? Math.max(
                   (d.membershipRev / max) * (BAR_H - 16),
                   d.membershipRev > 0 ? 2 : 0,
                 )
               : 0;
           const suppH =
-            d.revenue > 0
+            d.total > 0
               ? Math.max(
                   (d.supplementRev / max) * (BAR_H - 16),
                   d.supplementRev > 0 ? 2 : 0,
                 )
               : 0;
-          const isEmpty = d.revenue === 0;
+          const lockerH =
+            d.total > 0
+              ? Math.max(
+                  (d.lockerRev / max) * (BAR_H - 16),
+                  d.lockerRev > 0 ? 2 : 0,
+                )
+              : 0;
+          const isEmpty = d.total === 0;
 
           return (
             <View key={i} style={ch.barCol}>
@@ -490,12 +504,21 @@ function StackedBarChart({ data }: { data: RevenueBucket[] }) {
                         ]}
                       />
                     )}
+                    {/* Lockers — top */}
+                    {lockerH > 0 && (
+                      <View
+                        style={[
+                          ch.bar,
+                          { height: lockerH, backgroundColor: LOCKER_COLOR },
+                        ]}
+                      />
+                    )}
                   </View>
                 )}
               </View>
               {/* Date label */}
               <Text style={ch.barLabel} numberOfLines={1}>
-                {i % showEvery === 0 ? d.month : ""}
+                {i % showEvery === 0 ? d.label : ""}
               </Text>
             </View>
           );
@@ -516,6 +539,12 @@ function StackedBarChart({ data }: { data: RevenueBucket[] }) {
             {fmt(data.reduce((s, d) => s + d.supplementRev, 0))}
           </Text>
         </Text>
+        <Text style={ch.chartSummaryTxt}>
+          Lockers:{" "}
+          <Text style={{ color: LOCKER_COLOR, fontWeight: "700" }}>
+            {fmt(data.reduce((s, d) => s + d.lockerRev, 0))}
+          </Text>
+        </Text>
       </View>
     </View>
   );
@@ -525,7 +554,8 @@ function StackedBarChart({ data }: { data: RevenueBucket[] }) {
 // Draws an SVG-free line chart using positioned Views.
 // Points are connected by absolute-positioned lines (rotated thin Views).
 function LineChart({ data }: { data: GrowthBucket[] }) {
-  if (!data?.length || data.every((d) => d.members === 0)) {
+  console.log("linec data", data);
+  if (!data?.length || data.every((d) => d.count === 0)) {
     return (
       <View style={lc.empty}>
         <Text style={lc.emptyTxt}>No new members in this period</Text>
@@ -533,7 +563,7 @@ function LineChart({ data }: { data: GrowthBucket[] }) {
     );
   }
 
-  const max = Math.max(...data.map((d) => d.members), 1);
+  const max = Math.max(...data.map((d) => d.count), 1);
   const H = 72;
   const W = SW - Spacing.lg * 2 - Spacing.md * 2 - 32; // card width
   const showEvery = data.length > 12 ? Math.ceil(data.length / 6) : 1;
@@ -541,13 +571,20 @@ function LineChart({ data }: { data: GrowthBucket[] }) {
   // Compute point positions as percentages
   const pts = data.map((d, i) => ({
     x: data.length > 1 ? (i / (data.length - 1)) * 100 : 50,
-    y: H - Math.max((d.members / max) * (H - 8), d.members > 0 ? 4 : 0),
-    members: d.members,
-    label: d.month,
+    y: H - Math.max((d.count / max) * (H - 8), d.count > 0 ? 4 : 0),
+    members: d.count,
+    label: d.label,
   }));
 
   return (
-    <View>
+    <View style={{ position: "relative" }}>
+      {/* Y-axis labels */}
+      <View style={lc.yAxisLabels}>
+        <Text style={lc.yAxisLabel}>{max}</Text>
+        <Text style={lc.yAxisLabel}>{Math.round(max / 2)}</Text>
+        <Text style={lc.yAxisLabel}>0</Text>
+      </View>
+
       {/* Chart area */}
       <View style={[lc.area, { height: H }]}>
         {/* Horizontal gridlines at 0%, 50%, 100% */}
@@ -612,6 +649,8 @@ function LineChart({ data }: { data: GrowthBucket[] }) {
           </Text>
         ))}
       </View>
+
+      {}
     </View>
   );
 }
@@ -645,7 +684,7 @@ function StatItem({
 
 // ── Gym breakdown card ────────────────────────────────────────────────────────
 function GymCard({ g }: { g: GymReport }) {
-  const net = g.netRevenue ?? g.revenue - (g.expenses ?? 0);
+  const net = g.netRevenue ?? g.totalRevenue - (g.expenses ?? 0);
   return (
     <Card style={gc.card}>
       {/* Gym name */}
@@ -659,7 +698,7 @@ function GymCard({ g }: { g: GymReport }) {
       {/* Row 1: members, new, attendance */}
       <View style={gc.row}>
         <View style={gc.cell}>
-          <Text style={gc.cellVal}>{g.members}</Text>
+          <Text style={gc.cellVal}>{g.activeMembers}</Text>
           <Text style={gc.cellLbl}>Active</Text>
         </View>
         <View style={[gc.cell, gc.cellBorder]}>
@@ -693,14 +732,14 @@ function GymCard({ g }: { g: GymReport }) {
         </View>
         <View style={[gc.cell, gc.cellBorder]}>
           <Text style={[gc.cellVal, { color: Colors.textPrimary }]}>
-            {fmt(g.revenue)}
+            {fmt(g.totalRevenue)}
           </Text>
           <Text style={gc.cellLbl}>Total Rev</Text>
         </View>
       </View>
 
       {/* Row 3: expenses + net */}
-      {(g.expenses > 0 || net !== g.revenue) && (
+      {(g.expenses > 0 || net !== g.totalRevenue) && (
         <View style={[gc.row, { marginTop: Spacing.xs }]}>
           <View style={gc.cell}>
             <Text style={[gc.cellVal, { color: Colors.error }]}>
@@ -728,7 +767,7 @@ function GymCard({ g }: { g: GymReport }) {
 
 // ── Main content ──────────────────────────────────────────────────────────────
 function ReportsContent() {
-  const [range, setRange] = useState("last_6_months");
+  const [range, setRange] = useState("this_months");
   const [gymId, setGymId] = useState("");
 
   const { data: gyms = [] } = useQuery<any[]>({
@@ -918,13 +957,13 @@ function ReportsContent() {
         </View>
         {isLoading ? (
           <Skeleton height={96} />
-        ) : (data?.revenue?.length ?? 0) === 0 ? (
+        ) : (data?.revenueSeries?.length ?? 0) === 0 ? (
           <View style={s2.emptyChart}>
             <Icon name="chart-bar" size={24} color={Colors.textMuted} />
             <Text style={s2.emptyChartTxt}>No data for this period</Text>
           </View>
         ) : (
-          <StackedBarChart data={data!.revenue} />
+          <StackedBarChart data={data?.revenueSeries ?? []} />
         )}
       </Card>
 
@@ -937,7 +976,7 @@ function ReportsContent() {
         {isLoading ? (
           <Skeleton height={80} />
         ) : (
-          <LineChart data={data?.memberGrowth ?? []} />
+          <LineChart data={data?.memberGrowthSeries ?? []} />
         )}
       </Card>
 
@@ -1039,6 +1078,20 @@ const lc = StyleSheet.create({
     color: Colors.textMuted,
     fontSize: 8,
     transform: [{ translateX: -12 }],
+  },
+  yAxisLabels: {
+    position: "absolute",
+    left: -30,
+    top: 0,
+    height: 72,
+    justifyContent: "space-between",
+    alignItems: "flex-end",
+  },
+  yAxisLabel: {
+    color: Colors.textMuted,
+    fontSize: 8,
+    textAlign: "right",
+    width: 25,
   },
   empty: { paddingVertical: Spacing.lg, alignItems: "center" },
   emptyTxt: { color: Colors.textMuted, fontSize: Typography.xs },

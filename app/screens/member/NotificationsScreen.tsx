@@ -334,57 +334,61 @@ export default function MemberNotificationsScreen() {
         </View>
       )}
 
-      {/* Filter tabs */}
-      {!isLoading && notifications.length > 0 && (
-        <FlatList
-          horizontal
-          data={FILTERS}
-          keyExtractor={(f) => f.key}
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.tabsContainer}
-          renderItem={({ item: f }) => {
-            const active = activeFilter === f.key;
-            const count =
-              f.key === "UNREAD"
-                ? unreadCount
-                : f.key === "ALL"
-                  ? notifications.length
-                  : notifications.filter((n) => n.type === f.key).length;
-            if (count === 0 && f.key !== "ALL" && f.key !== "UNREAD")
-              return null;
-            return (
-              <TouchableOpacity
-                style={[styles.tab, active && styles.tabActive]}
-                onPress={() => setFilter(f.key)}
-                activeOpacity={0.7}
-              >
-                <Icon
-                  name={f.icon}
-                  size={13}
-                  color={active ? "#fff" : Colors.textMuted}
-                />
-                <Text style={[styles.tabText, active && styles.tabTextActive]}>
-                  {f.label}
-                </Text>
-                {count > 0 && (
-                  <View
-                    style={[styles.tabCount, active && styles.tabCountActive]}
+      <View>
+        {/* Filter tabs */}
+        {!isLoading && notifications.length > 0 && (
+          <FlatList
+            horizontal
+            data={FILTERS}
+            keyExtractor={(f) => f.key}
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.tabsContainer}
+            renderItem={({ item: f }) => {
+              const active = activeFilter === f.key;
+              const count =
+                f.key === "UNREAD"
+                  ? unreadCount
+                  : f.key === "ALL"
+                    ? notifications.length
+                    : notifications.filter((n) => n.type === f.key).length;
+              if (count === 0 && f.key !== "ALL" && f.key !== "UNREAD")
+                return null;
+              return (
+                <TouchableOpacity
+                  style={[styles.tab, active && styles.tabActive]}
+                  onPress={() => setFilter(f.key)}
+                  activeOpacity={0.7}
+                >
+                  <Icon
+                    name={f.icon}
+                    size={13}
+                    color={active ? "#fff" : Colors.textMuted}
+                  />
+                  <Text
+                    style={[styles.tabText, active && styles.tabTextActive]}
                   >
-                    <Text
-                      style={[
-                        styles.tabCountText,
-                        active && styles.tabCountTextActive,
-                      ]}
+                    {f.label}
+                  </Text>
+                  {count > 0 && (
+                    <View
+                      style={[styles.tabCount, active && styles.tabCountActive]}
                     >
-                      {count}
-                    </Text>
-                  </View>
-                )}
-              </TouchableOpacity>
-            );
-          }}
-        />
-      )}
+                      <Text
+                        style={[
+                          styles.tabCountText,
+                          active && styles.tabCountTextActive,
+                        ]}
+                      >
+                        {count}
+                      </Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+              );
+            }}
+          />
+        )}
+      </View>
 
       {/* List */}
       {isLoading ? (
@@ -398,7 +402,9 @@ export default function MemberNotificationsScreen() {
           data={filtered}
           keyExtractor={(n) => n.id}
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingBottom: 40 }}
+          contentContainerStyle={{
+            paddingBottom: 40,
+          }}
           refreshControl={
             <RefreshControl
               refreshing={isRefetching}
@@ -479,13 +485,18 @@ const styles = StyleSheet.create({
 
   // filter tabs
   tabsContainer: {
+    flex: 1,
+    height: 60,
+    marginBottom: Spacing.xl,
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
     gap: Spacing.xs,
+    maxHeight: 60,
   },
   tab: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
     gap: 5,
     paddingHorizontal: 12,
     paddingVertical: 7,

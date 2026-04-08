@@ -64,7 +64,7 @@ const NAV_ITEMS: NavItem[] = [
     label: "Expenses",
     screen: "OwnerExpenses",
   },
-  { icon: "gift-outline", label: "Refer & Earn", screen: "OwnerReferral" },
+  // { icon: "gift-outline", label: "Refer & Earn", screen: "OwnerReferral" },
   {
     icon: "bell-outline",
     label: "Notifications",
