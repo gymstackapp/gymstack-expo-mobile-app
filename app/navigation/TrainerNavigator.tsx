@@ -6,6 +6,7 @@ import { createDrawerNavigator } from "@react-navigation/drawer";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import React from "react";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 
 import NotificationsScreen from "../screens/owner/NotificationsScreen";
@@ -16,6 +17,7 @@ import { DietsScreen } from "../screens/trainer/DietsScreen";
 import { MemberDetailScreen } from "../screens/trainer/MemberDetailScreen";
 import { MembersScreen } from "../screens/trainer/MembersScreen";
 import { WorkoutsScreen } from "../screens/trainer/WorkoutsScreen";
+import { BodyMetricsScreen } from "../screens/trainer/BodyMetricsScreen";
 import { TrainerDrawerContent } from "./TrainerDrawerContent";
 
 const Drawer = createDrawerNavigator();
@@ -37,6 +39,7 @@ function TrainerMembersStack() {
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="TrainerMembers" component={MembersScreen} />
       <Stack.Screen name="TrainerMemberDetail" component={MemberDetailScreen} />
+      <Stack.Screen name="TrainerBodyMetrics" component={BodyMetricsScreen} />
     </Stack.Navigator>
   );
 }
@@ -66,6 +69,7 @@ function NotificationsStack() {
 }
 
 function TrainerTabs() {
+  const insets = useSafeAreaInsets();
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -74,9 +78,9 @@ function TrainerTabs() {
           backgroundColor: Colors.surface,
           borderTopColor: Colors.border,
           borderTopWidth: 1,
-          paddingBottom: 8,
+          paddingBottom: insets.bottom + 8,
           paddingTop: 8,
-          height: 64,
+          height: 64 + insets.bottom,
         },
         tabBarActiveTintColor: Colors.primary,
         tabBarInactiveTintColor: Colors.textMuted,

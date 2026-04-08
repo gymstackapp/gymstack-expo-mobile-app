@@ -1,259 +1,557 @@
-import { Ionicons } from "@expo/vector-icons";
+// // mobile/src/screens/auth/SelectRoleScreen.tsx
+// // Shown after signup when profile.role is null.
+// // Calls /api/auth/set-role with Bearer token, then refreshes profile from server.
+// import { api } from "@/api/client";
+// import { useAuthStore } from "@/store/authStore";
+// import { Colors, Radius, Spacing, Typography } from "@/theme";
+// import React, { useState } from "react";
+// import {
+//   ActivityIndicator,
+//   Alert,
+//   StyleSheet,
+//   Text,
+//   TouchableOpacity,
+//   View,
+// } from "react-native";
+// import { Image } from "expo-image";
+// import { SafeAreaView } from "react-native-safe-area-context";
+// import Icon from "react-native-vector-icons/MaterialCommunityIcons";
+
+// const ROLES = [
+//   {
+//     id: "owner",
+//     icon: "shield-check-outline",
+//     title: "Gym Owner",
+//     desc: "Manage your gym, members, trainers, billing and analytics.",
+//     color: Colors.primary,
+//   },
+//   {
+//     id: "trainer",
+//     icon: "dumbbell",
+//     title: "Trainer",
+//     desc: "View your assigned members, create workout and diet plans.",
+//     color: "#3b82f6",
+//   },
+//   {
+//     id: "member",
+//     icon: "account-outline",
+//     title: "Member",
+//     desc: "Track workouts, diet plans, attendance and payments.",
+//     color: "#10b981",
+//   },
+// ] as const;
+
+// type Role = "owner" | "trainer" | "member";
+
+// export default function SelectRoleScreen() {
+//   const { refresh, profile } = useAuthStore();
+//   const [selected, setSelected] = useState<Role | null>(null);
+//   const [loading, setLoading] = useState(false);
+
+//   const onConfirm = async () => {
+//     if (!selected) {
+//       Alert.alert("Select a role", "Please choose how you'll use GymStack.");
+//       return;
+//     }
+
+//     setLoading(true);
+//     try {
+//       // POST /api/auth/set-role — the api client attaches the Bearer token automatically
+//       await api.post("/api/auth/set-role", { role: selected });
+
+//       // Refresh profile in the store so RootNavigator re-evaluates role
+//       // and navigates to the correct app stack automatically
+//       await refresh();
+//     } catch (err: any) {
+//       Alert.alert(
+//         "Error",
+//         err?.message ?? "Failed to set role. Please try again.",
+//       );
+//     } finally {
+//       setLoading(false);
+//     }
+//   };
+
+//   return (
+//     <SafeAreaView style={s.safe}>
+//       <View style={s.container}>
+//         {/* Header */}
+//         <View style={s.header}>
+//           <Image
+//             source={require("../../../assets/images/logo_bg2.png")}
+//             contentFit="contain"
+//             style={{ width: 220, height: 110 }}
+//           />
+//           <Text style={s.title}>How will you use GymStack?</Text>
+//           <Text style={s.subtitle}>
+//             Choose your role — this cannot be changed later.
+//           </Text>
+//         </View>
+
+//         {/* Role cards */}
+//         <View style={s.roles}>
+//           {ROLES.map((role) => {
+//             const active = selected === role.id;
+//             return (
+//               <TouchableOpacity
+//                 key={role.id}
+//                 style={[
+//                   s.roleCard,
+//                   active && {
+//                     borderColor: role.color,
+//                     backgroundColor: role.color + "0f",
+//                   },
+//                 ]}
+//                 onPress={() => setSelected(role.id)}
+//                 activeOpacity={0.8}
+//               >
+//                 <View
+//                   style={[s.roleIcon, { backgroundColor: role.color + "18" }]}
+//                 >
+//                   <Icon name={role.icon} size={26} color={role.color} />
+//                 </View>
+//                 <View style={{ flex: 1 }}>
+//                   <Text style={[s.roleTitle, active && { color: role.color }]}>
+//                     {role.title}
+//                   </Text>
+//                   <Text style={s.roleDesc}>{role.desc}</Text>
+//                 </View>
+//                 <View
+//                   style={[s.radioOuter, active && { borderColor: role.color }]}
+//                 >
+//                   {active && (
+//                     <View
+//                       style={[s.radioInner, { backgroundColor: role.color }]}
+//                     />
+//                   )}
+//                 </View>
+//               </TouchableOpacity>
+//             );
+//           })}
+//         </View>
+
+//         {/* Confirm button */}
+//         <TouchableOpacity
+//           style={[s.confirmBtn, !selected && s.confirmBtnDisabled]}
+//           onPress={onConfirm}
+//           disabled={loading || !selected}
+//           activeOpacity={0.85}
+//         >
+//           {loading ? (
+//             <ActivityIndicator color="#fff" size="small" />
+//           ) : (
+//             <>
+//               <Text style={s.confirmText}>
+//                 Continue as{" "}
+//                 {selected ? ROLES.find((r) => r.id === selected)?.title : "..."}
+//               </Text>
+//               <Icon name="arrow-right" size={18} color="#fff" />
+//             </>
+//           )}
+//         </TouchableOpacity>
+//       </View>
+//     </SafeAreaView>
+//   );
+// }
+
+// const s = StyleSheet.create({
+//   safe: { flex: 1, backgroundColor: Colors.bg },
+//   container: {
+//     flex: 1,
+//     padding: Spacing.lg,
+//     justifyContent: "center",
+//     gap: Spacing.xl,
+//   },
+//   header: { alignItems: "center", gap: Spacing.md },
+//   logoWrap: {
+//     width: 72,
+//     height: 72,
+//     borderRadius: 24,
+//     alignItems: "center",
+//     justifyContent: "center",
+//   },
+//   title: {
+//     color: Colors.textPrimary,
+//     fontSize: Typography.xxl,
+//     fontWeight: "800",
+//     textAlign: "center",
+//   },
+//   subtitle: {
+//     color: Colors.textMuted,
+//     fontSize: Typography.sm,
+//     textAlign: "center",
+//     lineHeight: 22,
+//   },
+//   roles: { gap: Spacing.md },
+//   roleCard: {
+//     flexDirection: "row",
+//     alignItems: "center",
+//     gap: Spacing.md,
+//     backgroundColor: Colors.surface,
+//     borderRadius: Radius.xl,
+//     borderWidth: 2,
+//     borderColor: Colors.border,
+//     padding: Spacing.lg,
+//   },
+//   roleIcon: {
+//     width: 52,
+//     height: 52,
+//     borderRadius: Radius.lg,
+//     alignItems: "center",
+//     justifyContent: "center",
+//     flexShrink: 0,
+//   },
+//   roleTitle: {
+//     color: Colors.textPrimary,
+//     fontSize: Typography.base,
+//     fontWeight: "700",
+//     marginBottom: 3,
+//   },
+//   roleDesc: {
+//     color: Colors.textMuted,
+//     fontSize: Typography.xs,
+//     lineHeight: 18,
+//   },
+//   radioOuter: {
+//     width: 22,
+//     height: 22,
+//     borderRadius: 11,
+//     borderWidth: 2,
+//     borderColor: Colors.border,
+//     alignItems: "center",
+//     justifyContent: "center",
+//     flexShrink: 0,
+//   },
+//   radioInner: { width: 12, height: 12, borderRadius: 6 },
+//   confirmBtn: {
+//     flexDirection: "row",
+//     alignItems: "center",
+//     justifyContent: "center",
+//     gap: Spacing.sm,
+//     backgroundColor: Colors.primary,
+//     borderRadius: Radius.xl,
+//     padding: Spacing.lg,
+//   },
+//   confirmBtnDisabled: { backgroundColor: Colors.textMuted, opacity: 0.5 },
+//   confirmText: { color: "#fff", fontSize: Typography.base, fontWeight: "700" },
+// });
+
+// mobile/src/screens/auth/SelectRoleScreen.tsx
+//
+// IMPORTANT — why we use useAuthStore.getState() not the hook:
+// onConfirm is an async callback. React closures capture hook values at
+// render time. By the time the user taps "Confirm", a re-render may have
+// occurred between mount and the tap. useAuthStore.getState() always gives
+// the LIVE store value at call time — no stale closure possible.
+
+import { API_BASE } from "@/api/config";
+import { useAuthStore } from "@/store/authStore";
+import { Colors, Radius, Spacing, Typography } from "@/theme";
 import React, { useState } from "react";
 import {
-  Dimensions,
+  ActivityIndicator,
+  Alert,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
+import LinearGradient from "react-native-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useAuthStore } from "@/store/authStore";
+import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 
-type Role = "owner" | "member" | "trainer";
-
-const { width } = Dimensions.get("window");
-
-const C = {
-  bg: "#0A0A0A",
-  surface: "#1A1A1A",
-  surfaceElevated: "#242424",
-  border: "#2C2C2E",
-  primary: "#FF3B30",
-  text: "#FFFFFF",
-  textSub: "#8E8E93",
-};
-
-type RoleOption = {
-  id: Role;
-  title: string;
-  description: string;
-  icon: string;
-  accentColor: string;
-  features: string[];
-};
-
-const ROLES: RoleOption[] = [
+const ROLES = [
   {
-    id: "owner",
-    title: "Owner",
-    description: "Manage your gym, members, and staff",
-    icon: "business",
-    accentColor: "#FF9F0A",
-    features: ["Manage members", "Track revenue", "Assign trainers"],
+    id: "owner" as const,
+    icon: "shield-check-outline",
+    title: "Gym Owner",
+    desc: "Manage your gym, members, trainers, billing and analytics.",
+    color: Colors.primary,
   },
   {
-    id: "member",
+    id: "trainer" as const,
+    icon: "dumbbell",
+    title: "Trainer",
+    desc: "View assigned members, create workout and diet plans.",
+    color: "#3b82f6",
+  },
+  {
+    id: "member" as const,
+    icon: "account-outline",
     title: "Member",
-    description: "Track workouts and reach your goals",
-    icon: "body",
-    accentColor: "#30D158",
-    features: ["Log workouts", "Track progress", "View schedule"],
+    desc: "Track workouts, diet plans, attendance and payments.",
+    color: "#10b981",
   },
 ];
 
-export default function SelectRoleScreen() {
-  const { profile } = useAuthStore();
-  const [selected, setSelected] = useState<Role | null>(null);
+type Role = "owner" | "trainer" | "member";
 
-  const handleContinue = () => {
-    // Role is assigned server-side on login; this screen is a fallback only.
+export default function SelectRoleScreen() {
+  const [selected, setSelected] = useState<Role | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const onConfirm = async () => {
+    if (!selected) {
+      Alert.alert("Select a role", "Please choose how you'll use GymStack.");
+      return;
+    }
+
+    setError("");
+    setLoading(true);
+
+    try {
+      // Read LIVE token via getState() — never from a hook/closure in async code
+      const { tokens, refresh, logout } = useAuthStore.getState();
+
+      if (!tokens?.accessToken) {
+        setError("Your session has expired. Please sign in again.");
+        setLoading(false);
+        // Clear state and let RootNavigator navigate to Login
+        await logout();
+        return;
+      }
+
+      const res = await fetch(`${API_BASE}/api/profile/set-role`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${tokens.accessToken}`,
+        },
+        body: JSON.stringify({ role: selected }),
+      });
+
+      // Log for debugging — remove after confirming it works
+      console.log(`[SelectRole] set-role response: ${res.status}`);
+
+      if (res.status === 401) {
+        // Token rejected — try to refresh once then retry
+        console.log("[SelectRole] 401 received — attempting token refresh");
+        const refreshed = await refresh();
+        if (!refreshed) {
+          setError("Session expired. Please sign in again.");
+          await logout();
+          return;
+        }
+
+        // Retry with new token
+        const freshTokens = useAuthStore.getState().tokens;
+        if (!freshTokens?.accessToken) {
+          setError("Session error. Please sign in again.");
+          await logout();
+          return;
+        }
+
+        const retryRes = await fetch(`${API_BASE}/api/profile/set-role`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${freshTokens.accessToken}`,
+          },
+          body: JSON.stringify({ role: selected }),
+        });
+
+        console.log(`[SelectRole] retry response: ${retryRes.status}`);
+
+        if (!retryRes.ok) {
+          const retryData = await retryRes.json().catch(() => ({}));
+          setError(
+            (retryData as any).error ?? "Failed to set role. Please try again.",
+          );
+          return;
+        }
+      } else if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setError((data as any).error ?? `Failed to set role (${res.status})`);
+        return;
+      }
+
+      // Success — refresh profile so RootNavigator navigates automatically
+      await refresh();
+    } catch (err: any) {
+      console.error("[SelectRole] error:", err);
+      setError("Network error. Please check your connection.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <View style={styles.container}>
+    <SafeAreaView style={s.safe}>
+      <View style={s.container}>
         {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.logoBox}>
-            <Ionicons name="barbell" size={28} color={C.primary} />
-          </View>
-          <Text style={styles.greeting}>
-            Hey, {profile?.fullName?.split(" ")[0] ?? "there"}!
-          </Text>
-          <Text style={styles.title}>How will you use{"\n"}GymStack?</Text>
-          <Text style={styles.subtitle}>
-            Choose your role to get the right experience
+        <View style={s.header}>
+          <LinearGradient
+            colors={[Colors.primary, "#ea580c"]}
+            style={s.logoWrap}
+          >
+            <Text style={{ fontSize: 28 }}>💪</Text>
+          </LinearGradient>
+          <Text style={s.title}>How will you use GymStack?</Text>
+          <Text style={s.subtitle}>
+            Choose your role carefully — this cannot be changed later.
           </Text>
         </View>
 
-        {/* Role Cards */}
-        <View style={styles.cardsContainer}>
+        {/* Error */}
+        {!!error && (
+          <View style={s.errorBox}>
+            <Text style={s.errorText}>{error}</Text>
+          </View>
+        )}
+
+        {/* Role cards */}
+        <View style={s.roles}>
           {ROLES.map((role) => {
-            const isSelected = selected === role.id;
+            const active = selected === role.id;
             return (
               <TouchableOpacity
                 key={role.id}
                 style={[
-                  styles.card,
-                  isSelected && {
-                    borderColor: role.accentColor,
-                    borderWidth: 2,
+                  s.roleCard,
+                  active && {
+                    borderColor: role.color,
+                    backgroundColor: role.color + "0f",
                   },
                 ]}
                 onPress={() => setSelected(role.id)}
-                activeOpacity={0.85}
+                activeOpacity={0.8}
               >
-                {/* Selected indicator */}
-                {isSelected && (
-                  <View
-                    style={[
-                      styles.checkBadge,
-                      { backgroundColor: role.accentColor },
-                    ]}
-                  >
-                    <Ionicons name="checkmark" size={14} color="#fff" />
-                  </View>
-                )}
-
-                {/* Icon */}
                 <View
-                  style={[
-                    styles.iconBox,
-                    {
-                      backgroundColor: isSelected
-                        ? role.accentColor + "22"
-                        : C.surfaceElevated,
-                    },
-                  ]}
+                  style={[s.roleIcon, { backgroundColor: role.color + "18" }]}
                 >
-                  <Ionicons
-                    name={role.icon as any}
-                    size={32}
-                    color={isSelected ? role.accentColor : C.textSub}
-                  />
+                  <Icon name={role.icon} size={26} color={role.color} />
                 </View>
-
-                <Text
-                  style={[
-                    styles.roleTitle,
-                    isSelected && { color: role.accentColor },
-                  ]}
+                <View style={{ flex: 1 }}>
+                  <Text style={[s.roleTitle, active && { color: role.color }]}>
+                    {role.title}
+                  </Text>
+                  <Text style={s.roleDesc}>{role.desc}</Text>
+                </View>
+                <View
+                  style={[s.radioOuter, active && { borderColor: role.color }]}
                 >
-                  {role.title}
-                </Text>
-                <Text style={styles.roleDesc}>{role.description}</Text>
-
-                <View style={styles.featureList}>
-                  {role.features.map((f) => (
-                    <View key={f} style={styles.featureRow}>
-                      <Ionicons
-                        name="checkmark-circle"
-                        size={14}
-                        color={isSelected ? role.accentColor : C.textSub}
-                        style={{ marginRight: 6 }}
-                      />
-                      <Text style={styles.featureText}>{f}</Text>
-                    </View>
-                  ))}
+                  {active && (
+                    <View
+                      style={[s.radioInner, { backgroundColor: role.color }]}
+                    />
+                  )}
                 </View>
               </TouchableOpacity>
             );
           })}
         </View>
 
-        {/* Continue Button */}
+        {/* Confirm button */}
         <TouchableOpacity
-          style={[styles.continueBtn, !selected && styles.continueBtnDisabled]}
-          onPress={handleContinue}
-          disabled={!selected}
+          style={[s.confirmBtn, (!selected || loading) && s.confirmBtnDisabled]}
+          onPress={onConfirm}
+          disabled={!selected || loading}
           activeOpacity={0.85}
         >
-          <Text style={styles.continueBtnText}>CONTINUE</Text>
-          <Ionicons
-            name="arrow-forward"
-            size={18}
-            color="#fff"
-            style={{ marginLeft: 8 }}
-          />
+          {loading ? (
+            <ActivityIndicator color="#fff" size="small" />
+          ) : (
+            <>
+              <Text style={s.confirmText}>
+                Continue as{" "}
+                {ROLES.find((r) => r.id === selected)?.title ?? "..."}
+              </Text>
+              <Icon name="arrow-right" size={18} color="#fff" />
+            </>
+          )}
         </TouchableOpacity>
       </View>
     </SafeAreaView>
   );
 }
 
-const CARD_WIDTH = (width - 48 - 12) / 2;
-
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: C.bg },
+const s = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: Colors.bg },
   container: {
     flex: 1,
-    paddingHorizontal: 24,
-    paddingTop: 24,
-    paddingBottom: 24,
-  },
-  header: { marginBottom: 32 },
-  logoBox: {
-    width: 48,
-    height: 48,
-    borderRadius: 14,
-    backgroundColor: C.surface,
+    padding: Spacing.lg,
     justifyContent: "center",
+    gap: Spacing.xl,
+  },
+  header: { alignItems: "center", gap: Spacing.md },
+  logoWrap: {
+    width: 72,
+    height: 72,
+    borderRadius: 24,
     alignItems: "center",
-    marginBottom: 20,
+    justifyContent: "center",
+  },
+  title: {
+    color: Colors.textPrimary,
+    fontSize: Typography.xxl,
+    fontWeight: "800",
+    textAlign: "center",
+  },
+  subtitle: {
+    color: Colors.textMuted,
+    fontSize: Typography.sm,
+    textAlign: "center",
+    lineHeight: 22,
+  },
+  errorBox: {
+    backgroundColor: Colors.errorFaded,
+    borderRadius: Radius.lg,
+    padding: Spacing.md,
     borderWidth: 1,
-    borderColor: C.border,
+    borderColor: Colors.error + "40",
   },
-  greeting: { fontSize: 16, color: C.textSub, marginBottom: 6 },
-  title: { fontSize: 28, fontWeight: "800", color: C.text, lineHeight: 36 },
-  subtitle: { fontSize: 14, color: C.textSub, marginTop: 8 },
-  cardsContainer: { flexDirection: "row", gap: 12, marginBottom: 32 },
-  card: {
-    width: CARD_WIDTH,
-    backgroundColor: C.surface,
-    borderRadius: 20,
-    padding: 18,
+  errorText: { color: Colors.error, fontSize: Typography.sm },
+  roles: { gap: Spacing.md },
+  roleCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.md,
+    backgroundColor: Colors.surface,
+    borderRadius: Radius.xl,
     borderWidth: 2,
-    borderColor: C.border,
-    position: "relative",
+    borderColor: Colors.border,
+    padding: Spacing.lg,
   },
-  checkBadge: {
-    position: "absolute",
-    top: 12,
-    right: 12,
+  roleIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: Radius.lg,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  roleTitle: {
+    color: Colors.textPrimary,
+    fontSize: Typography.base,
+    fontWeight: "700",
+    marginBottom: 3,
+  },
+  roleDesc: {
+    color: Colors.textMuted,
+    fontSize: Typography.xs,
+    lineHeight: 18,
+  },
+  radioOuter: {
     width: 22,
     height: 22,
     borderRadius: 11,
-    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: Colors.border,
     alignItems: "center",
-  },
-  iconBox: {
-    width: 56,
-    height: 56,
-    borderRadius: 16,
     justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 14,
+    flexShrink: 0,
   },
-  roleTitle: {
-    fontSize: 18,
-    fontWeight: "800",
-    color: C.text,
-    marginBottom: 4,
-  },
-  roleDesc: {
-    fontSize: 12,
-    color: C.textSub,
-    marginBottom: 16,
-    lineHeight: 17,
-  },
-  featureList: { gap: 6 },
-  featureRow: { flexDirection: "row", alignItems: "center" },
-  featureText: { fontSize: 12, color: C.textSub },
-  continueBtn: {
-    backgroundColor: C.primary,
-    borderRadius: 14,
-    height: 54,
+  radioInner: { width: 12, height: 12, borderRadius: 6 },
+  confirmBtn: {
     flexDirection: "row",
-    justifyContent: "center",
     alignItems: "center",
-    marginTop: "auto",
+    justifyContent: "center",
+    gap: Spacing.sm,
+    backgroundColor: Colors.primary,
+    borderRadius: Radius.xl,
+    padding: Spacing.lg,
   },
-  continueBtnDisabled: { opacity: 0.35 },
-  continueBtnText: {
-    color: "#fff",
-    fontSize: 15,
-    fontWeight: "700",
-    letterSpacing: 1.5,
-  },
+  confirmBtnDisabled: { opacity: 0.4 },
+  confirmText: { color: "#fff", fontSize: Typography.base, fontWeight: "700" },
 });

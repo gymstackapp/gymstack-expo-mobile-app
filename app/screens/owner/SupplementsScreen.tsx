@@ -52,6 +52,7 @@ export default function OwnerSupplementsScreen() {
     qty: "1",
     memberName: "",
     paymentMethod: "CASH",
+    unitPrice: "",  // editable unit price (pre-filled from product price)
   });
 
   const { data: gyms = [] } = useQuery({
@@ -97,6 +98,7 @@ export default function OwnerSupplementsScreen() {
         qty: parseInt(sellForm.qty) || 1,
         memberName: sellForm.memberName || undefined,
         paymentMethod: sellForm.paymentMethod,
+        unitPrice: sellForm.unitPrice ? parseFloat(sellForm.unitPrice) : undefined,
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["ownerSupplements"] });
@@ -314,6 +316,7 @@ export default function OwnerSupplementsScreen() {
                         qty: "1",
                         memberName: "",
                         paymentMethod: "CASH",
+                        unitPrice: String(s.price ?? ""),
                       });
                       setShowSell(true);
                     }}
@@ -495,6 +498,25 @@ export default function OwnerSupplementsScreen() {
               placeholder="Walk-in customer"
             />
             <View>
+              <Input
+                label="Unit Price (₹)"
+                value={sellForm.unitPrice}
+                onChangeText={(v) => setSell("unitPrice", v)}
+                keyboardType="numeric"
+              />
+              {sellItem && sellForm.unitPrice && parseFloat(sellForm.unitPrice) !== sellItem.price ? (
+                <Text
+                  style={{
+                    color: Colors.textMuted,
+                    fontSize: Typography.xs,
+                    marginTop: 4,
+                  }}
+                >
+                  Listed price: {fmt(sellItem.price)}
+                </Text>
+              ) : null}
+            </View>
+            <View>
               <Text
                 style={{
                   color: Colors.textMuted,
@@ -554,7 +576,7 @@ export default function OwnerSupplementsScreen() {
                   fontWeight: "700",
                 }}
               >
-                Total: {fmt(sellItem.price * (parseInt(sellForm.qty) || 1))}
+                Total: {fmt((parseFloat(sellForm.unitPrice) || sellItem.price) * (parseInt(sellForm.qty) || 1))}
               </Text>
             ) : null}
             <Button

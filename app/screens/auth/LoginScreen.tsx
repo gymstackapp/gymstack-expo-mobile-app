@@ -198,7 +198,6 @@ import { Image } from "expo-image";
 import React, { useState } from "react";
 import {
   KeyboardAvoidingView,
-  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -226,18 +225,19 @@ export function LoginScreen() {
   return (
     <KeyboardAvoidingView
       style={{ flex: 1, backgroundColor: Colors.bg }}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      behavior="padding"
     >
       <ScrollView
         contentContainerStyle={styles.scroll}
         keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
       >
         {/* Logo */}
         <View style={styles.logo}>
           <Image
             source={require("../../../assets/images/logo_bg2.png")}
             contentFit="cover"
-            style={{ width: 300, height: 150 }}
+            style={{ width: 260, height: 130 }}
           />
           <Text style={styles.logoSub}>Manage your gym smarter</Text>
         </View>
@@ -304,8 +304,8 @@ export function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
-  scroll: { flexGrow: 1, padding: Spacing.xl },
-  logo: { alignItems: "center", marginBottom: Spacing.xxxl, marginTop: 100 },
+  scroll: { flexGrow: 1, padding: Spacing.xl, justifyContent: "center" },
+  logo: { alignItems: "center", marginBottom: Spacing.xxl, marginTop: Spacing.xxxl },
   logoIcon: {
     width: 64,
     height: 64,

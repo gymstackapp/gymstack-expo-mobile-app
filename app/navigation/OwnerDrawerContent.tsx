@@ -58,8 +58,12 @@ const NAV_ITEMS: NavItem[] = [
     screen: "OwnerWorkouts",
   },
   { icon: "food-apple-outline", label: "Diet Plans", screen: "OwnerDiets" },
-  { icon: "locker-outline", label: "Lockers", screen: "OwnerLockers" },
-  { icon: "receipt-outline", label: "Expenses", screen: "OwnerExpenses" },
+  { icon: "lock-outline", label: "Lockers", screen: "OwnerLockers" },
+  {
+    icon: "currency-rupee",
+    label: "Expenses",
+    screen: "OwnerExpenses",
+  },
   { icon: "gift-outline", label: "Refer & Earn", screen: "OwnerReferral" },
   {
     icon: "bell-outline",

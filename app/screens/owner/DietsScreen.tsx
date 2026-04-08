@@ -447,11 +447,11 @@ import {
   PlanGate,
   SkeletonGroup,
 } from "@/components";
+import { showAlert } from "@/components/AppAlert";
 import { useSubscription } from "@/hooks/useSubsciption";
 import { Colors, Radius, Spacing, Typography } from "@/theme";
 import type { DietPlan, Gym } from "@/types/api";
 import { useNavigation } from "@react-navigation/native";
-import { showAlert } from "@/components/AppAlert";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import React, { useState } from "react";
 import {

@@ -14,6 +14,7 @@ interface StatCardProps {
   color?: string; // accent color for icon and value, default primary
   bg?: string; // icon background color, default primaryFaded
   style?: ViewStyle;
+  sub?: string; // optional secondary line below the label
   // Optional: show a small trend indicator
   trend?: "up" | "down" | "neutral";
   trendValue?: string; // e.g. "+12%"
@@ -26,6 +27,7 @@ export function StatCard({
   color = Colors.primary,
   bg = Colors.primaryFaded,
   style,
+  sub,
   trend,
   trendValue,
 }: StatCardProps) {
@@ -59,6 +61,11 @@ export function StatCard({
       <Text style={styles.label} numberOfLines={1}>
         {label}
       </Text>
+      {sub ? (
+        <Text style={styles.sub} numberOfLines={1}>
+          {sub}
+        </Text>
+      ) : null}
 
       {/* Trend */}
       {trend && trendValue ? (
@@ -100,6 +107,11 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
     fontSize: Typography.xs,
     marginTop: 3,
+  },
+  sub: {
+    color: Colors.textMuted,
+    fontSize: Typography.xs,
+    marginTop: 1,
   },
   trendRow: {
     flexDirection: "row",
