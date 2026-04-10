@@ -195,6 +195,29 @@ export interface OwnerAttendanceRecord {
   };
 }
 
+export interface MemberAttendanceIndividual {
+  id: string;
+  gymId: string;
+  memberId: string;
+  checkInTime: string;
+  checkOutTime: string | null;
+  method: string;
+  gym: { name: string };
+}
+
+export interface MemberAttendanceRecord {
+  checkedInToday: boolean;
+  milestones: any[];
+  pages: number;
+  streak: {
+    current: number;
+    longest: number;
+    total: number;
+  };
+  records: MemberAttendanceIndividual[];
+  thisMonth: number;
+  total: number;
+}
 // ─────────────────────────────────────────────────────────────────────────────
 // PAYMENTS
 // ─────────────────────────────────────────────────────────────────────────────
