@@ -11,6 +11,8 @@ import {
 } from "@/components";
 import { useSubscription } from "@/hooks/useSubsciption";
 import { Colors, Radius, Spacing, Typography } from "@/theme";
+import { Gym } from "@/types/api";
+import { useNavigation } from "@react-navigation/native";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import React, { useState } from "react";
 import {
@@ -31,33 +33,34 @@ function fmt(n: number) {
 }
 
 export default function OwnerSupplementsScreen() {
+  const navigation = useNavigation();
   const qc = useQueryClient();
   const { hasSupplements } = useSubscription();
   const [gymId, setGymId] = useState("");
   const [showAdd, setShowAdd] = useState(false);
   const [showSell, setShowSell] = useState(false);
   const [sellItem, setSellItem] = useState<any>(null);
-  const [form, setForm] = useState({
-    gymId: "",
-    name: "",
-    brand: "",
-    category: "",
-    unitSize: "",
-    price: "",
-    costPrice: "",
-    stockQty: "0",
-    lowStockAt: "5",
-  });
+  // const [form, setForm] = useState({
+  //   gymId: "",
+  //   name: "",
+  //   brand: "",
+  //   category: "",
+  //   unitSize: "",
+  //   price: "",
+  //   costPrice: "",
+  //   stockQty: "0",
+  //   lowStockAt: "5",
+  // });
   const [sellForm, setSellForm] = useState({
     qty: "1",
     memberName: "",
     paymentMethod: "CASH",
-    unitPrice: "",  // editable unit price (pre-filled from product price)
+    unitPrice: "", // editable unit price (pre-filled from product price)
   });
 
   const { data: gyms = [] } = useQuery({
     queryKey: ["ownerGyms"],
-    queryFn: gymsApi.list,
+    queryFn: () => gymsApi.list() as Promise<Gym[]>,
     staleTime: 5 * 60_000,
   });
   const {
@@ -72,23 +75,23 @@ export default function OwnerSupplementsScreen() {
     staleTime: 60_000,
   });
 
-  const addMutation = useMutation({
-    mutationFn: () =>
-      supplementsApi.create({
-        ...form,
-        gymId: form.gymId || gymId || (gyms as any[])[0]?.id,
-        price: parseFloat(form.price),
-        costPrice: form.costPrice ? parseFloat(form.costPrice) : null,
-        stockQty: parseInt(form.stockQty) || 0,
-        lowStockAt: parseInt(form.lowStockAt) || 5,
-      }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["ownerSupplements"] });
-      setShowAdd(false);
-      Toast.show({ type: "success", text1: "Supplement added!" });
-    },
-    onError: (err: any) => Toast.show({ type: "error", text1: err.message }),
-  });
+  // const addMutation = useMutation({
+  //   mutationFn: () =>
+  //     supplementsApi.create({
+  //       ...form,
+  //       gymId: form.gymId || gymId || (gyms as any[])[0]?.id,
+  //       price: parseFloat(form.price),
+  //       costPrice: form.costPrice ? parseFloat(form.costPrice) : null,
+  //       stockQty: parseInt(form.stockQty) || 0,
+  //       lowStockAt: parseInt(form.lowStockAt) || 5,
+  //     }),
+  //   onSuccess: () => {
+  //     qc.invalidateQueries({ queryKey: ["ownerSupplements"] });
+  //     setShowAdd(false);
+  //     Toast.show({ type: "success", text1: "Supplement added!" });
+  //   },
+  //   onError: (err: any) => Toast.show({ type: "error", text1: err.message }),
+  // });
 
   const sellMutation = useMutation({
     mutationFn: () =>
@@ -98,7 +101,9 @@ export default function OwnerSupplementsScreen() {
         qty: parseInt(sellForm.qty) || 1,
         memberName: sellForm.memberName || undefined,
         paymentMethod: sellForm.paymentMethod,
-        unitPrice: sellForm.unitPrice ? parseFloat(sellForm.unitPrice) : undefined,
+        unitPrice: sellForm.unitPrice
+          ? parseFloat(sellForm.unitPrice)
+          : undefined,
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["ownerSupplements"] });
@@ -109,7 +114,7 @@ export default function OwnerSupplementsScreen() {
     onError: (err: any) => Toast.show({ type: "error", text1: err.message }),
   });
 
-  const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
+  // const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
   const setSell = (k: string, v: string) =>
     setSellForm((f) => ({ ...f, [k]: v }));
 
@@ -129,16 +134,14 @@ export default function OwnerSupplementsScreen() {
             hasSupplements ? (
               <TouchableOpacity
                 style={{
-                  width: 38,
-                  height: 38,
-                  borderRadius: Radius.lg,
-                  backgroundColor: Colors.primary,
                   alignItems: "center",
                   justifyContent: "center",
                 }}
-                onPress={() => setShowAdd(true)}
+                onPress={() =>
+                  (navigation as any).navigate("OwnerAddSupplement")
+                }
               >
-                <Icon name="plus" size={20} color="#fff" />
+                <Icon name="plus" size={20} color={Colors.primary} />
               </TouchableOpacity>
             ) : null
           }
@@ -339,7 +342,7 @@ export default function OwnerSupplementsScreen() {
       </PlanGate>
 
       {/* Add Supplement Modal */}
-      <Modal
+      {/* <Modal
         visible={showAdd}
         animationType="slide"
         presentationStyle="pageSheet"
@@ -439,7 +442,7 @@ export default function OwnerSupplementsScreen() {
             />
           </ScrollView>
         </SafeAreaView>
-      </Modal>
+      </Modal> */}
 
       {/* Sell Modal */}
       <Modal
@@ -475,7 +478,7 @@ export default function OwnerSupplementsScreen() {
                 Sell {sellItem?.name}
               </Text>
               <TouchableOpacity onPress={() => setShowSell(false)}>
-                <Icon name="close" size={22} color={Colors.textMuted} />
+                <Icon name="close" size={22} color={Colors.primary} />
               </TouchableOpacity>
             </View>
             {sellItem ? (
@@ -504,7 +507,9 @@ export default function OwnerSupplementsScreen() {
                 onChangeText={(v) => setSell("unitPrice", v)}
                 keyboardType="numeric"
               />
-              {sellItem && sellForm.unitPrice && parseFloat(sellForm.unitPrice) !== sellItem.price ? (
+              {sellItem &&
+              sellForm.unitPrice &&
+              parseFloat(sellForm.unitPrice) !== sellItem.price ? (
                 <Text
                   style={{
                     color: Colors.textMuted,
@@ -576,7 +581,11 @@ export default function OwnerSupplementsScreen() {
                   fontWeight: "700",
                 }}
               >
-                Total: {fmt((parseFloat(sellForm.unitPrice) || sellItem.price) * (parseInt(sellForm.qty) || 1))}
+                Total:{" "}
+                {fmt(
+                  (parseFloat(sellForm.unitPrice) || sellItem.price) *
+                    (parseInt(sellForm.qty) || 1),
+                )}
               </Text>
             ) : null}
             <Button
