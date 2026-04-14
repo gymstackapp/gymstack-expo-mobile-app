@@ -36,49 +36,102 @@ import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 
 interface Expense {
   id: string;
-  gymId: string;
   title: string;
   amount: number;
-  category: string | null;
+  category: string;
   description: string | null;
   expenseDate: string;
   receiptUrl: string | null;
-  gym?: { id: string; name: string };
+  gym: {
+    name: string;
+  };
+  gymId: string;
+  addedBy: {
+    fullName: string;
+  };
+}
+
+interface ExpenseForm {
+  gymId: string;
+  title: string;
+  amount: string;
+  category: string;
+  description: string;
+  expenseDate: string;
+  receiptUrl: string;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Constants
 // ─────────────────────────────────────────────────────────────────────────────
 
-const RANGE_OPTIONS = [
-  { label: "Today", value: "today" },
-  { label: "This Week", value: "this_week" },
-  { label: "This Month", value: "this_month" },
-  { label: "Last 3 Months", value: "last_3_months" },
-  { label: "Last Year", value: "last_year" },
+const CATEGORIES = [
+  "ELECTRICITY",
+  "WATER",
+  "RENT",
+  "EQUIPMENT_PURCHASE",
+  "EQUIPMENT_MAINTENANCE",
+  "STAFF_SALARY",
+  "MARKETING",
+  "CLEANING",
+  "INSURANCE",
+  "INTERNET",
+  "SOFTWARE",
+  "MISCELLANEOUS",
 ];
 
-const CATEGORY_OPTIONS = [
-  { label: "Rent", value: "Rent" },
-  { label: "Utilities", value: "Utilities" },
-  { label: "Salary", value: "Salary" },
-  { label: "Equipment", value: "Equipment" },
-  { label: "Maintenance", value: "Maintenance" },
-  { label: "Marketing", value: "Marketing" },
-  { label: "Supplies", value: "Supplies" },
-  { label: "Other", value: "Other" },
-];
+const CATEGORY_LABELS: Record<string, string> = {
+  ELECTRICITY: "Electricity",
+  WATER: "Water",
+  RENT: "Rent",
+  EQUIPMENT_PURCHASE: "Equipment Purchase",
+  EQUIPMENT_MAINTENANCE: "Equipment Maintenance",
+  STAFF_SALARY: "Staff Salary",
+  MARKETING: "Marketing",
+  CLEANING: "Cleaning",
+  INSURANCE: "Insurance",
+  INTERNET: "Internet",
+  SOFTWARE: "Software",
+  MISCELLANEOUS: "Miscellaneous",
+};
 
 const CATEGORY_COLORS: Record<string, string> = {
-  Rent: Colors.primary,
-  Utilities: "#F59E0B",
-  Salary: "#10B981",
-  Equipment: "#8B5CF6",
-  Maintenance: "#F97316",
-  Marketing: "#EC4899",
-  Supplies: "#06B6D4",
-  Other: Colors.textMuted,
+  ELECTRICITY: "#F59E0B",
+  WATER: "#3B82F6",
+  RENT: "#8B5CF6",
+  EQUIPMENT_PURCHASE: "#F97316",
+  EQUIPMENT_MAINTENANCE: "#EF4444",
+  STAFF_SALARY: "#10B981",
+  MARKETING: "#EC4899",
+  CLEANING: "#14B8A6",
+  INSURANCE: "#6366F1",
+  INTERNET: "#06B6D4",
+  SOFTWARE: "#8B5CF6",
+  MISCELLANEOUS: "#6B7280",
 };
+
+const RANGES = [
+  { key: "today", label: "Today" },
+  { key: "last_7_days", label: "Last 7 Days" },
+  { key: "last_30_days", label: "Last 30 Days" },
+  { key: "last_90_days", label: "This Quarter (90 days)" },
+  { key: "financial_year", label: "Financial Year (Apr–Mar)" },
+  { key: "custom", label: "Custom Range" },
+];
+
+function fmt(n: number) {
+  if (n >= 100000) return `₹${(n / 100000).toFixed(1)}L`;
+  if (n >= 1000) return `₹${(n / 1000).toFixed(1)}K`;
+  return `₹${n.toLocaleString("en-IN")}`;
+}
+
+function localDateString() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
 
 function todayISO() {
   return new Date().toISOString().slice(0, 10);
@@ -105,8 +158,10 @@ function fmtDate(dateStr: string) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function CategoryBadge({ category }: { category: string | null }) {
-  const label = category ?? "Other";
-  const color = CATEGORY_COLORS[label] ?? Colors.textMuted;
+  const label = CATEGORY_LABELS[category || "MISCELLANEOUS"] || "Miscellaneous";
+  const color =
+    CATEGORY_COLORS[category || "MISCELLANEOUS"] ||
+    CATEGORY_COLORS.MISCELLANEOUS;
   return (
     <View
       style={[
@@ -127,9 +182,9 @@ const BLANK_FORM = {
   gymId: "",
   title: "",
   amount: "",
-  category: "",
-  expenseDate: todayISO(),
+  category: "MISCELLANEOUS",
   description: "",
+  expenseDate: localDateString(),
   receiptUrl: "",
 };
 
@@ -142,12 +197,15 @@ export default function OwnerExpensesScreen() {
 
   // Filters
   const [gymId, setGymId] = useState("");
-  const [range, setRange] = useState("this_month");
+  const [range, setRange] = useState("");
+  const [category, setCategory] = useState("");
+  const [customStart, setCustomStart] = useState("");
+  const [customEnd, setCustomEnd] = useState("");
 
   // Modal state
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState({ ...BLANK_FORM });
+  const [form, setForm] = useState<ExpenseForm>({ ...BLANK_FORM });
 
   // ── Gyms query ──────────────────────────────────────────────────────────────
   const { data: gyms = [] } = useQuery<Gym[]>({
@@ -158,25 +216,34 @@ export default function OwnerExpensesScreen() {
 
   // ── Expenses query ──────────────────────────────────────────────────────────
   const {
-    data: expenses = [],
+    data: expensesData,
     isLoading,
     refetch,
     isRefetching,
-  } = useQuery<Expense[]>({
-    queryKey: ["ownerExpenses", gymId, range],
-    queryFn: () =>
-      expensesApi.list({
-        gymId: gymId || undefined,
-        range: range || undefined,
-      }) as Promise<Expense[]>,
+  } = useQuery({
+    queryKey: ["ownerExpenses", gymId, range, category, customStart, customEnd],
+    queryFn: () => {
+      const params: any = { range: range || "last_30_days" };
+      if (gymId) params.gymId = gymId;
+      if (category) params.category = category;
+      if (range === "custom" && customStart && customEnd) {
+        params.customStart = customStart;
+        params.customEnd = customEnd;
+      }
+      return expensesApi.list(params) as Promise<{
+        expenses: Expense[];
+        totalAmount: number;
+        byCategory: { category: string; total: number; count: number }[];
+      }>;
+    },
     staleTime: 60_000,
   });
 
-  // ── Summary ─────────────────────────────────────────────────────────────────
-  const totalAmount = expenses.reduce(
-    (sum, e) => sum + (Number(e.amount) || 0),
-    0,
-  );
+  console.log("data", expensesData?.expenses[0].gym.name);
+
+  const expenses = expensesData?.expenses || [];
+  const totalAmount = expensesData?.totalAmount || 0;
+  const byCategory = expensesData?.byCategory || [];
 
   // ── Mutations ───────────────────────────────────────────────────────────────
   const createMutation = useMutation({
@@ -185,7 +252,7 @@ export default function OwnerExpensesScreen() {
         gymId: form.gymId || gymId || (gyms as Gym[])[0]?.id,
         title: form.title.trim(),
         amount: parseFloat(form.amount) || 0,
-        category: form.category || undefined,
+        category: form.category,
         expenseDate: form.expenseDate,
         description: form.description.trim() || undefined,
         receiptUrl: form.receiptUrl.trim() || undefined,
@@ -195,8 +262,7 @@ export default function OwnerExpensesScreen() {
       closeModal();
       Toast.show({ type: "success", text1: "Expense added!" });
     },
-    onError: (err: Error) =>
-      Toast.show({ type: "error", text1: err.message }),
+    onError: (err: Error) => Toast.show({ type: "error", text1: err.message }),
   });
 
   const updateMutation = useMutation({
@@ -204,7 +270,7 @@ export default function OwnerExpensesScreen() {
       expensesApi.update(editingId!, {
         title: form.title.trim(),
         amount: parseFloat(form.amount) || 0,
-        category: form.category || undefined,
+        category: form.category,
         expenseDate: form.expenseDate,
         description: form.description.trim() || undefined,
         receiptUrl: form.receiptUrl.trim() || undefined,
@@ -214,8 +280,7 @@ export default function OwnerExpensesScreen() {
       closeModal();
       Toast.show({ type: "success", text1: "Expense updated!" });
     },
-    onError: (err: Error) =>
-      Toast.show({ type: "error", text1: err.message }),
+    onError: (err: Error) => Toast.show({ type: "error", text1: err.message }),
   });
 
   const deleteMutation = useMutation({
@@ -224,8 +289,7 @@ export default function OwnerExpensesScreen() {
       qc.invalidateQueries({ queryKey: ["ownerExpenses"] });
       Toast.show({ type: "success", text1: "Expense deleted" });
     },
-    onError: (err: Error) =>
-      Toast.show({ type: "error", text1: err.message }),
+    onError: (err: Error) => Toast.show({ type: "error", text1: err.message }),
   });
 
   // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -236,7 +300,7 @@ export default function OwnerExpensesScreen() {
     setForm({
       ...BLANK_FORM,
       gymId: gymId || (gyms as Gym[])[0]?.id || "",
-      expenseDate: todayISO(),
+      expenseDate: localDateString(),
     });
     setShowModal(true);
   };
@@ -244,11 +308,11 @@ export default function OwnerExpensesScreen() {
   const openEdit = (expense: Expense) => {
     setEditingId(expense.id);
     setForm({
-      gymId: expense.gymId,
+      gymId: expense.gymId || "",
       title: expense.title,
       amount: String(expense.amount),
-      category: expense.category ?? "",
-      expenseDate: expense.expenseDate?.slice(0, 10) ?? todayISO(),
+      category: expense.category,
+      expenseDate: expense.expenseDate?.slice(0, 10) ?? localDateString(),
       description: expense.description ?? "",
       receiptUrl: expense.receiptUrl ?? "",
     });
@@ -273,8 +337,7 @@ export default function OwnerExpensesScreen() {
       Toast.show({ type: "error", text1: "Expense date is required" });
       return;
     }
-    const effectiveGymId =
-      form.gymId || gymId || (gyms as Gym[])[0]?.id;
+    const effectiveGymId = form.gymId || gymId || (gyms as Gym[])[0]?.id;
     if (!effectiveGymId) {
       Toast.show({ type: "error", text1: "Please select a gym" });
       return;
@@ -303,6 +366,7 @@ export default function OwnerExpensesScreen() {
 
   const isMutating = createMutation.isPending || updateMutation.isPending;
   const multiGym = (gyms as Gym[]).length > 1;
+  const maxCategory = Math.max(...byCategory.map((b) => b.total), 1);
 
   // ── Render ──────────────────────────────────────────────────────────────────
   return (
@@ -312,6 +376,7 @@ export default function OwnerExpensesScreen() {
         <Header
           title="Expenses"
           menu
+          subtitle="Track your gym operating costs"
           right={
             <TouchableOpacity style={s.addBtn} onPress={openAdd}>
               <Icon name="plus" size={20} color="#fff" />
@@ -319,143 +384,260 @@ export default function OwnerExpensesScreen() {
           }
         />
 
-        {/* Gym filter pills */}
-        {multiGym && (
-          <View style={s.pillsRow}>
-            {[{ id: "", name: "All" } as Gym, ...(gyms as Gym[])].map((g) => (
-              <TouchableOpacity
-                key={g.id}
-                onPress={() => setGymId(g.id)}
-                style={[s.pill, gymId === g.id && s.pillActive]}
-              >
-                <Text
-                  style={[s.pillText, gymId === g.id && s.pillTextActive]}
-                >
-                  {g.name}
-                </Text>
-              </TouchableOpacity>
-            ))}
+        {/* Filters */}
+        <View style={s.filtersRow}>
+          {/* Gym filter */}
+          {multiGym && (
+            <Dropdown
+              label="Gym"
+              value={gymId}
+              onChange={setGymId}
+              options={[
+                { value: "", label: "All Gyms" },
+                ...gyms.map((g) => ({ value: g.id, label: g.name })),
+              ]}
+              placeholder="All Gyms"
+              leftIcon="domain"
+              containerStyle={{ flex: 1 }}
+            />
+          )}
+          {/* Range dropdown - simplified for RN */}
+          <Dropdown
+            label="Date Range"
+            value={range}
+            onChange={setRange}
+            options={[
+              { value: "", label: "Select range" },
+              ...RANGES.map((r) => ({ value: r.key, label: r.label })),
+            ]}
+            placeholder="Select range"
+            leftIcon="calendar-range"
+            containerStyle={{ flex: 1 }}
+          />
+
+          {/* Category filter */}
+          <Dropdown
+            label="Category"
+            value={category}
+            onChange={setCategory}
+            options={[
+              { value: "", label: "All Categories" },
+              ...CATEGORIES.map((c) => ({
+                value: c,
+                label: CATEGORY_LABELS[c],
+              })),
+            ]}
+            placeholder="All Categories"
+            leftIcon="tag-outline"
+            containerStyle={{ flex: 1 }}
+          />
+        </View>
+
+        {/* Custom range inputs */}
+        {range === "custom" && (
+          <View style={s.customRangeRow}>
+            <Input
+              label="Start Date"
+              value={customStart}
+              onChangeText={setCustomStart}
+              placeholder="YYYY-MM-DD"
+            />
+            <Input
+              label="End Date"
+              value={customEnd}
+              onChangeText={setCustomEnd}
+              placeholder="YYYY-MM-DD"
+            />
           </View>
         )}
 
-        {/* Range filter */}
-        <Dropdown
-          label="Date Range"
-          value={range}
-          onChange={setRange}
-          options={RANGE_OPTIONS}
-          leftIcon="calendar-range"
-        />
-
-        {/* Summary stats */}
+        {/* Summary cards */}
         {!isLoading && expenses.length > 0 && (
-          <View style={s.statsRow}>
-            <View style={s.statCard}>
-              <Text style={s.statLabel}>Total Expenses</Text>
-              <Text style={s.statValue}>{fmtAmount(totalAmount)}</Text>
+          <View style={s.summaryRow}>
+            <View style={s.summaryCard}>
+              <Text style={s.summaryLabel}>Total Expenses</Text>
+              <Text style={s.summaryValue}>{fmt(totalAmount)}</Text>
+              <Text style={s.summarySub}>{expenses.length} transactions</Text>
             </View>
-            <View style={s.statCard}>
-              <Text style={s.statLabel}>Count</Text>
-              <Text style={s.statValue}>{expenses.length}</Text>
+            <View style={s.summaryCard}>
+              <Text style={s.summaryLabel}>Avg per Transaction</Text>
+              <Text style={s.summaryValue}>
+                {expenses.length ? fmt(totalAmount / expenses.length) : "₹0"}
+              </Text>
+            </View>
+            <View style={s.summaryCard}>
+              <Text style={s.summaryLabel}>Top Category</Text>
+              <Text style={s.summaryValue}>
+                {byCategory[0] ? CATEGORY_LABELS[byCategory[0].category] : "—"}
+              </Text>
+              {byCategory[0] && (
+                <Text style={s.summarySub}>{fmt(byCategory[0].total)}</Text>
+              )}
             </View>
           </View>
         )}
       </View>
 
-      {/* ── List ───────────────────────────────────────────────────────────── */}
-      {isLoading ? (
-        <View style={{ padding: Spacing.lg }}>
-          <SkeletonGroup
-            variant="card"
-            count={4}
-            itemHeight={88}
-            gap={Spacing.md}
-          />
-        </View>
-      ) : expenses.length === 0 ? (
-        <EmptyState
-          icon="receipt-outline"
-          title="No expenses"
-          subtitle="Track your gym expenses to manage finances better"
-          action={
-            <TouchableOpacity style={s.emptyAction} onPress={openAdd}>
-              <Icon name="plus" size={16} color="#fff" />
-              <Text style={s.emptyActionText}>Add Expense</Text>
-            </TouchableOpacity>
-          }
-        />
-      ) : (
-        <FlatList<Expense>
-          data={expenses}
-          keyExtractor={(e) => e.id}
-          contentContainerStyle={s.list}
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl
-              refreshing={isRefetching}
-              onRefresh={refetch}
-              tintColor={Colors.primary}
-              colors={[Colors.primary]}
-            />
-          }
-          ItemSeparatorComponent={() => (
-            <View style={{ height: Spacing.md }} />
-          )}
-          renderItem={({ item: expense }) => (
-            <TouchableOpacity
-              activeOpacity={0.82}
-              onPress={() => openEdit(expense)}
-            >
-              <Card>
-                <View style={s.expenseRow}>
-                  {/* Left: icon */}
-                  <View style={s.expenseIconWrap}>
-                    <Icon
-                      name="cash-multiple"
-                      size={20}
-                      color={Colors.error}
+      {/* ── Content ───────────────────────────────────────────────────────────── */}
+      <ScrollView style={s.content} showsVerticalScrollIndicator={false}>
+        {/* Category breakdown */}
+        {byCategory.length > 0 && (
+          <View style={s.breakdownCard}>
+            <Text style={s.breakdownTitle}>By Category</Text>
+            <View style={s.breakdownList}>
+              {byCategory.map((b) => (
+                <View key={b.category} style={s.breakdownItem}>
+                  <View style={s.breakdownLeft}>
+                    <Text
+                      style={[
+                        s.breakdownBadge,
+                        {
+                          backgroundColor: CATEGORY_COLORS[b.category] + "20",
+                          borderColor: CATEGORY_COLORS[b.category] + "40",
+                          color: CATEGORY_COLORS[b.category],
+                        },
+                      ]}
+                    >
+                      {CATEGORY_LABELS[b.category]}
+                    </Text>
+                    <Text style={s.breakdownAmount}>{fmt(b.total)}</Text>
+                  </View>
+                  <View style={s.progressBar}>
+                    <View
+                      style={[
+                        s.progressFill,
+                        {
+                          width: `${(b.total / maxCategory) * 100}%`,
+                          backgroundColor: CATEGORY_COLORS[b.category] + "60",
+                        },
+                      ]}
                     />
                   </View>
-
-                  {/* Middle: title + meta */}
-                  <View style={s.expenseInfo}>
-                    <Text style={s.expenseTitle} numberOfLines={1}>
-                      {expense.title}
-                    </Text>
-                    <View style={s.expenseMeta}>
-                      <CategoryBadge category={expense.category} />
-                      <Text style={s.expenseDate}>
-                        {fmtDate(expense.expenseDate)}
-                      </Text>
-                    </View>
-                    {expense.gym?.name && multiGym && (
-                      <Text style={s.expenseGym}>{expense.gym.name}</Text>
-                    )}
-                  </View>
-
-                  {/* Right: amount + delete */}
-                  <View style={s.expenseRight}>
-                    <Text style={s.expenseAmount}>
-                      {fmtAmount(Number(expense.amount))}
-                    </Text>
-                    <TouchableOpacity
-                      style={s.deleteBtn}
-                      onPress={() => confirmDelete(expense)}
-                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                    >
-                      <Icon
-                        name="trash-can-outline"
-                        size={16}
-                        color={Colors.error}
-                      />
-                    </TouchableOpacity>
-                  </View>
                 </View>
-              </Card>
-            </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        )}
+
+        {/* Expense list */}
+        <View style={s.listSection}>
+          <Text style={s.listTitle}>Transactions</Text>
+          {isLoading ? (
+            <View style={s.loading}>
+              <SkeletonGroup
+                variant="card"
+                count={4}
+                itemHeight={88}
+                gap={Spacing.md}
+              />
+            </View>
+          ) : expenses.length === 0 ? (
+            <EmptyState
+              icon="receipt-outline"
+              title="No expenses"
+              subtitle="Track your gym expenses to manage finances better"
+              action={
+                <TouchableOpacity style={s.emptyAction} onPress={openAdd}>
+                  <Icon name="plus" size={16} color="#fff" />
+                  <Text style={s.emptyActionText}>Add Expense</Text>
+                </TouchableOpacity>
+              }
+            />
+          ) : (
+            <FlatList<Expense>
+              data={expenses}
+              keyExtractor={(e) => e.id}
+              contentContainerStyle={s.list}
+              showsVerticalScrollIndicator={false}
+              refreshControl={
+                <RefreshControl
+                  refreshing={isRefetching}
+                  onRefresh={refetch}
+                  tintColor={Colors.primary}
+                  colors={[Colors.primary]}
+                />
+              }
+              ItemSeparatorComponent={() => (
+                <View style={{ height: Spacing.md }} />
+              )}
+              renderItem={({ item: expense }) => (
+                <TouchableOpacity
+                  activeOpacity={0.82}
+                  onPress={() => openEdit(expense)}
+                >
+                  <Card>
+                    <View style={s.expenseRow}>
+                      {/* Left: icon */}
+                      <View style={s.expenseIconWrap}>
+                        <Icon name="cash-multiple" size={20} color="#EF4444" />
+                      </View>
+
+                      {/* Middle: title + meta */}
+                      <View style={s.expenseInfo}>
+                        <Text style={s.expenseTitle} numberOfLines={1}>
+                          {expense.title}
+                        </Text>
+                        <View style={s.expenseMeta}>
+                          <CategoryBadge category={expense.category} />
+                          <Text style={s.expenseDate}>
+                            {new Date(expense.expenseDate).toLocaleDateString(
+                              "en-IN",
+                              {
+                                day: "numeric",
+                                month: "short",
+                                year: "numeric",
+                              },
+                            )}
+                          </Text>
+                        </View>
+                        {expense.gym?.name && multiGym && (
+                          <Text style={s.expenseGym}>{expense.gym.name}</Text>
+                        )}
+                        {expense.description && (
+                          <Text style={s.expenseDesc} numberOfLines={1}>
+                            {expense.description}
+                          </Text>
+                        )}
+                      </View>
+
+                      {/* Right: amount + edit */}
+                      <View style={s.expenseRight}>
+                        <Text style={s.expenseAmount}>
+                          −{fmt(Number(expense.amount))}
+                        </Text>
+                        <View style={{ flexDirection: "row", gap: 5 }}>
+                          <TouchableOpacity
+                            style={s.editBtn}
+                            onPress={() => openEdit(expense)}
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                          >
+                            <Icon
+                              name="pencil"
+                              size={20}
+                              color={Colors.textMuted}
+                            />
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={s.deleteBtn}
+                            onPress={() => confirmDelete(expense)}
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                          >
+                            <Icon
+                              name="trash-can-outline"
+                              size={20}
+                              color="#EF4444"
+                            />
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    </View>
+                  </Card>
+                </TouchableOpacity>
+              )}
+            />
           )}
-        />
-      )}
+        </View>
+      </ScrollView>
 
       {/* ── Add / Edit Modal ────────────────────────────────────────────────── */}
       <Modal
@@ -514,7 +696,10 @@ export default function OwnerExpensesScreen() {
               label="Category"
               value={form.category}
               onChange={(v) => set("category", v)}
-              options={CATEGORY_OPTIONS}
+              options={CATEGORIES.map((c) => ({
+                value: c,
+                label: CATEGORY_LABELS[c],
+              }))}
               placeholder="Select category"
               leftIcon="tag-outline"
             />
@@ -536,14 +721,14 @@ export default function OwnerExpensesScreen() {
               numberOfLines={3}
             />
 
-            <Input
+            {/* <Input
               label="Receipt URL"
               value={form.receiptUrl}
               onChangeText={(v) => set("receiptUrl", v)}
               placeholder="https://..."
               keyboardType="url"
               autoCapitalize="none"
-            />
+            /> */}
 
             <Button
               label={editingId ? "Save Changes" : "Add Expense"}
@@ -579,34 +764,24 @@ const s = StyleSheet.create({
     justifyContent: "center",
   },
 
-  // Gym filter pills
-  pillsRow: {
+  // Filters
+  filtersRow: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: Spacing.xs,
+    gap: Spacing.sm,
   },
-  pill: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: Radius.full,
-    backgroundColor: Colors.surfaceRaised,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  pillActive: {
-    backgroundColor: Colors.primaryFaded,
-    borderColor: Colors.primary,
-  },
-  pillText: { color: Colors.textMuted, fontSize: Typography.xs },
-  pillTextActive: { color: Colors.primary, fontWeight: "700" },
 
-  // Summary stats
-  statsRow: {
+  customRangeRow: {
+    flexDirection: "row",
+    gap: Spacing.sm,
+  },
+
+  // Summary
+  summaryRow: {
     flexDirection: "row",
     gap: Spacing.md,
-    marginBottom: Spacing.xs,
   },
-  statCard: {
+  summaryCard: {
     flex: 1,
     backgroundColor: Colors.surface,
     borderRadius: Radius.lg,
@@ -614,20 +789,96 @@ const s = StyleSheet.create({
     borderColor: Colors.border,
     padding: Spacing.md,
     alignItems: "center",
+    justifyContent: "center",
   },
-  statLabel: {
+  summaryLabel: {
     color: Colors.textMuted,
-    fontSize: Typography.xs,
+    fontSize: Typography.sm,
+    fontWeight: "semibold",
     marginBottom: 4,
   },
-  statValue: {
+  summaryValue: {
+    color: Colors.error,
+    fontSize: Typography.xl,
+    fontWeight: "700",
+  },
+  summarySub: {
+    color: Colors.textMuted,
+    fontSize: Typography.xs,
+    marginTop: 2,
+  },
+
+  // Content
+  content: {
+    flex: 1,
+  },
+
+  // Breakdown
+  breakdownCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    margin: Spacing.lg,
+    padding: Spacing.lg,
+  },
+  breakdownTitle: {
     color: Colors.textPrimary,
     fontSize: Typography.lg,
-    fontWeight: "700",
+    fontWeight: "600",
+    marginBottom: Spacing.lg,
+  },
+  breakdownList: {
+    gap: Spacing.md,
+  },
+  breakdownItem: {
+    gap: Spacing.sm,
+  },
+  breakdownLeft: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  breakdownBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: Radius.full,
+    borderWidth: 1,
+    fontSize: Typography.sm,
+    fontWeight: "600",
+  },
+  breakdownAmount: {
+    color: Colors.textPrimary,
+    fontSize: Typography.xs,
+  },
+  progressBar: {
+    height: 5,
+    backgroundColor: Colors.surfaceRaised,
+    borderRadius: Radius.sm,
+    overflow: "hidden",
+    marginBottom: Spacing.lg,
+  },
+  progressFill: {
+    height: "100%",
+    borderRadius: Radius.sm,
   },
 
   // List
-  list: { padding: Spacing.lg, paddingBottom: 32 },
+  listSection: {
+    flex: 1,
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.lg,
+  },
+  listTitle: {
+    color: Colors.textPrimary,
+    fontSize: Typography.sm,
+    fontWeight: "600",
+    marginBottom: Spacing.md,
+  },
+  loading: {
+    paddingVertical: Spacing.xl,
+  },
+  list: { paddingBottom: 32 },
 
   // Expense card row
   expenseRow: {
@@ -663,6 +914,10 @@ const s = StyleSheet.create({
     color: Colors.textSecondary,
     fontSize: Typography.xs,
   },
+  expenseDesc: {
+    color: Colors.textMuted,
+    fontSize: Typography.xs,
+  },
   expenseRight: {
     alignItems: "flex-end",
     gap: 6,
@@ -671,6 +926,9 @@ const s = StyleSheet.create({
     color: Colors.error,
     fontSize: Typography.base,
     fontWeight: "700",
+  },
+  editBtn: {
+    padding: 2,
   },
   deleteBtn: {
     padding: 2,

@@ -61,17 +61,31 @@ export function Dropdown({
 
       {/* ── Trigger ───────────────────────────────────────────── */}
       <TouchableOpacity
-        style={[styles.box, hasError && styles.boxError, disabled && styles.boxDisabled]}
+        style={[
+          styles.box,
+          hasError && styles.boxError,
+          disabled && styles.boxDisabled,
+        ]}
         onPress={() => !disabled && setOpen(true)}
         activeOpacity={disabled ? 1 : 0.7}
       >
         {leftIcon ? (
-          <Icon name={leftIcon} size={18} color={Colors.textMuted} style={styles.leftIcon} />
+          <Icon
+            name={leftIcon}
+            size={18}
+            color={Colors.textMuted}
+            style={styles.leftIcon}
+          />
         ) : null}
 
-        <Text style={[styles.value, !selected && styles.placeholder]} numberOfLines={1}>
-          {selected ? selected.label : placeholder}
-        </Text>
+        <View style={styles.textContainer}>
+          <Text
+            style={[styles.value, !selected && styles.placeholder]}
+            numberOfLines={1}
+          >
+            {selected ? selected.label : placeholder}
+          </Text>
+        </View>
 
         <Icon
           name={open ? "chevron-up" : "chevron-down"}
@@ -97,9 +111,7 @@ export function Dropdown({
 
           <View style={styles.sheet}>
             {/* Title */}
-            {label ? (
-              <Text style={styles.sheetTitle}>{label}</Text>
-            ) : null}
+            {label ? <Text style={styles.sheetTitle}>{label}</Text> : null}
 
             <FlatList
               data={items}
@@ -122,11 +134,20 @@ export function Dropdown({
                     }}
                     activeOpacity={0.7}
                   >
-                    <Text style={[styles.optionText, active && styles.optionTextActive]}>
+                    <Text
+                      style={[
+                        styles.optionText,
+                        active && styles.optionTextActive,
+                      ]}
+                    >
                       {item.label}
                     </Text>
                     {active && (
-                      <Icon name="check-circle" size={18} color={Colors.primary} />
+                      <Icon
+                        name="check-circle"
+                        size={18}
+                        color={Colors.primary}
+                      />
                     )}
                   </TouchableOpacity>
                 );
@@ -158,16 +179,17 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
     paddingHorizontal: Spacing.md,
     height: 52,
+    minWidth: 120,
   },
   boxError: { borderColor: Colors.error },
   boxDisabled: { opacity: 0.5 },
   leftIcon: { marginRight: Spacing.sm },
+  textContainer: { flex: 1 },
   value: {
-    flex: 1,
-    color: Colors.textPrimary,
-    fontSize: Typography.base,
+    color: "#ffffff",
+    fontSize: 15,
   },
-  placeholder: { color: Colors.textMuted },
+  placeholder: { color: "#ffffff80" },
   error: {
     color: Colors.error,
     fontSize: Typography.xs,
