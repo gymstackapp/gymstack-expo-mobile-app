@@ -1,12 +1,14 @@
 // mobile/src/screens/member/NotificationsScreen.tsx
 import { memberNotificationsApi } from "@/api/endpoints";
-import { EmptyState, Header, SkeletonGroup } from "@/components";
+import { EmptyState, Header, NoGymState, SkeletonGroup } from "@/components";
+import { useMemberGym } from "@/hooks/useMemberGym";
 import { Colors, Radius, Spacing, Typography } from "@/theme";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import React, { useCallback, useState } from "react";
 import {
   FlatList,
   RefreshControl,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -288,6 +290,15 @@ export default function MemberNotificationsScreen() {
     if (page < totalPages) setPage((p) => p + 1);
   };
 
+  const { hasGym, gymLoading } = useMemberGym();
+  if (!isLoading && !gymLoading && !hasGym) {
+    return (
+      <SafeAreaView style={styles.safe} edges={["top"]}>
+        <NoGymState pageName="Notifications" />
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
       {/* Header */}
@@ -312,7 +323,7 @@ export default function MemberNotificationsScreen() {
       </View>
 
       {/* Stats bar */}
-      {!isLoading && notifications.length > 0 && (
+      {!isLoading && !gymLoading && notifications.length > 0 && (
         <View style={styles.statsBar}>
           <StatItem
             value={notifications.length}
@@ -333,65 +344,48 @@ export default function MemberNotificationsScreen() {
           />
         </View>
       )}
-
-      <View>
-        {/* Filter tabs */}
-        {!isLoading && notifications.length > 0 && (
-          <FlatList
+      <View style={{ padding: Spacing.lg }}>
+        {!isLoading && !gymLoading && notifications.length > 0 && (
+          <ScrollView
             horizontal
-            data={FILTERS}
-            keyExtractor={(f) => f.key}
             showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.tabsContainer}
-            renderItem={({ item: f }) => {
-              const active = activeFilter === f.key;
-              const count =
-                f.key === "UNREAD"
-                  ? unreadCount
-                  : f.key === "ALL"
-                    ? notifications.length
-                    : notifications.filter((n) => n.type === f.key).length;
-              if (count === 0 && f.key !== "ALL" && f.key !== "UNREAD")
-                return null;
-              return (
-                <TouchableOpacity
-                  style={[styles.tab, active && styles.tabActive]}
-                  onPress={() => setFilter(f.key)}
-                  activeOpacity={0.7}
-                >
-                  <Icon
-                    name={f.icon}
-                    size={13}
-                    color={active ? "#fff" : Colors.textMuted}
-                  />
-                  <Text
-                    style={[styles.tabText, active && styles.tabTextActive]}
-                  >
-                    {f.label}
-                  </Text>
-                  {count > 0 && (
-                    <View
-                      style={[styles.tabCount, active && styles.tabCountActive]}
-                    >
-                      <Text
-                        style={[
-                          styles.tabCountText,
-                          active && styles.tabCountTextActive,
-                        ]}
-                      >
-                        {count}
-                      </Text>
-                    </View>
-                  )}
-                </TouchableOpacity>
-              );
+            contentContainerStyle={{
+              gap: Spacing.xs,
+              paddingRight: Spacing.xs,
             }}
-          />
+          >
+            {FILTERS.map((cat) => (
+              <TouchableOpacity
+                key={cat.key}
+                onPress={() => setFilter(cat.key)}
+                style={[
+                  styles.filterTab,
+                  activeFilter === cat.key
+                    ? styles.filterTabActive
+                    : styles.filterTabInactive,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.filterTabText,
+                    {
+                      color:
+                        activeFilter === cat.key
+                          ? Colors.primary
+                          : Colors.textMuted,
+                    },
+                  ]}
+                >
+                  {cat.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
         )}
       </View>
 
       {/* List */}
-      {isLoading ? (
+      {isLoading || gymLoading ? (
         <View style={{ padding: Spacing.lg }}>
           <SkeletonGroup variant="listRow" count={6} />
         </View>
@@ -483,40 +477,11 @@ const styles = StyleSheet.create({
   statLabel: { color: Colors.textMuted, fontSize: 10, marginTop: 2 },
   statsDivider: { width: 1, backgroundColor: Colors.border },
 
-  // filter tabs
-  tabsContainer: {
-    flex: 1,
-    height: 60,
-    marginBottom: Spacing.xl,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-    gap: Spacing.xs,
-    maxHeight: 60,
+  tabText: {
+    color: Colors.textMuted,
+    fontSize: Typography.sm,
+    fontWeight: Typography.medium,
   },
-  tab: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 5,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: Radius.full,
-    backgroundColor: Colors.surfaceRaised,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  tabActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  tabText: { color: Colors.textMuted, fontSize: 12, fontWeight: "600" },
-  tabTextActive: { color: "#fff" },
-  tabCount: {
-    backgroundColor: Colors.border,
-    borderRadius: 10,
-    paddingHorizontal: 5,
-    paddingVertical: 1,
-  },
-  tabCountActive: { backgroundColor: "rgba(255,255,255,0.25)" },
-  tabCountText: { color: Colors.textMuted, fontSize: 10, fontWeight: "700" },
-  tabCountTextActive: { color: "#fff" },
 
   // rows
   row: {
@@ -570,5 +535,20 @@ const styles = StyleSheet.create({
     color: Colors.primary,
     fontSize: Typography.sm,
     fontWeight: "600",
+  },
+  filterTab: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: Radius.lg,
+  },
+  filterTabActive: {
+    backgroundColor: Colors.surfaceRaised,
+  },
+  filterTabInactive: {
+    backgroundColor: "transparent",
+  },
+  filterTabText: {
+    fontSize: Typography.sm,
+    fontWeight: "500",
   },
 });

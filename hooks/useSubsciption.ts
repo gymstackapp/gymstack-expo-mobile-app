@@ -71,6 +71,7 @@ interface SubscriptionState {
   hasPlanTemplates: boolean;
   hasReferAndEarn: boolean;
   hasFullReports: boolean;
+  canAddMembershipPlan: boolean;
 }
 
 const within = (
@@ -85,9 +86,15 @@ export function useSubscription(): SubscriptionState {
   const { profile } = useAuthStore();
   const isOwner = profile?.role === "owner";
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading } = useQuery<{
+    subscription: MobileSubscription;
+    usage: MobileUsage;
+  }>({
     queryKey: ["ownerSubscription"],
-    queryFn: subscriptionApi.get,
+    queryFn: subscriptionApi.get as () => Promise<{
+      subscription: MobileSubscription;
+      usage: MobileUsage;
+    }>,
     enabled: isOwner,
     staleTime: 5 * 60 * 1000,
   });
@@ -127,5 +134,8 @@ export function useSubscription(): SubscriptionState {
     hasPlanTemplates: limits?.hasPlanTemplates ?? false,
     hasReferAndEarn: limits?.hasReferAndEarn ?? false,
     hasFullReports: limits?.hasFullReports ?? false,
+    canAddMembershipPlan:
+      !sub?.isExpired &&
+      within(usage?.membershipPlans, limits?.maxMembershipPlans),
   };
 }

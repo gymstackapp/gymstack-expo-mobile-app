@@ -2,9 +2,11 @@
 // Shows gyms to discover. Members with an ACTIVE membership see a banner
 // but can still browse all gyms. Members with no gym get a full search experience.
 import { discoverApi } from "@/api/endpoints";
-import { Card, EmptyState, SkeletonGroup } from "@/components";
+import { EmptyState, Header, SkeletonGroup } from "@/components";
+import ImageCarousel from "@/components/ImageCarousel";
 import { Colors, Radius, Spacing, Typography } from "@/theme";
-import { DrawerActions, useNavigation } from "@react-navigation/native";
+import { DiscoverGym } from "@/types/api";
+import { useNavigation } from "@react-navigation/native";
 import { useQuery } from "@tanstack/react-query";
 import React, { useState } from "react";
 import {
@@ -19,31 +21,6 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 
-interface DiscoverGym {
-  id: string;
-  name: string;
-  city: string | null;
-  address: string | null;
-  services: string[];
-  facilities: string[];
-  gymImages: string[];
-  isEnrolled: boolean;
-  isActive: boolean;
-  contactNumber: string | null;
-  owner: {
-    fullName: string;
-    avatarUrl: string | null;
-    mobileNumber: string | null;
-  };
-  membershipPlans: {
-    id: string;
-    name: string;
-    price: number;
-    durationMonths: number;
-  }[];
-  _count: { members: number };
-}
-
 function fmt(n: number) {
   return `₹${Number(n).toLocaleString("en-IN")}`;
 }
@@ -52,100 +29,143 @@ function GymCard({ gym, onPress }: { gym: DiscoverGym; onPress: () => void }) {
   const lowestPlan = gym.membershipPlans?.[0];
 
   return (
-    <TouchableOpacity onPress={onPress} activeOpacity={0.8}>
-      <Card style={gc.card}>
-        {/* Name + enrolled badge */}
-        <View style={gc.top}>
-          <View style={{ flex: 1 }}>
-            <View style={gc.nameRow}>
-              <Text style={gc.name} numberOfLines={1}>
-                {gym.name}
-              </Text>
-              {gym.isEnrolled && (
-                <View style={gc.enrolledBadge}>
+    <TouchableOpacity style={gc.gymCard} onPress={onPress} activeOpacity={0.7}>
+      <View style={gc.card}>
+        <View style={gc.gymCover}>
+          <ImageCarousel images={gym.gymImages ?? []} height={300} />
+          <View
+            style={[
+              gc.activePill,
+              {
+                backgroundColor: gym.isActive
+                  ? Colors.success + "cc"
+                  : Colors.textMuted + "80",
+              },
+            ]}
+          >
+            <Text style={gc.activePillText}>
+              {gym.isActive ? "Active" : "Inactive"}
+            </Text>
+          </View>
+        </View>
+        <View style={gc.gymBody}>
+          {/* Name + enrolled badge */}
+          <View style={gc.top}>
+            <View style={{ flex: 1 }}>
+              <View style={gc.nameRow}>
+                <Text style={gc.name} numberOfLines={1}>
+                  {gym.name}
+                </Text>
+                {gym.isEnrolled && (
+                  <View style={gc.enrolledBadge}>
+                    <Icon
+                      name="check-circle-outline"
+                      size={11}
+                      color={Colors.success}
+                    />
+                    <Text style={gc.enrolledText}>Joined</Text>
+                  </View>
+                )}
+              </View>
+              {gym.city && (
+                <View style={gc.cityRow}>
                   <Icon
-                    name="check-circle-outline"
-                    size={11}
-                    color={Colors.success}
+                    name="map-marker-outline"
+                    size={12}
+                    color={Colors.textMuted}
                   />
-                  <Text style={gc.enrolledText}>Joined</Text>
+                  <Text style={gc.city}>{gym.city}</Text>
                 </View>
               )}
             </View>
-            {gym.city && (
-              <View style={gc.cityRow}>
-                <Icon
-                  name="map-marker-outline"
-                  size={12}
-                  color={Colors.textMuted}
-                />
-                <Text style={gc.city}>{gym.city}</Text>
-              </View>
-            )}
+            <Icon name="chevron-right" size={20} color={Colors.textMuted} />
           </View>
-          <Icon name="chevron-right" size={20} color={Colors.textMuted} />
-        </View>
 
-        {/* Members count */}
-        <View style={gc.metaRow}>
-          <View style={gc.metaItem}>
-            <Icon
-              name="account-group-outline"
-              size={13}
-              color={Colors.textMuted}
-            />
-            <Text style={gc.metaText}>{gym._count?.members ?? 0} members</Text>
-          </View>
-          {gym.owner?.fullName && (
-            <View style={gc.metaItem}>
+          {/* Members count */}
+          <View style={gc.metaRow}>
+            {/* <View style={gc.metaItem}>
               <Icon
-                name="shield-account-outline"
+                name="account-group-outline"
                 size={13}
                 color={Colors.textMuted}
               />
-              <Text style={gc.metaText} numberOfLines={1}>
-                {gym.owner.fullName}
+              <Text style={gc.metaText}>
+                {gym._count?.members ?? 0} members
               </Text>
-            </View>
-          )}
-        </View>
-
-        {/* Services chips */}
-        {gym.services?.length > 0 && (
-          <View style={gc.chips}>
-            {gym.services.slice(0, 3).map((s) => (
-              <View key={s} style={gc.chip}>
-                <Text style={gc.chipText}>{s}</Text>
-              </View>
-            ))}
-            {gym.services.length > 3 && (
-              <View style={gc.chip}>
-                <Text style={gc.chipText}>+{gym.services.length - 3}</Text>
+            </View> */}
+            {gym.owner?.fullName && (
+              <View style={gc.metaItem}>
+                <Icon
+                  name="shield-account-outline"
+                  size={13}
+                  color={Colors.textPrimary}
+                />
+                <Text style={gc.metaText} numberOfLines={1}>
+                  Owner: {gym.owner.fullName}
+                </Text>
               </View>
             )}
           </View>
-        )}
 
-        {/* Lowest plan price */}
-        {lowestPlan && (
-          <View style={gc.priceRow}>
-            <Text style={gc.priceLabel}>Starting from</Text>
-            <Text style={gc.price}>{fmt(lowestPlan.price)}</Text>
-            <Text style={gc.pricePer}>/ {lowestPlan.durationMonths}mo</Text>
-          </View>
-        )}
-      </Card>
+          {/* Services chips */}
+          {gym.services?.length > 0 && (
+            <View style={gc.chips}>
+              {gym.services.slice(0, 3).map((s) => (
+                <View key={s} style={gc.chip}>
+                  <Text style={gc.chipText}>{s}</Text>
+                </View>
+              ))}
+              {gym.services.length > 3 && (
+                <View style={gc.chip}>
+                  <Text style={gc.chipText}>+{gym.services.length - 3}</Text>
+                </View>
+              )}
+            </View>
+          )}
+
+          {/* Lowest plan price */}
+          {lowestPlan && (
+            <View style={gc.priceRow}>
+              <Text style={gc.priceLabel}>Starting from</Text>
+              <Text style={gc.price}>{fmt(lowestPlan.price)}</Text>
+              <Text style={gc.pricePer}>/ {lowestPlan.durationMonths}mo</Text>
+            </View>
+          )}
+        </View>
+      </View>
     </TouchableOpacity>
   );
 }
 
 const gc = StyleSheet.create({
+  gymCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: Radius.xl,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    overflow: "hidden",
+  },
   card: {},
+  gymCover: {
+    height: 300,
+    backgroundColor: Colors.surfaceRaised,
+    position: "relative",
+  },
+  activePill: {
+    position: "absolute",
+    top: 10,
+    left: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: Radius.full,
+  },
+  activePillText: { color: "#fff", fontSize: 10, fontWeight: "700" },
+  gymBody: { padding: Spacing.lg, gap: Spacing.sm },
   top: {
     flexDirection: "row",
     alignItems: "flex-start",
     gap: Spacing.sm,
-    marginBottom: Spacing.sm,
+    marginVertical: Spacing.sm,
   },
   nameRow: {
     flexDirection: "row",
@@ -173,7 +193,7 @@ const gc = StyleSheet.create({
   city: { color: Colors.textMuted, fontSize: Typography.xs },
   metaRow: { flexDirection: "row", gap: Spacing.lg, marginBottom: Spacing.sm },
   metaItem: { flexDirection: "row", alignItems: "center", gap: 4 },
-  metaText: { color: Colors.textMuted, fontSize: Typography.xs },
+  metaText: { color: Colors.textPrimary, fontSize: Typography.sm },
   chips: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -190,10 +210,10 @@ const gc = StyleSheet.create({
   priceRow: {
     flexDirection: "row",
     alignItems: "baseline",
-    gap: 4,
     borderTopWidth: 1,
     borderTopColor: Colors.border,
     paddingTop: Spacing.sm,
+    gap: 4,
   },
   priceLabel: { color: Colors.textMuted, fontSize: Typography.xs },
   price: {
@@ -226,108 +246,102 @@ export default function DiscoverScreen() {
   const onSearch = () => setSearchQ(search.trim());
 
   return (
-    <SafeAreaView style={s.safe} edges={["top"]}>
-      {/* Header */}
-      <View style={s.header}>
-        <Text style={s.title}>Discover Gyms</Text>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: Spacing.sm }}>
-          {data?.memberCity && (
-            <View style={s.cityChip}>
-              <Icon name="map-marker-outline" size={12} color={Colors.primary} />
-              <Text style={s.cityChipText}>{data.memberCity}</Text>
-            </View>
-          )}
-          <TouchableOpacity
-            style={s.menuBtn}
-            onPress={() => navigation.dispatch(DrawerActions.openDrawer())}
-          >
-            <Icon name="menu" size={24} color={Colors.textPrimary} />
+    <SafeAreaView style={s.safe} edges={["top", "bottom"]}>
+      <View
+        style={{
+          paddingHorizontal: Spacing.lg,
+          paddingBottom: Spacing.lg,
+          gap: Spacing.md,
+        }}
+      >
+        <Header title="Discover Gyms" menu />
+
+        {/* Search */}
+        <View style={s.searchWrap}>
+          <View style={s.searchBox}>
+            <Icon name="magnify" size={18} color={Colors.textMuted} />
+            <TextInput
+              style={s.searchInput}
+              placeholder="Search gym name or city…"
+              placeholderTextColor={Colors.textMuted}
+              value={search}
+              onChangeText={setSearch}
+              onSubmitEditing={onSearch}
+              returnKeyType="search"
+            />
+            {search.length > 0 && (
+              <TouchableOpacity
+                onPress={() => {
+                  setSearch("");
+                  setSearchQ("");
+                }}
+              >
+                <Icon name="close-circle" size={16} color={Colors.textMuted} />
+              </TouchableOpacity>
+            )}
+          </View>
+          <TouchableOpacity style={s.searchBtn} onPress={onSearch}>
+            <Text style={s.searchBtnText}>Search</Text>
           </TouchableOpacity>
         </View>
-      </View>
 
-      {/* Search */}
-      <View style={s.searchWrap}>
-        <View style={s.searchBox}>
-          <Icon name="magnify" size={18} color={Colors.textMuted} />
-          <TextInput
-            style={s.searchInput}
-            placeholder="Search gym name or city…"
-            placeholderTextColor={Colors.textMuted}
-            value={search}
-            onChangeText={setSearch}
-            onSubmitEditing={onSearch}
-            returnKeyType="search"
-          />
-          {search.length > 0 && (
-            <TouchableOpacity
-              onPress={() => {
-                setSearch("");
-                setSearchQ("");
-              }}
-            >
-              <Icon name="close-circle" size={16} color={Colors.textMuted} />
-            </TouchableOpacity>
-          )}
-        </View>
-        <TouchableOpacity style={s.searchBtn} onPress={onSearch}>
-          <Text style={s.searchBtnText}>Search</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Already enrolled banner */}
-      {hasActiveGym && (
-        <View style={s.enrolledBanner}>
-          <Icon name="check-circle-outline" size={16} color={Colors.success} />
-          <Text style={s.enrolledBannerText}>
-            You have an active gym membership. Browse more gyms below.
-          </Text>
-        </View>
-      )}
-
-      {isLoading ? (
-        <View style={{ padding: Spacing.lg }}>
-          <SkeletonGroup
-            variant="card"
-            count={4}
-            itemHeight={140}
-            gap={Spacing.md}
-          />
-        </View>
-      ) : gyms.length === 0 ? (
-        <EmptyState
-          icon="compass-outline"
-          title={searchQ ? `No gyms found for "${searchQ}"` : "No gyms found"}
-          subtitle="Try a different city or search term"
-        />
-      ) : (
-        <FlatList
-          data={gyms}
-          keyExtractor={(g) => g.id}
-          contentContainerStyle={{
-            padding: Spacing.lg,
-            paddingBottom: 40,
-            gap: Spacing.md,
-          }}
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl
-              refreshing={isRefetching}
-              onRefresh={refetch}
-              tintColor={Colors.primary}
-              colors={[Colors.primary]}
+        {/* Already enrolled banner */}
+        {hasActiveGym && (
+          <View style={s.enrolledBanner}>
+            <Icon
+              name="check-circle-outline"
+              size={16}
+              color={Colors.success}
             />
-          }
-          renderItem={({ item: gym }) => (
-            <GymCard
-              gym={gym}
-              onPress={() =>
-                navigation.navigate("GymDetail", { gymId: gym.id })
-              }
+            <Text style={s.enrolledBannerText}>
+              You have an active gym membership. Browse more gyms below.
+            </Text>
+          </View>
+        )}
+
+        {isLoading ? (
+          <View>
+            <SkeletonGroup
+              variant="card"
+              count={4}
+              itemHeight={300}
+              gap={Spacing.md}
             />
-          )}
-        />
-      )}
+          </View>
+        ) : gyms.length === 0 ? (
+          <EmptyState
+            icon="compass-outline"
+            title={searchQ ? `No gyms found for "${searchQ}"` : "No gyms found"}
+            subtitle="Try a different city or search term"
+          />
+        ) : (
+          <FlatList
+            data={gyms}
+            keyExtractor={(g) => g.id}
+            contentContainerStyle={{
+              paddingBottom: 100,
+              gap: Spacing.md,
+            }}
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl
+                refreshing={isRefetching}
+                onRefresh={refetch}
+                tintColor={Colors.primary}
+                colors={[Colors.primary]}
+              />
+            }
+            renderItem={({ item: gym }) => (
+              <GymCard
+                gym={gym}
+                onPress={() =>
+                  navigation.navigate("GymDetail", { gymId: gym.id })
+                }
+              />
+            )}
+          />
+        )}
+      </View>
     </SafeAreaView>
   );
 }
@@ -335,19 +349,6 @@ export default function DiscoverScreen() {
 const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.bg },
   menuBtn: { padding: 4 },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.lg,
-    paddingBottom: Spacing.sm,
-  },
-  title: {
-    color: Colors.textPrimary,
-    fontSize: Typography.xxl,
-    fontWeight: "800",
-  },
   cityChip: {
     flexDirection: "row",
     alignItems: "center",
@@ -365,8 +366,6 @@ const s = StyleSheet.create({
   searchWrap: {
     flexDirection: "row",
     gap: Spacing.sm,
-    paddingHorizontal: Spacing.lg,
-    paddingBottom: Spacing.md,
   },
   searchBox: {
     flex: 1,

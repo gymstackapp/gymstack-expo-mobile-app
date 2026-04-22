@@ -1,5 +1,12 @@
 import { gymsApi, membersApi } from "@/api/endpoints";
-import { Avatar, Badge, Dropdown, EmptyState, Header, SkeletonGroup } from "@/components";
+import {
+  Avatar,
+  Badge,
+  Dropdown,
+  EmptyState,
+  Header,
+  SkeletonGroup,
+} from "@/components";
 import { useSubscription } from "@/hooks/useSubsciption";
 import { Colors, Radius, Spacing, Typography } from "@/theme";
 import type { Gym, GymMemberListItem, MembersListResponse } from "@/types/api";
@@ -57,20 +64,35 @@ function MemberRow({
         <Text style={styles.rowSub} numberOfLines={1}>
           {member.gym.name} · {member.membershipPlan?.name ?? "No plan"}
         </Text>
-        {expiring !== null && expiring <= 7 && expiring >= 0 && (
-          <Text style={styles.expiryWarning}>
-            ⚠ {expiring === 0 ? "Expires today" : `${expiring}d left`}
-          </Text>
-        )}
-        <View style={styles.rowRight}>
-          <Badge label={member.status} variant={statusVariant} />
-          <Icon
-            name="chevron-right"
-            size={16}
-            color={Colors.textMuted}
-            style={{ marginTop: 4 }}
-          />
-        </View>
+      </View>
+      {/* {expiring !== null && expiring <= 7 && expiring >= 0 && (
+        <Text style={styles.expiryWarning}>
+          ⚠ {expiring === 0 ? "Expires today" : `${expiring}d left`}
+        </Text>
+      )} */}
+      {expiring !== null && expiring < 0 ? (
+        <Text
+          style={{ color: Colors.error, fontSize: Typography.xs }}
+        >{`${Math.abs(expiring)} days ago expired`}</Text>
+      ) : expiring !== null && expiring <= 7 ? (
+        <Text style={styles.expiryWarning}>{`⚠ ${expiring}d left`}</Text>
+      ) : (
+        <Text style={{ fontSize: Typography.xs, color: Colors.textPrimary }}>
+          {`${new Date(member?.endDate ?? "").toLocaleDateString("en-IN", {
+            day: "numeric",
+            month: "short",
+            year: "numeric",
+          })}`}
+        </Text>
+      )}
+      <View style={styles.rowRight}>
+        <Badge label={member.status} variant={statusVariant} />
+        <Icon
+          name="chevron-right"
+          size={16}
+          color={Colors.textMuted}
+          style={{ marginTop: 4 }}
+        />
       </View>
     </TouchableOpacity>
   );
@@ -331,7 +353,7 @@ const styles = StyleSheet.create({
     fontSize: Typography.xs,
     marginTop: 2,
   },
-  rowRight: { alignItems: "flex-end", gap: 2 },
+  rowRight: { alignItems: "flex-end", gap: 2, flexDirection: "row" },
   separator: { height: 1, backgroundColor: Colors.border },
   emptyAction: {
     flexDirection: "row",

@@ -24,7 +24,7 @@
 // }
 
 // const NAV_ITEMS: NavItem[] = [
-//   { icon: "home-outline", label: "Home", screen: "MemberTabs", tab: "Home" },
+//   { icon: "home-outline", label: "Home", screen: "MemberTabs", tab: "Dashboard" },
 //   { icon: "compass-outline", label: "Discover", screen: "MemberTabs", tab: "Discover" },
 //   { icon: "calendar-check-outline", label: "Attendance", screen: "MemberAttendance" },
 //   { icon: "credit-card-outline", label: "Payments", screen: "MemberPayments" },
@@ -171,7 +171,13 @@ interface NavItem {
 // Discover is in the drawer (not the bottom tab).
 // Store and Profile also accessible from drawer.
 const NAV_ITEMS: NavItem[] = [
-  { icon: "home-outline", label: "Home", screen: "MemberTabs", tab: "Home" },
+  { icon: "home-outline", label: "Home", screen: "MemberTabs", tab: "Dashboard" },
+  {
+    icon: "office-building-outline",
+    label: "MY Gyms",
+    screen: "MemberGyms",
+    tab: "MemberGyms",
+  },
   {
     icon: "dumbbell",
     label: "Workouts",
@@ -184,12 +190,12 @@ const NAV_ITEMS: NavItem[] = [
     screen: "MemberTabs",
     tab: "Nutrition",
   },
-  {
-    icon: "bullhorn-outline",
-    label: "Announcements",
-    screen: "MemberTabs",
-    tab: "Announcements",
-  },
+  // {
+  //   icon: "bullhorn-outline",
+  //   label: "Announcements",
+  //   screen: "MemberTabs",
+  //   tab: "Announcements",
+  // },
   { icon: "compass-outline", label: "Discover Gyms", screen: "MemberDiscover" },
   {
     icon: "calendar-check-outline",
@@ -203,12 +209,13 @@ const NAV_ITEMS: NavItem[] = [
     screen: "MemberNotifications",
   },
   { icon: "shopping-outline", label: "Store", screen: "MemberStore" },
-  { icon: "gift-outline", label: "Refer & Earn", screen: "MemberReferral" },
+  // { icon: "gift-outline", label: "Refer & Earn", screen: "MemberReferral" },
   { icon: "account-circle-outline", label: "Profile", screen: "MemberProfile" },
 ];
 
 // Which items appear above the divider (main nav) vs below (secondary)
-const DIVIDER_AFTER = "Announcements";
+// const DIVIDER_AFTER = "Announcements";
+const DIVIDER_AFTER = "";
 
 export function MemberDrawerContent(props: DrawerContentComponentProps) {
   const { navigation } = props;

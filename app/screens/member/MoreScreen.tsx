@@ -5,8 +5,9 @@ import { useAuthStore } from "@/store/authStore";
 import { Colors, Radius, Spacing, Typography } from "@/theme";
 import { useNavigation } from "@react-navigation/native";
 import { useQuery } from "@tanstack/react-query";
-import React from "react";
+import React, { useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   ScrollView,
   StyleSheet,
@@ -168,10 +169,19 @@ export function MemberMoreScreen() {
   });
   const unreadCount = (unreadData as any)?.count ?? 0;
 
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
   const handleLogout = () => {
     Alert.alert("Sign Out", "Are you sure you want to sign out?", [
       { text: "Cancel", style: "cancel" },
-      { text: "Sign Out", style: "destructive", onPress: () => logout() },
+      {
+        text: "Sign Out",
+        style: "destructive",
+        onPress: async () => {
+          setIsLoggingOut(true);
+          await logout();
+        },
+      },
     ]);
   };
 
@@ -356,12 +366,19 @@ export function MemberMoreScreen() {
 
         {/* Logout */}
         <TouchableOpacity
-          style={s.logoutBtn}
+          style={[s.logoutBtn, isLoggingOut && { opacity: 0.6 }]}
           onPress={handleLogout}
           activeOpacity={0.8}
+          disabled={isLoggingOut}
         >
-          <Icon name="logout" size={18} color={Colors.error} />
-          <Text style={s.logoutText}>Sign Out</Text>
+          {isLoggingOut ? (
+            <ActivityIndicator size="small" color={Colors.error} />
+          ) : (
+            <Icon name="logout" size={18} color={Colors.error} />
+          )}
+          <Text style={s.logoutText}>
+            {isLoggingOut ? "Signing out..." : "Sign Out"}
+          </Text>
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>

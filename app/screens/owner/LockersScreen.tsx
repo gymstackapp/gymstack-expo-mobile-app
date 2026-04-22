@@ -1,19 +1,18 @@
 // mobile/src/screens/owner/LockersScreen.tsx
-// Gym owner locker management screen — list, assign, unassign, add, edit, delete.
+// Gym owner locker management — list, assign, unassign, add, edit, update assignment.
 
 import { gymsApi, lockersApi, membersApi } from "@/api/endpoints";
-import { showAlert } from "@/components/AppAlert";
 import {
   Avatar,
-  Badge,
   Button,
-  Card,
   Dropdown,
   EmptyState,
   Header,
   Input,
   SkeletonGroup,
+  StatCard,
 } from "@/components";
+import { showAlert } from "@/components/AppAlert";
 import { Colors, Radius, Spacing, Typography } from "@/theme";
 import type { Gym, GymMemberListItem } from "@/types/api";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -24,6 +23,7 @@ import {
   RefreshControl,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TouchableOpacity,
   View,
@@ -33,135 +33,129 @@ import Toast from "react-native-toast-message";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Types
+// Constants
 // ─────────────────────────────────────────────────────────────────────────────
 
-type LockerStatus = "AVAILABLE" | "OCCUPIED" | "MAINTENANCE";
+type LockerStatus = "AVAILABLE" | "ASSIGNED" | "MAINTENANCE" | "RESERVED";
 
-interface Locker {
-  id: string;
-  lockerNumber: string;
-  status: LockerStatus;
-  monthlyFee?: number | null;
-  member?: {
-    id: string;
-    profile: { fullName: string; avatarUrl: string | null };
-  } | null;
-  expiresAt?: string | null;
-  notes?: string | null;
-  feeCollected?: boolean;
-}
+const STATUS_META: Record<
+  LockerStatus,
+  {
+    label: string;
+    color: string;
+    faded: string;
+    border: string;
+    icon: string;
+    badgeVariant: "success" | "info" | "warning" | "default";
+  }
+> = {
+  AVAILABLE: {
+    label: "Available",
+    color: Colors.success,
+    faded: Colors.successFaded,
+    border: Colors.success + "50",
+    icon: "check-circle-outline",
+    badgeVariant: "success",
+  },
+  ASSIGNED: {
+    label: "Assigned",
+    color: Colors.info,
+    faded: Colors.infoFaded,
+    border: Colors.info + "50",
+    icon: "key-outline",
+    badgeVariant: "info",
+  },
+  MAINTENANCE: {
+    label: "Maintenance",
+    color: Colors.warning,
+    faded: Colors.warningFaded,
+    border: Colors.warning + "50",
+    icon: "wrench-outline",
+    badgeVariant: "warning",
+  },
+  RESERVED: {
+    label: "Reserved",
+    color: Colors.purple,
+    faded: Colors.purpleFaded,
+    border: Colors.purple + "50",
+    icon: "clock-outline",
+    badgeVariant: "default",
+  },
+};
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Status filter pills
-// ─────────────────────────────────────────────────────────────────────────────
+const SIZES = ["SMALL", "MEDIUM", "LARGE"];
 
 const STATUS_FILTERS: { label: string; value: string }[] = [
   { label: "All", value: "" },
   { label: "Available", value: "AVAILABLE" },
-  { label: "Occupied", value: "OCCUPIED" },
+  { label: "Assigned", value: "ASSIGNED" },
   { label: "Maintenance", value: "MAINTENANCE" },
+  { label: "Reserved", value: "RESERVED" },
 ];
 
-function statusBadgeVariant(
-  status: LockerStatus,
-): "success" | "error" | "warning" | "default" {
-  if (status === "AVAILABLE") return "success";
-  if (status === "OCCUPIED") return "error";
-  if (status === "MAINTENANCE") return "warning";
-  return "default";
+// ─────────────────────────────────────────────────────────────────────────────
+// Types
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface Assignment {
+  id: string;
+  assignedAt: string;
+  expiresAt: string | null;
+  isActive: boolean;
+  feeCollected: boolean;
+  notes: string | null;
+  member: {
+    id: string;
+    profile: {
+      fullName: string;
+      avatarUrl: string | null;
+      mobileNumber: string | null;
+    };
+  };
 }
 
-function statusLabel(status: LockerStatus): string {
-  if (status === "AVAILABLE") return "Available";
-  if (status === "OCCUPIED") return "Occupied";
-  if (status === "MAINTENANCE") return "Maintenance";
-  return status;
+interface Locker {
+  id: string;
+  lockerNumber: string;
+  floor: string | null;
+  size: string | null;
+  status: LockerStatus;
+  monthlyFee: number | null;
+  notes: string | null;
+  assignments: Assignment[];
 }
+
+interface Stats {
+  total: number;
+  available: number;
+  assigned: number;
+  maintenance: number;
+  reserved: number;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Helpers
+// ─────────────────────────────────────────────────────────────────────────────
 
 function fmtDate(iso?: string | null): string {
   if (!iso) return "";
   try {
     return new Date(iso).toLocaleDateString("en-IN", {
-      day: "2-digit",
+      day: "numeric",
       month: "short",
-      year: "numeric",
     });
   } catch {
     return iso;
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Locker card (grid item)
-// ─────────────────────────────────────────────────────────────────────────────
-
-interface LockerCardProps {
-  locker: Locker;
-  onPress: () => void;
-  onLongPress: () => void;
-}
-
-function LockerCard({ locker, onPress, onLongPress }: LockerCardProps) {
-  const isOccupied = locker.status === "OCCUPIED";
-  const isMaintenance = locker.status === "MAINTENANCE";
-
-  const borderColor = isOccupied
-    ? Colors.error + "60"
-    : isMaintenance
-      ? Colors.warning + "60"
-      : Colors.success + "60";
-
-  const bgColor = isOccupied
-    ? Colors.errorFaded
-    : isMaintenance
-      ? Colors.warningFaded
-      : Colors.successFaded;
-
-  return (
-    <TouchableOpacity
-      onPress={onPress}
-      onLongPress={onLongPress}
-      activeOpacity={0.75}
-      style={[s.lockerCard, { borderColor, backgroundColor: bgColor }]}
-    >
-      {/* Locker number */}
-      <Text style={s.lockerNumber} numberOfLines={1}>
-        {locker.lockerNumber}
-      </Text>
-
-      {/* Status badge */}
-      <Badge
-        label={statusLabel(locker.status)}
-        variant={statusBadgeVariant(locker.status)}
-      />
-
-      {/* Member info (occupied) */}
-      {isOccupied && locker.member ? (
-        <View style={{ marginTop: Spacing.xs, gap: 2 }}>
-          <Text style={s.lockerMember} numberOfLines={1}>
-            {locker.member.profile.fullName}
-          </Text>
-          {locker.expiresAt ? (
-            <Text style={s.lockerExpiry} numberOfLines={1}>
-              Exp: {fmtDate(locker.expiresAt)}
-            </Text>
-          ) : null}
-        </View>
-      ) : null}
-
-      {/* Monthly fee */}
-      {locker.monthlyFee ? (
-        <Text style={s.lockerFee}>
-          ₹{Number(locker.monthlyFee).toLocaleString("en-IN")}/mo
-        </Text>
-      ) : null}
-    </TouchableOpacity>
-  );
+function daysUntil(iso?: string | null): number | null {
+  if (!iso) return null;
+  return Math.ceil((new Date(iso).getTime() - Date.now()) / 86400000);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Modal sheet header row
+// Modal header row
 // ─────────────────────────────────────────────────────────────────────────────
 
 function ModalHeader({
@@ -174,9 +168,220 @@ function ModalHeader({
   return (
     <View style={s.modalHeader}>
       <Text style={s.modalTitle}>{title}</Text>
-      <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+      <TouchableOpacity
+        onPress={onClose}
+        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+      >
         <Icon name="close" size={22} color={Colors.textMuted} />
       </TouchableOpacity>
+    </View>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Locker card
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface LockerCardProps {
+  locker: Locker;
+  onEdit: (l: Locker) => void;
+  onAssign: (l: Locker) => void;
+  onUnassign: (l: Locker) => void;
+  onUpdateAssignment: (l: Locker) => void;
+  releasingId: string | null;
+}
+
+function LockerCard({
+  locker,
+  onEdit,
+  onAssign,
+  onUnassign,
+  onUpdateAssignment,
+  releasingId,
+}: LockerCardProps) {
+  const meta = STATUS_META[locker.status] ?? STATUS_META.AVAILABLE;
+  const active = locker.assignments?.find((a) => a.isActive);
+  const days = daysUntil(active?.expiresAt);
+  const isExpired = days !== null && days <= 0;
+  const isExpiring = days !== null && days > 0 && days <= 7;
+
+  return (
+    <View
+      style={[
+        s.card,
+        { borderColor: meta.border, backgroundColor: meta.faded },
+      ]}
+    >
+      {/* ── Header ─────────────────────────────────────────────────────── */}
+      <View style={s.cardHeader}>
+        <View style={{ flex: 1 }}>
+          <Text style={s.cardNumber} numberOfLines={1}>
+            # {locker.lockerNumber}
+          </Text>
+          {locker.floor || locker.size ? (
+            <Text style={s.cardMeta} numberOfLines={1}>
+              {[locker.floor, locker.size].filter(Boolean).join(" · ")}
+            </Text>
+          ) : null}
+        </View>
+        <View style={s.cardBadgeRow}>
+          <View style={[s.statusDot, { backgroundColor: meta.color }]} />
+          <Text style={[s.statusLabel, { color: meta.color }]}>
+            {meta.label}
+          </Text>
+        </View>
+      </View>
+
+      {/* ── Monthly fee ─────────────────────────────────────────────────── */}
+      {locker.monthlyFee != null && locker.monthlyFee > 0 ? (
+        <Text style={s.feeText}>
+          ₹{Number(locker.monthlyFee).toLocaleString("en-IN")}/mo
+        </Text>
+      ) : null}
+
+      {/* ── Assigned member ─────────────────────────────────────────────── */}
+      {active ? (
+        <View style={s.memberCard}>
+          <View style={s.memberAvatarWrap}>
+            <Text style={s.memberAvatarText}>
+              {active.member.profile.fullName[0].toUpperCase()}
+            </Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <View style={s.memberNameRow}>
+              <Text style={s.memberName} numberOfLines={1}>
+                {active.member.profile.fullName}
+              </Text>
+              <Text
+                style={[
+                  s.feeBadge,
+                  active.feeCollected ? s.feePaid : s.feeUnpaid,
+                ]}
+              >
+                {active.feeCollected ? "Paid" : "Unpaid"}
+              </Text>
+            </View>
+            {active.member.profile.mobileNumber ? (
+              <Text style={s.memberPhone} numberOfLines={1}>
+                {active.member.profile.mobileNumber}
+              </Text>
+            ) : null}
+            {active.expiresAt ? (
+              <View
+                style={[
+                  s.expiryRow,
+                  isExpired
+                    ? s.expiryExpired
+                    : isExpiring
+                      ? s.expiryWarning
+                      : s.expiryNormal,
+                ]}
+              >
+                <Icon
+                  name="calendar-outline"
+                  size={10}
+                  color={
+                    isExpired
+                      ? Colors.error
+                      : isExpiring
+                        ? Colors.warning
+                        : Colors.textMuted
+                  }
+                />
+                <Text
+                  style={[
+                    s.expiryText,
+                    {
+                      color: isExpired
+                        ? Colors.error
+                        : isExpiring
+                          ? Colors.warning
+                          : Colors.textMuted,
+                    },
+                  ]}
+                >
+                  {isExpired
+                    ? "Expired"
+                    : isExpiring
+                      ? `Expires in ${days}d`
+                      : `Expires ${fmtDate(active.expiresAt)}`}
+                </Text>
+              </View>
+            ) : null}
+          </View>
+        </View>
+      ) : locker.status === "AVAILABLE" ? (
+        <View style={s.emptySlot}>
+          <Text style={s.emptySlotText}>Unoccupied</Text>
+        </View>
+      ) : null}
+
+      {/* ── Actions ─────────────────────────────────────────────────────── */}
+      <View style={s.cardActions}>
+        {locker.status === "AVAILABLE" && (
+          <TouchableOpacity
+            style={[s.actionBtn, s.actionBtnPrimary]}
+            onPress={() => onAssign(locker)}
+          >
+            <Icon
+              name="account-plus-outline"
+              size={13}
+              color={Colors.primary}
+            />
+            <Text style={[s.actionBtnText, { color: Colors.primary }]}>
+              Assign
+            </Text>
+          </TouchableOpacity>
+        )}
+
+        {locker.status === "ASSIGNED" && (
+          <>
+            <TouchableOpacity
+              style={[s.actionBtn, s.actionBtnDefault]}
+              onPress={() => onUpdateAssignment(locker)}
+            >
+              <Icon
+                name="pencil-outline"
+                size={13}
+                color={Colors.textSecondary}
+              />
+              <Text style={[s.actionBtnText, { color: Colors.textSecondary }]}>
+                Update
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[s.actionBtn, s.actionBtnDanger]}
+              onPress={() => onUnassign(locker)}
+              disabled={releasingId === locker.id}
+            >
+              <Icon
+                name={
+                  releasingId === locker.id
+                    ? "loading"
+                    : "account-remove-outline"
+                }
+                size={13}
+                color={Colors.error}
+              />
+              <Text style={[s.actionBtnText, { color: Colors.error }]}>
+                Release
+              </Text>
+            </TouchableOpacity>
+          </>
+        )}
+
+        {(locker.status === "MAINTENANCE" || locker.status === "RESERVED") && (
+          <TouchableOpacity
+            style={[s.actionBtn, s.actionBtnDefault, { flex: 1 }]}
+            onPress={() => onEdit(locker)}
+          >
+            <Icon name="wrench-outline" size={13} color={Colors.textMuted} />
+            <Text style={[s.actionBtnText, { color: Colors.textMuted }]}>
+              Edit Status
+            </Text>
+          </TouchableOpacity>
+        )}
+      </View>
     </View>
   );
 }
@@ -191,28 +396,44 @@ export default function OwnerLockersScreen() {
   // ── State ──────────────────────────────────────────────────────────────────
   const [gymId, setGymId] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [search, setSearch] = useState("");
+  const [releasingId, setReleasingId] = useState<string | null>(null);
 
-  // Add locker modal
-  const [showAdd, setShowAdd] = useState(false);
-  const [addForm, setAddForm] = useState({
+  // Add modal
+  const emptyAdd = {
     lockerNumber: "",
-    status: "AVAILABLE",
+    floor: "",
+    size: "",
     monthlyFee: "",
-  });
+    status: "AVAILABLE",
+    notes: "",
+  };
+  const [showAdd, setShowAdd] = useState(false);
+  const [addForm, setAddForm] = useState(emptyAdd);
+
+  // Edit modal
+  const [editLocker, setEditLocker] = useState<Locker | null>(null);
 
   // Assign modal
   const [assignLocker, setAssignLocker] = useState<Locker | null>(null);
   const [memberSearch, setMemberSearch] = useState("");
-  const [assignForm, setAssignForm] = useState({
+  const emptyAssign = {
     memberId: "",
     expiresAt: "",
     notes: "",
     feeCollected: false,
-  });
+  };
+  const [assignForm, setAssignForm] = useState(emptyAssign);
 
-  // Edit modal
-  const [editLocker, setEditLocker] = useState<Locker | null>(null);
-  const [editLockerNumber, setEditLockerNumber] = useState("");
+  // Bulk add modal
+  const emptyBulk = { prefix: "", from: "1", to: "10", floor: "", monthlyFee: "" };
+  const [showBulk, setShowBulk] = useState(false);
+  const [bulkForm, setBulkForm] = useState(emptyBulk);
+
+  // Update assignment modal
+  const [updateLocker, setUpdateLocker] = useState<Locker | null>(null);
+  const emptyUpdate = { expiresAt: "", notes: "", feeCollected: false };
+  const [updateForm, setUpdateForm] = useState(emptyUpdate);
 
   // ── Queries ────────────────────────────────────────────────────────────────
   const { data: gyms = [] } = useQuery<Gym[]>({
@@ -221,7 +442,6 @@ export default function OwnerLockersScreen() {
     staleTime: 5 * 60_000,
   });
 
-  // Auto-select first gym
   useEffect(() => {
     if (!gymId && (gyms as Gym[]).length > 0) {
       setGymId((gyms as Gym[])[0].id);
@@ -229,17 +449,39 @@ export default function OwnerLockersScreen() {
   }, [gyms, gymId]);
 
   const {
-    data: lockers = [],
+    data: lockersData,
     isLoading,
     refetch,
     isRefetching,
-  } = useQuery<Locker[]>({
+  } = useQuery({
     queryKey: ["ownerLockers", gymId, statusFilter],
-    queryFn: () =>
-      lockersApi.list(gymId, statusFilter || undefined) as Promise<Locker[]>,
+    queryFn: () => lockersApi.list(gymId, statusFilter || undefined),
     enabled: !!gymId,
     staleTime: 30_000,
   });
+
+  // Handle both `Locker[]` and `{ lockers, stats }` response shapes
+  const lockers: Locker[] = useMemo(() => {
+    const d = lockersData as any;
+    if (!d) return [];
+    if (Array.isArray(d)) return d;
+    if (Array.isArray(d?.lockers)) return d.lockers;
+    return [];
+  }, [lockersData]);
+
+  const stats: Stats = useMemo(() => {
+    const d = lockersData as any;
+    const fromApi = d?.stats;
+    if (fromApi) return fromApi;
+    // Compute from list if API doesn't return stats
+    return {
+      total: lockers.length,
+      available: lockers.filter((l) => l.status === "AVAILABLE").length,
+      assigned: lockers.filter((l) => l.status === "ASSIGNED").length,
+      maintenance: lockers.filter((l) => l.status === "MAINTENANCE").length,
+      reserved: lockers.filter((l) => l.status === "RESERVED").length,
+    };
+  }, [lockersData, lockers]);
 
   const { data: membersData } = useQuery({
     queryKey: ["ownerMembers", gymId, memberSearch],
@@ -250,44 +492,79 @@ export default function OwnerLockersScreen() {
   });
 
   const members: GymMemberListItem[] = useMemo(() => {
-    const data = membersData as any;
-    if (!data) return [];
-    if (Array.isArray(data)) return data;
-    if (Array.isArray(data?.members)) return data.members;
+    const d = membersData as any;
+    if (!d) return [];
+    if (Array.isArray(d)) return d;
+    if (Array.isArray(d?.members)) return d.members;
     return [];
   }, [membersData]);
 
-  // ── Summary stats ──────────────────────────────────────────────────────────
-  const allLockers = lockers as Locker[];
-  const totalCount = allLockers.length;
-  const availableCount = allLockers.filter(
-    (l) => l.status === "AVAILABLE",
-  ).length;
-  const occupiedCount = allLockers.filter(
-    (l) => l.status === "OCCUPIED",
-  ).length;
+  // ── Derived ────────────────────────────────────────────────────────────────
+  const filtered = useMemo(() => {
+    if (!search) return lockers;
+    const q = search.toLowerCase();
+    return lockers.filter(
+      (l) =>
+        l.lockerNumber.toLowerCase().includes(q) ||
+        l.assignments
+          ?.find((a) => a.isActive)
+          ?.member.profile.fullName.toLowerCase()
+          .includes(q),
+    );
+  }, [lockers, search]);
+
+  const gymOptions = (gyms as Gym[]).map((g) => ({
+    label: g.name,
+    value: g.id,
+  }));
 
   // ── Mutations ──────────────────────────────────────────────────────────────
-  const invalidate = () => {
+  const invalidate = () =>
     qc.invalidateQueries({ queryKey: ["ownerLockers", gymId] });
-  };
 
   const createMutation = useMutation({
     mutationFn: () =>
       lockersApi.create({
         gymId,
         lockerNumber: addForm.lockerNumber.trim(),
+        floor: addForm.floor || null,
+        size: addForm.size || null,
         status: addForm.status,
         monthlyFee: addForm.monthlyFee ? parseFloat(addForm.monthlyFee) : null,
+        notes: addForm.notes || null,
       }),
     onSuccess: () => {
       invalidate();
       setShowAdd(false);
-      setAddForm({ lockerNumber: "", status: "AVAILABLE", monthlyFee: "" });
+      setAddForm(emptyAdd);
       Toast.show({ type: "success", text1: "Locker created!" });
     },
-    onError: (err: Error) =>
-      Toast.show({ type: "error", text1: err.message }),
+    onError: (err: Error) => Toast.show({ type: "error", text1: err.message }),
+  });
+
+  const bulkCreateMutation = useMutation({
+    mutationFn: () =>
+      lockersApi.create({
+        gymId,
+        bulk: true,
+        prefix: bulkForm.prefix,
+        from: parseInt(bulkForm.from) || 1,
+        to: parseInt(bulkForm.to) || 10,
+        floor: bulkForm.floor || null,
+        monthlyFee: bulkForm.monthlyFee ? parseFloat(bulkForm.monthlyFee) : null,
+      }),
+    onSuccess: (d: any) => {
+      invalidate();
+      setShowBulk(false);
+      setBulkForm(emptyBulk);
+      const created = d?.created?.length ?? 0;
+      const skipped = d?.skipped?.length ?? 0;
+      Toast.show({
+        type: "success",
+        text1: `Created ${created} lockers${skipped ? `, skipped ${skipped} existing` : ""}`,
+      });
+    },
+    onError: (err: Error) => Toast.show({ type: "error", text1: err.message }),
   });
 
   const updateMutation = useMutation({
@@ -298,18 +575,17 @@ export default function OwnerLockersScreen() {
       setEditLocker(null);
       Toast.show({ type: "success", text1: "Locker updated" });
     },
-    onError: (err: Error) =>
-      Toast.show({ type: "error", text1: err.message }),
+    onError: (err: Error) => Toast.show({ type: "error", text1: err.message }),
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => lockersApi.delete(id),
     onSuccess: () => {
       invalidate();
+      setEditLocker(null);
       Toast.show({ type: "success", text1: "Locker deleted" });
     },
-    onError: (err: Error) =>
-      Toast.show({ type: "error", text1: err.message }),
+    onError: (err: Error) => Toast.show({ type: "error", text1: err.message }),
   });
 
   const assignMutation = useMutation({
@@ -324,89 +600,71 @@ export default function OwnerLockersScreen() {
       invalidate();
       setAssignLocker(null);
       setMemberSearch("");
-      setAssignForm({ memberId: "", expiresAt: "", notes: "", feeCollected: false });
+      setAssignForm(emptyAssign);
       Toast.show({ type: "success", text1: "Locker assigned!" });
     },
-    onError: (err: Error) =>
-      Toast.show({ type: "error", text1: err.message }),
+    onError: (err: Error) => Toast.show({ type: "error", text1: err.message }),
   });
 
   const unassignMutation = useMutation({
     mutationFn: (lockerId: string) => lockersApi.unassign(lockerId),
     onSuccess: () => {
       invalidate();
-      Toast.show({ type: "success", text1: "Locker unassigned" });
+      setReleasingId(null);
+      Toast.show({ type: "success", text1: "Locker released" });
     },
-    onError: (err: Error) =>
-      Toast.show({ type: "error", text1: err.message }),
+    onError: (err: Error) => {
+      setReleasingId(null);
+      Toast.show({ type: "error", text1: err.message });
+    },
   });
 
-  // ── Gym dropdown options ───────────────────────────────────────────────────
-  const gymOptions = (gyms as Gym[]).map((g) => ({
-    label: g.name,
-    value: g.id,
-  }));
+  const updateAssignmentMutation = useMutation({
+    mutationFn: () =>
+      lockersApi.updateAssignment(updateLocker!.id, {
+        expiresAt: updateForm.expiresAt || undefined,
+        notes: updateForm.notes || undefined,
+        feeCollected: updateForm.feeCollected,
+      }),
+    onSuccess: () => {
+      invalidate();
+      setUpdateLocker(null);
+      Toast.show({ type: "success", text1: "Assignment updated" });
+    },
+    onError: (err: Error) => Toast.show({ type: "error", text1: err.message }),
+  });
 
   // ── Handlers ──────────────────────────────────────────────────────────────
 
-  const handleLockerPress = (locker: Locker) => {
-    if (locker.status === "AVAILABLE") {
-      setAssignLocker(locker);
-      setAssignForm({ memberId: "", expiresAt: "", notes: "", feeCollected: false });
-      setMemberSearch("");
-    } else if (locker.status === "OCCUPIED") {
-      showAlert(
-        `Locker ${locker.lockerNumber}`,
-        locker.member
-          ? `Assigned to ${locker.member.profile.fullName}`
-          : "Currently occupied",
-        [
-          { text: "Cancel", style: "cancel" },
-          {
-            text: "Unassign",
-            style: "destructive",
-            onPress: () => unassignMutation.mutate(locker.id),
-          },
-        ],
-      );
-    } else {
-      // MAINTENANCE — allow reassigning status
-      showAlert(
-        `Locker ${locker.lockerNumber}`,
-        "This locker is under maintenance.",
-        [{ text: "OK", style: "cancel" }],
-      );
+  const handleCreate = () => {
+    if (!addForm.lockerNumber.trim()) {
+      Toast.show({ type: "error", text1: "Locker number is required" });
+      return;
     }
+    createMutation.mutate();
   };
 
-  const handleLockerLongPress = (locker: Locker) => {
-    showAlert(`Locker ${locker.lockerNumber}`, "Choose an action", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Edit",
-        onPress: () => {
-          setEditLocker(locker);
-          setEditLockerNumber(locker.lockerNumber);
+  const handleEditSave = () => {
+    if (!editLocker || !editLocker.lockerNumber.trim()) {
+      Toast.show({ type: "error", text1: "Locker number is required" });
+      return;
+    }
+    updateMutation.mutate({ id: editLocker.id, data: editLocker });
+  };
+
+  const handleDeleteLocker = (locker: Locker) => {
+    showAlert(
+      `Delete locker #${locker.lockerNumber}?`,
+      "This will permanently remove the locker and all assignment history.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => deleteMutation.mutate(locker.id),
         },
-      },
-      {
-        text: "Delete",
-        style: "destructive",
-        onPress: () =>
-          showAlert(
-            "Delete Locker",
-            `Permanently delete locker "${locker.lockerNumber}"?`,
-            [
-              { text: "Cancel", style: "cancel" },
-              {
-                text: "Delete",
-                style: "destructive",
-                onPress: () => deleteMutation.mutate(locker.id),
-              },
-            ],
-          ),
-      },
-    ]);
+      ],
+    );
   };
 
   const handleAssign = () => {
@@ -417,26 +675,41 @@ export default function OwnerLockersScreen() {
     assignMutation.mutate();
   };
 
-  const handleCreate = () => {
-    if (!addForm.lockerNumber.trim()) {
-      Toast.show({ type: "error", text1: "Locker number is required" });
-      return;
-    }
-    if (!gymId) {
-      Toast.show({ type: "error", text1: "Please select a gym" });
-      return;
-    }
-    createMutation.mutate();
+  const handleUnassign = (locker: Locker) => {
+    showAlert(
+      `Release locker #${locker.lockerNumber}?`,
+      "The member will lose access and the locker will become available again.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Release",
+          style: "destructive",
+          onPress: () => {
+            setReleasingId(locker.id);
+            unassignMutation.mutate(locker.id);
+          },
+        },
+      ],
+    );
   };
 
-  const handleEdit = () => {
-    if (!editLockerNumber.trim() || !editLocker) {
-      Toast.show({ type: "error", text1: "Locker number is required" });
+  const handleBulkCreate = () => {
+    const from = parseInt(bulkForm.from);
+    const to = parseInt(bulkForm.to);
+    if (!from || !to || from > to) {
+      Toast.show({ type: "error", text1: "Invalid range — From must be ≤ To" });
       return;
     }
-    updateMutation.mutate({
-      id: editLocker.id,
-      data: { lockerNumber: editLockerNumber.trim() },
+    bulkCreateMutation.mutate();
+  };
+
+  const handleOpenUpdateAssignment = (locker: Locker) => {
+    const active = locker.assignments?.find((a) => a.isActive);
+    setUpdateLocker(locker);
+    setUpdateForm({
+      expiresAt: active?.expiresAt ? active.expiresAt.split("T")[0] : "",
+      notes: active?.notes ?? "",
+      feeCollected: active?.feeCollected ?? false,
     });
   };
 
@@ -444,43 +717,76 @@ export default function OwnerLockersScreen() {
 
   return (
     <SafeAreaView style={s.safe}>
-      {/* ── Top bar ────────────────────────────────────────────────────────── */}
+      {/* ── Top bar ──────────────────────────────────────────────────────── */}
       <View style={s.topBar}>
         <Header
           title="Lockers"
           back
           right={
-            <TouchableOpacity
-              style={s.addBtn}
-              onPress={() => setShowAdd(true)}
-            >
-              <Icon name="plus" size={20} color="#fff" />
-            </TouchableOpacity>
+            gymId ? (
+              <TouchableOpacity
+                style={s.addBtn}
+                onPress={() => setShowAdd(true)}
+              >
+                <Icon name="plus" size={20} color="#fff" />
+              </TouchableOpacity>
+            ) : undefined
           }
         />
 
-        {/* Gym selector */}
-        {gymOptions.length > 0 && (
-          <Dropdown
-            label="Gym"
-            value={gymId}
-            onChange={setGymId}
-            options={gymOptions}
-            placeholder="Select gym"
-            leftIcon="dumbbell"
-          />
-        )}
+        {/* Gym selector — dropdown only when multiple gyms */}
+        {gymOptions.length > 1 ? (
+          <View style={s.gymRow}>
+            <View style={{ flex: 1 }}>
+              <Dropdown
+                label="Gym"
+                value={gymId}
+                onChange={setGymId}
+                options={gymOptions}
+                placeholder="Select gym"
+                leftIcon="dumbbell"
+              />
+            </View>
+            {gymId && (
+              <TouchableOpacity
+                style={s.bulkBtn}
+                onPress={() => setShowBulk(true)}
+              >
+                <Icon name="layers-plus" size={15} color={Colors.textSecondary} />
+                <Text style={s.bulkBtnText}>Bulk Add</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        ) : gymOptions.length === 1 ? (
+          <View style={s.gymRow}>
+            <View style={s.gymNameChip}>
+              <Icon name="dumbbell" size={13} color={Colors.textMuted} />
+              <Text style={s.gymNameText} numberOfLines={1}>
+                {gymOptions[0].label}
+              </Text>
+            </View>
+            <TouchableOpacity
+              style={s.bulkBtn}
+              onPress={() => setShowBulk(true)}
+            >
+              <Icon name="layers-plus" size={15} color={Colors.textSecondary} />
+              <Text style={s.bulkBtnText}>Bulk Add</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
 
         {/* Status filter pills */}
-        <View style={s.filterRow}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={s.filterScroll}
+          contentContainerStyle={s.filterRow}
+        >
           {STATUS_FILTERS.map((f) => (
             <TouchableOpacity
               key={f.value}
               onPress={() => setStatusFilter(f.value)}
-              style={[
-                s.pill,
-                statusFilter === f.value && s.pillActive,
-              ]}
+              style={[s.pill, statusFilter === f.value && s.pillActive]}
             >
               <Text
                 style={[
@@ -492,32 +798,10 @@ export default function OwnerLockersScreen() {
               </Text>
             </TouchableOpacity>
           ))}
-        </View>
-
-        {/* Summary stats */}
-        {!isLoading && allLockers.length > 0 && (
-          <View style={s.statsRow}>
-            <View style={s.statChip}>
-              <Text style={s.statValue}>{totalCount}</Text>
-              <Text style={s.statLabel}>Total</Text>
-            </View>
-            <View style={[s.statChip, { borderColor: Colors.success + "40", backgroundColor: Colors.successFaded }]}>
-              <Text style={[s.statValue, { color: Colors.success }]}>
-                {availableCount}
-              </Text>
-              <Text style={s.statLabel}>Available</Text>
-            </View>
-            <View style={[s.statChip, { borderColor: Colors.error + "40", backgroundColor: Colors.errorFaded }]}>
-              <Text style={[s.statValue, { color: Colors.error }]}>
-                {occupiedCount}
-              </Text>
-              <Text style={s.statLabel}>Occupied</Text>
-            </View>
-          </View>
-        )}
+        </ScrollView>
       </View>
 
-      {/* ── Content ────────────────────────────────────────────────────────── */}
+      {/* ── Content ──────────────────────────────────────────────────────── */}
       {!gymId ? (
         <EmptyState
           icon="lock-outline"
@@ -526,32 +810,16 @@ export default function OwnerLockersScreen() {
         />
       ) : isLoading ? (
         <View style={{ padding: Spacing.lg }}>
-          <SkeletonGroup variant="statGrid" count={6} itemHeight={110} gap={Spacing.sm} />
+          <SkeletonGroup
+            variant="statGrid"
+            count={6}
+            itemHeight={110}
+            gap={Spacing.sm}
+          />
         </View>
-      ) : allLockers.length === 0 ? (
-        <EmptyState
-          icon="lock-outline"
-          title="No lockers found"
-          subtitle={
-            statusFilter
-              ? `No ${statusFilter.toLowerCase()} lockers`
-              : "Add lockers to manage them here"
-          }
-          action={
-            !statusFilter ? (
-              <TouchableOpacity
-                style={s.emptyAction}
-                onPress={() => setShowAdd(true)}
-              >
-                <Icon name="plus" size={16} color="#fff" />
-                <Text style={s.emptyActionText}>Add First Locker</Text>
-              </TouchableOpacity>
-            ) : undefined
-          }
-        />
       ) : (
         <FlatList<Locker>
-          data={allLockers}
+          data={filtered}
           keyExtractor={(l) => l.id}
           numColumns={2}
           contentContainerStyle={s.grid}
@@ -565,17 +833,105 @@ export default function OwnerLockersScreen() {
               colors={[Colors.primary]}
             />
           }
+          ListHeaderComponent={
+            <>
+              {/* Search */}
+              <Input
+                value={search}
+                onChangeText={setSearch}
+                placeholder="Search locker or member…"
+                leftIcon="magnify"
+              />
+
+              {/* Stats row */}
+              {lockers.length > 0 && (
+                <View style={s.statsGrid}>
+                  <StatCard
+                    icon="lock-outline"
+                    label="Total"
+                    value={stats.total}
+                    color={Colors.textPrimary}
+                    bg={Colors.surfaceRaised}
+                    style={{ flex: 1 }}
+                  />
+                  <StatCard
+                    icon="check-circle-outline"
+                    label="Available"
+                    value={stats.available}
+                    color={Colors.success}
+                    bg={Colors.successFaded}
+                    style={{ flex: 1 }}
+                  />
+                  <StatCard
+                    icon="key-outline"
+                    label="Assigned"
+                    value={stats.assigned}
+                    color={Colors.info}
+                    bg={Colors.infoFaded}
+                    style={{ flex: 1 }}
+                  />
+                  <StatCard
+                    icon="wrench-outline"
+                    label="Maint."
+                    value={stats.maintenance}
+                    color={Colors.warning}
+                    bg={Colors.warningFaded}
+                    style={{ flex: 1 }}
+                  />
+                  <StatCard
+                    icon="clock-outline"
+                    label="Reserved"
+                    value={stats.reserved}
+                    color={Colors.purple}
+                    bg={Colors.purpleFaded}
+                    style={{ flex: 1 }}
+                  />
+                </View>
+              )}
+            </>
+          }
+          ListEmptyComponent={
+            <EmptyState
+              icon="lock-outline"
+              title="No lockers found"
+              subtitle={
+                search
+                  ? "No lockers match your search"
+                  : statusFilter
+                    ? `No ${statusFilter.toLowerCase()} lockers`
+                    : "Add lockers to manage them here"
+              }
+              action={
+                !search && !statusFilter ? (
+                  <TouchableOpacity
+                    style={s.emptyAction}
+                    onPress={() => setShowAdd(true)}
+                  >
+                    <Icon name="plus" size={16} color="#fff" />
+                    <Text style={s.emptyActionText}>Add First Locker</Text>
+                  </TouchableOpacity>
+                ) : undefined
+              }
+            />
+          }
           renderItem={({ item }) => (
             <LockerCard
               locker={item}
-              onPress={() => handleLockerPress(item)}
-              onLongPress={() => handleLockerLongPress(item)}
+              onEdit={setEditLocker}
+              onAssign={(l) => {
+                setAssignLocker(l);
+                setAssignForm(emptyAssign);
+                setMemberSearch("");
+              }}
+              onUnassign={handleUnassign}
+              onUpdateAssignment={handleOpenUpdateAssignment}
+              releasingId={releasingId}
             />
           )}
         />
       )}
 
-      {/* ── Add Locker Modal ───────────────────────────────────────────────── */}
+      {/* ── Add Locker Modal ──────────────────────────────────────────────── */}
       <Modal
         visible={showAdd}
         animationType="slide"
@@ -587,14 +943,49 @@ export default function OwnerLockersScreen() {
             contentContainerStyle={s.modalScroll}
             keyboardShouldPersistTaps="handled"
           >
-            <ModalHeader title="Add Locker" onClose={() => setShowAdd(false)} />
+            <ModalHeader
+              title="Add Locker"
+              onClose={() => {
+                setShowAdd(false);
+                setAddForm(emptyAdd);
+              }}
+            />
 
             <Input
               label="Locker Number *"
               value={addForm.lockerNumber}
-              onChangeText={(v) => setAddForm((f) => ({ ...f, lockerNumber: v }))}
-              placeholder="e.g. L-01 or 101"
+              onChangeText={(v) =>
+                setAddForm((f) => ({ ...f, lockerNumber: v }))
+              }
+              placeholder="e.g. A-01"
               leftIcon="lock-outline"
+            />
+
+            <Input
+              label="Floor / Zone"
+              value={addForm.floor}
+              onChangeText={(v) => setAddForm((f) => ({ ...f, floor: v }))}
+              placeholder="e.g. Ground Floor"
+              leftIcon="layers-outline"
+            />
+
+            <Dropdown
+              label="Size"
+              value={addForm.size}
+              onChange={(v) => setAddForm((f) => ({ ...f, size: v }))}
+              options={[
+                { label: "Any", value: "" },
+                ...SIZES.map((s) => ({ label: s, value: s })),
+              ]}
+            />
+
+            <Input
+              label="Monthly Fee (₹)"
+              value={addForm.monthlyFee}
+              onChangeText={(v) => setAddForm((f) => ({ ...f, monthlyFee: v }))}
+              keyboardType="numeric"
+              placeholder="0"
+              leftIcon="currency-inr"
             />
 
             <Dropdown
@@ -604,16 +995,17 @@ export default function OwnerLockersScreen() {
               options={[
                 { label: "Available", value: "AVAILABLE" },
                 { label: "Maintenance", value: "MAINTENANCE" },
+                { label: "Reserved", value: "RESERVED" },
               ]}
             />
 
             <Input
-              label="Monthly Fee (₹)"
-              value={addForm.monthlyFee}
-              onChangeText={(v) => setAddForm((f) => ({ ...f, monthlyFee: v }))}
-              keyboardType="numeric"
-              placeholder="e.g. 500"
-              leftIcon="currency-inr"
+              label="Notes"
+              value={addForm.notes}
+              onChangeText={(v) => setAddForm((f) => ({ ...f, notes: v }))}
+              placeholder="Optional"
+              multiline
+              numberOfLines={2}
             />
 
             <Button
@@ -625,12 +1017,269 @@ export default function OwnerLockersScreen() {
         </SafeAreaView>
       </Modal>
 
-      {/* ── Assign Locker Modal ────────────────────────────────────────────── */}
+      {/* ── Edit Locker Modal ─────────────────────────────────────────────── */}
+      {editLocker && (
+        <Modal
+          visible
+          animationType="slide"
+          presentationStyle="pageSheet"
+          onRequestClose={() => setEditLocker(null)}
+        >
+          <SafeAreaView style={{ flex: 1, backgroundColor: Colors.bg }}>
+            <ScrollView
+              contentContainerStyle={s.modalScroll}
+              keyboardShouldPersistTaps="handled"
+            >
+              <ModalHeader
+                title={`Edit Locker #${editLocker.lockerNumber}`}
+                onClose={() => setEditLocker(null)}
+              />
+
+              <Input
+                label="Locker Number *"
+                value={editLocker.lockerNumber}
+                onChangeText={(v) =>
+                  setEditLocker((l) => (l ? { ...l, lockerNumber: v } : l))
+                }
+                placeholder="e.g. A-01"
+                leftIcon="lock-outline"
+              />
+
+              <Input
+                label="Floor / Zone"
+                value={editLocker.floor ?? ""}
+                onChangeText={(v) =>
+                  setEditLocker((l) => (l ? { ...l, floor: v || null } : l))
+                }
+                placeholder="e.g. Ground Floor"
+                leftIcon="layers-outline"
+              />
+
+              <Dropdown
+                label="Size"
+                value={editLocker.size ?? ""}
+                onChange={(v) =>
+                  setEditLocker((l) => (l ? { ...l, size: v || null } : l))
+                }
+                options={[
+                  { label: "Any", value: "" },
+                  ...SIZES.map((sz) => ({ label: sz, value: sz })),
+                ]}
+              />
+
+              <Input
+                label="Monthly Fee (₹)"
+                value={
+                  editLocker.monthlyFee != null
+                    ? String(editLocker.monthlyFee)
+                    : ""
+                }
+                onChangeText={(v) =>
+                  setEditLocker((l) =>
+                    l ? { ...l, monthlyFee: v ? parseFloat(v) : null } : l,
+                  )
+                }
+                keyboardType="numeric"
+                placeholder="0"
+                leftIcon="currency-inr"
+              />
+
+              {editLocker.status !== "ASSIGNED" && (
+                <Dropdown
+                  label="Status"
+                  value={editLocker.status}
+                  onChange={(v) =>
+                    setEditLocker((l) =>
+                      l ? { ...l, status: v as LockerStatus } : l,
+                    )
+                  }
+                  options={[
+                    { label: "Available", value: "AVAILABLE" },
+                    { label: "Maintenance", value: "MAINTENANCE" },
+                    { label: "Reserved", value: "RESERVED" },
+                  ]}
+                />
+              )}
+
+              <Input
+                label="Notes"
+                value={editLocker.notes ?? ""}
+                onChangeText={(v) =>
+                  setEditLocker((l) => (l ? { ...l, notes: v || null } : l))
+                }
+                placeholder="Optional"
+                multiline
+                numberOfLines={2}
+              />
+
+              <Button
+                label="Save Changes"
+                onPress={handleEditSave}
+                loading={updateMutation.isPending}
+              />
+
+              {/* Delete button */}
+              <TouchableOpacity
+                style={s.deleteBtn}
+                onPress={() => handleDeleteLocker(editLocker)}
+                disabled={deleteMutation.isPending}
+              >
+                <Icon name="trash-can-outline" size={16} color={Colors.error} />
+                <Text style={s.deleteBtnText}>Delete Locker</Text>
+              </TouchableOpacity>
+            </ScrollView>
+          </SafeAreaView>
+        </Modal>
+      )}
+
+      {/* ── Assign Locker Modal ───────────────────────────────────────────── */}
+      {assignLocker && (
+        <Modal
+          visible
+          animationType="slide"
+          presentationStyle="pageSheet"
+          onRequestClose={() => setAssignLocker(null)}
+        >
+          <SafeAreaView style={{ flex: 1, backgroundColor: Colors.bg }}>
+            <ScrollView
+              contentContainerStyle={s.modalScroll}
+              keyboardShouldPersistTaps="handled"
+            >
+              <ModalHeader
+                title={`Assign Locker #${assignLocker.lockerNumber}`}
+                onClose={() => {
+                  setAssignLocker(null);
+                  setAssignForm(emptyAssign);
+                }}
+              />
+
+              {/* Monthly fee hint */}
+              {assignLocker.monthlyFee != null &&
+                assignLocker.monthlyFee > 0 && (
+                  <View style={s.feeHint}>
+                    <Icon
+                      name="currency-inr"
+                      size={14}
+                      color={Colors.primary}
+                    />
+                    <Text style={s.feeHintText}>
+                      Monthly fee: ₹
+                      {Number(assignLocker.monthlyFee).toLocaleString("en-IN")}
+                    </Text>
+                  </View>
+                )}
+
+              {/* Member search */}
+              <Input
+                label="Search Member"
+                value={memberSearch}
+                onChangeText={setMemberSearch}
+                placeholder="Type member name…"
+                leftIcon="magnify"
+              />
+
+              {/* Member list */}
+              {members.length > 0 && (
+                <View style={s.memberList}>
+                  {members.slice(0, 8).map((m) => {
+                    const isSelected = assignForm.memberId === m.id;
+                    return (
+                      <TouchableOpacity
+                        key={m.id}
+                        onPress={() =>
+                          setAssignForm((f) => ({ ...f, memberId: m.id }))
+                        }
+                        style={[s.memberRow, isSelected && s.memberRowActive]}
+                      >
+                        <Avatar
+                          name={m.profile.fullName}
+                          url={m.profile.avatarUrl ?? undefined}
+                          size={34}
+                        />
+                        <View style={{ flex: 1 }}>
+                          <Text style={s.memberNameList}>
+                            {m.profile.fullName}
+                          </Text>
+                          {m.profile.mobileNumber ? (
+                            <Text style={s.memberSubList}>
+                              {m.profile.mobileNumber}
+                            </Text>
+                          ) : null}
+                        </View>
+                        {isSelected && (
+                          <Icon
+                            name="check-circle"
+                            size={18}
+                            color={Colors.primary}
+                          />
+                        )}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              )}
+
+              <Input
+                label="Expiry Date (YYYY-MM-DD)"
+                value={assignForm.expiresAt}
+                onChangeText={(v) =>
+                  setAssignForm((f) => ({ ...f, expiresAt: v }))
+                }
+                placeholder="2025-12-31"
+                leftIcon="calendar-outline"
+              />
+
+              <Input
+                label="Notes"
+                value={assignForm.notes}
+                onChangeText={(v) => setAssignForm((f) => ({ ...f, notes: v }))}
+                placeholder="Optional notes…"
+                multiline
+                numberOfLines={2}
+              />
+
+              {/* Fee collected toggle */}
+              <View style={s.switchRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.switchLabel}>Fee Collected</Text>
+                  {assignLocker.monthlyFee != null &&
+                    assignLocker.monthlyFee > 0 &&
+                    assignForm.feeCollected && (
+                      <Text style={s.switchSub}>
+                        ₹
+                        {Number(assignLocker.monthlyFee).toLocaleString(
+                          "en-IN",
+                        )}{" "}
+                        added to revenue
+                      </Text>
+                    )}
+                </View>
+                <Switch
+                  value={assignForm.feeCollected}
+                  onValueChange={(v) =>
+                    setAssignForm((f) => ({ ...f, feeCollected: v }))
+                  }
+                  trackColor={{ true: Colors.primary }}
+                  thumbColor="#fff"
+                />
+              </View>
+
+              <Button
+                label="Assign Locker"
+                onPress={handleAssign}
+                loading={assignMutation.isPending}
+              />
+            </ScrollView>
+          </SafeAreaView>
+        </Modal>
+      )}
+
+      {/* ── Bulk Add Modal ───────────────────────────────────────────────── */}
       <Modal
-        visible={!!assignLocker}
+        visible={showBulk}
         animationType="slide"
         presentationStyle="pageSheet"
-        onRequestClose={() => setAssignLocker(null)}
+        onRequestClose={() => setShowBulk(false)}
       >
         <SafeAreaView style={{ flex: 1, backgroundColor: Colors.bg }}>
           <ScrollView
@@ -638,168 +1287,162 @@ export default function OwnerLockersScreen() {
             keyboardShouldPersistTaps="handled"
           >
             <ModalHeader
-              title={
-                assignLocker
-                  ? `Assign Locker ${assignLocker.lockerNumber}`
-                  : "Assign Locker"
-              }
-              onClose={() => setAssignLocker(null)}
+              title="Bulk Add Lockers"
+              onClose={() => {
+                setShowBulk(false);
+                setBulkForm(emptyBulk);
+              }}
             />
 
-            {/* Member search */}
+            <View style={s.bulkHint}>
+              <Icon name="information-outline" size={13} color={Colors.textMuted} />
+              <Text style={s.bulkHintText}>
+                Creates lockers like A01, A02 … A10 (prefix + zero-padded number)
+              </Text>
+            </View>
+
             <Input
-              label="Search Member"
-              value={memberSearch}
-              onChangeText={setMemberSearch}
-              placeholder="Type member name..."
-              leftIcon="magnify"
+              label="Prefix (optional)"
+              value={bulkForm.prefix}
+              onChangeText={(v) => setBulkForm((f) => ({ ...f, prefix: v }))}
+              placeholder="e.g. A, B, L-"
+              leftIcon="text"
             />
 
-            {/* Member list */}
-            {members.length > 0 && (
-              <View style={s.memberList}>
-                {members.slice(0, 8).map((m) => {
-                  const isSelected = assignForm.memberId === m.id;
-                  return (
-                    <TouchableOpacity
-                      key={m.id}
-                      onPress={() =>
-                        setAssignForm((f) => ({ ...f, memberId: m.id }))
-                      }
-                      style={[s.memberRow, isSelected && s.memberRowActive]}
-                    >
-                      <Avatar
-                        name={m.profile.fullName}
-                        uri={m.profile.avatarUrl ?? undefined}
-                        size={34}
-                      />
-                      <View style={{ flex: 1 }}>
-                        <Text style={s.memberName}>{m.profile.fullName}</Text>
-                        {m.profile.mobileNumber ? (
-                          <Text style={s.memberSub}>{m.profile.mobileNumber}</Text>
-                        ) : null}
-                      </View>
-                      {isSelected && (
-                        <Icon
-                          name="check-circle"
-                          size={18}
-                          color={Colors.primary}
-                        />
-                      )}
-                    </TouchableOpacity>
-                  );
-                })}
+            <View style={s.bulkRangeRow}>
+              <View style={{ flex: 1 }}>
+                <Input
+                  label="From"
+                  value={bulkForm.from}
+                  onChangeText={(v) => setBulkForm((f) => ({ ...f, from: v }))}
+                  keyboardType="numeric"
+                  placeholder="1"
+                />
               </View>
-            )}
-
-            <Input
-              label="Expiry Date (YYYY-MM-DD)"
-              value={assignForm.expiresAt}
-              onChangeText={(v) =>
-                setAssignForm((f) => ({ ...f, expiresAt: v }))
-              }
-              placeholder="2025-12-31"
-              leftIcon="calendar-outline"
-            />
-
-            <Input
-              label="Notes"
-              value={assignForm.notes}
-              onChangeText={(v) =>
-                setAssignForm((f) => ({ ...f, notes: v }))
-              }
-              placeholder="Optional notes..."
-              multiline
-              numberOfLines={2}
-            />
-
-            {/* Fee Collected toggle */}
-            <View style={{ marginBottom: Spacing.md }}>
-              <Text style={s.toggleLabel}>Fee Collected</Text>
-              <View style={s.toggleRow}>
-                <TouchableOpacity
-                  style={[
-                    s.toggleBtn,
-                    assignForm.feeCollected && s.toggleBtnActive,
-                  ]}
-                  onPress={() =>
-                    setAssignForm((f) => ({ ...f, feeCollected: true }))
-                  }
-                >
-                  <Text
-                    style={[
-                      s.toggleBtnText,
-                      assignForm.feeCollected && s.toggleBtnTextActive,
-                    ]}
-                  >
-                    Yes
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[
-                    s.toggleBtn,
-                    !assignForm.feeCollected && s.toggleBtnActive,
-                  ]}
-                  onPress={() =>
-                    setAssignForm((f) => ({ ...f, feeCollected: false }))
-                  }
-                >
-                  <Text
-                    style={[
-                      s.toggleBtnText,
-                      !assignForm.feeCollected && s.toggleBtnTextActive,
-                    ]}
-                  >
-                    No
-                  </Text>
-                </TouchableOpacity>
+              <View style={{ flex: 1 }}>
+                <Input
+                  label="To"
+                  value={bulkForm.to}
+                  onChangeText={(v) => setBulkForm((f) => ({ ...f, to: v }))}
+                  keyboardType="numeric"
+                  placeholder="10"
+                />
               </View>
             </View>
 
-            <Button
-              label="Assign Locker"
-              onPress={handleAssign}
-              loading={assignMutation.isPending}
-            />
-          </ScrollView>
-        </SafeAreaView>
-      </Modal>
+            {/* Preview count */}
+            {bulkForm.from && bulkForm.to && (
+              <Text style={s.bulkCountText}>
+                Will create{" "}
+                {Math.max(
+                  0,
+                  (parseInt(bulkForm.to) || 0) -
+                    (parseInt(bulkForm.from) || 0) +
+                    1,
+                )}{" "}
+                lockers
+              </Text>
+            )}
 
-      {/* ── Edit Locker Modal ──────────────────────────────────────────────── */}
-      <Modal
-        visible={!!editLocker}
-        animationType="slide"
-        presentationStyle="pageSheet"
-        onRequestClose={() => setEditLocker(null)}
-      >
-        <SafeAreaView style={{ flex: 1, backgroundColor: Colors.bg }}>
-          <ScrollView
-            contentContainerStyle={s.modalScroll}
-            keyboardShouldPersistTaps="handled"
-          >
-            <ModalHeader
-              title={
-                editLocker ? `Edit Locker ${editLocker.lockerNumber}` : "Edit Locker"
-              }
-              onClose={() => setEditLocker(null)}
+            <Input
+              label="Floor / Zone"
+              value={bulkForm.floor}
+              onChangeText={(v) => setBulkForm((f) => ({ ...f, floor: v }))}
+              placeholder="e.g. Ground Floor"
+              leftIcon="layers-outline"
             />
 
             <Input
-              label="Locker Number *"
-              value={editLockerNumber}
-              onChangeText={setEditLockerNumber}
-              placeholder="e.g. L-01 or 101"
-              leftIcon="lock-outline"
+              label="Monthly Fee (₹)"
+              value={bulkForm.monthlyFee}
+              onChangeText={(v) => setBulkForm((f) => ({ ...f, monthlyFee: v }))}
+              keyboardType="numeric"
+              placeholder="0"
+              leftIcon="currency-inr"
             />
 
             <Button
-              label="Save Changes"
-              onPress={handleEdit}
-              loading={updateMutation.isPending}
+              label="Create Lockers"
+              onPress={handleBulkCreate}
+              loading={bulkCreateMutation.isPending}
             />
           </ScrollView>
         </SafeAreaView>
       </Modal>
+
+      {/* ── Update Assignment Modal ───────────────────────────────────────── */}
+      {updateLocker && (
+        <Modal
+          visible
+          animationType="slide"
+          presentationStyle="pageSheet"
+          onRequestClose={() => setUpdateLocker(null)}
+        >
+          <SafeAreaView style={{ flex: 1, backgroundColor: Colors.bg }}>
+            <ScrollView
+              contentContainerStyle={s.modalScroll}
+              keyboardShouldPersistTaps="handled"
+            >
+              <ModalHeader
+                title={`Update Assignment — #${updateLocker.lockerNumber}`}
+                onClose={() => setUpdateLocker(null)}
+              />
+
+              <Input
+                label="New Expiry Date (YYYY-MM-DD)"
+                value={updateForm.expiresAt}
+                onChangeText={(v) =>
+                  setUpdateForm((f) => ({ ...f, expiresAt: v }))
+                }
+                placeholder="2025-12-31"
+                leftIcon="calendar-outline"
+              />
+
+              <Input
+                label="Notes"
+                value={updateForm.notes}
+                onChangeText={(v) => setUpdateForm((f) => ({ ...f, notes: v }))}
+                placeholder="Optional notes…"
+                multiline
+                numberOfLines={2}
+              />
+
+              <View style={s.switchRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.switchLabel}>Fee Collected</Text>
+                  {!updateLocker.assignments?.find((a) => a.isActive)
+                    ?.feeCollected &&
+                    updateForm.feeCollected &&
+                    updateLocker.monthlyFee != null &&
+                    updateLocker.monthlyFee > 0 && (
+                      <Text style={s.switchSub}>
+                        ₹
+                        {Number(updateLocker.monthlyFee).toLocaleString(
+                          "en-IN",
+                        )}{" "}
+                        added to revenue
+                      </Text>
+                    )}
+                </View>
+                <Switch
+                  value={updateForm.feeCollected}
+                  onValueChange={(v) =>
+                    setUpdateForm((f) => ({ ...f, feeCollected: v }))
+                  }
+                  trackColor={{ true: Colors.primary }}
+                  thumbColor="#fff"
+                />
+              </View>
+
+              <Button
+                label="Update Assignment"
+                onPress={() => updateAssignmentMutation.mutate()}
+                loading={updateAssignmentMutation.isPending}
+              />
+            </ScrollView>
+          </SafeAreaView>
+        </Modal>
+      )}
     </SafeAreaView>
   );
 }
@@ -825,13 +1468,51 @@ const s = StyleSheet.create({
     justifyContent: "center",
   },
 
-  // Filter pills
-  filterRow: {
+  // Gym row
+  gymRow: {
     flexDirection: "row",
-    gap: Spacing.xs,
-    flexWrap: "wrap",
-    marginBottom: Spacing.md,
+    alignItems: "flex-end",
+    gap: Spacing.sm,
+    marginBottom: Spacing.sm,
   },
+  gymNameChip: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+    backgroundColor: Colors.surfaceRaised,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 10,
+  },
+  gymNameText: {
+    color: Colors.textSecondary,
+    fontSize: Typography.sm,
+    fontWeight: "600",
+    flex: 1,
+  },
+  bulkBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 10,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.surfaceRaised,
+  },
+  bulkBtnText: {
+    color: Colors.textSecondary,
+    fontSize: Typography.sm,
+    fontWeight: "600",
+  },
+
+  // Filter pills
+  filterScroll: { marginBottom: Spacing.md },
+  filterRow: { flexDirection: "row", gap: Spacing.xs, paddingBottom: 2 },
   pill: {
     paddingHorizontal: 12,
     paddingVertical: 6,
@@ -849,75 +1530,178 @@ const s = StyleSheet.create({
     fontSize: Typography.xs,
     fontWeight: "500",
   },
-  pillTextActive: {
-    color: Colors.primary,
-    fontWeight: "700",
-  },
+  pillTextActive: { color: Colors.primary, fontWeight: "700" },
 
-  // Stats row
-  statsRow: {
+  // Stats grid
+  statsGrid: {
     flexDirection: "row",
-    gap: Spacing.sm,
+    gap: Spacing.md,
     marginBottom: Spacing.md,
-  },
-  statChip: {
-    flex: 1,
-    alignItems: "center",
-    paddingVertical: Spacing.sm,
-    borderRadius: Radius.lg,
-    backgroundColor: Colors.surfaceRaised,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  statValue: {
-    color: Colors.textPrimary,
-    fontSize: Typography.xl,
-    fontWeight: "700",
-  },
-  statLabel: {
-    color: Colors.textMuted,
-    fontSize: Typography.xs,
-    marginTop: 2,
+    flexWrap: "wrap",
   },
 
   // Locker grid
-  grid: {
-    padding: Spacing.lg,
-    paddingBottom: 40,
-  },
-  columnWrapper: {
-    gap: Spacing.sm,
-    marginBottom: Spacing.sm,
-  },
-  lockerCard: {
+  grid: { padding: Spacing.lg, paddingBottom: 40 },
+  columnWrapper: { gap: Spacing.sm, marginBottom: Spacing.sm },
+
+  // Locker card
+  card: {
     flex: 1,
     borderRadius: Radius.xl,
     borderWidth: 1,
     padding: Spacing.md,
-    minHeight: 110,
     gap: Spacing.xs,
   },
-  lockerNumber: {
+  cardHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: Spacing.xs,
+  },
+  cardNumber: {
     color: Colors.textPrimary,
-    fontSize: Typography.xl,
+    fontSize: Typography.lg,
     fontWeight: "800",
   },
-  lockerMember: {
-    color: Colors.textPrimary,
-    fontSize: Typography.xs,
-    fontWeight: "600",
-  },
-  lockerExpiry: {
+  cardMeta: {
     color: Colors.textMuted,
     fontSize: 10,
+    marginTop: 1,
   },
-  lockerFee: {
+  cardBadgeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    flexShrink: 0,
+  },
+  statusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  statusLabel: {
+    fontSize: 9,
+    fontWeight: "700",
+  },
+  feeText: {
     color: Colors.textMuted,
     fontSize: 10,
-    marginTop: Spacing.xs,
   },
 
-  // Empty action
+  // Member mini-card inside locker card
+  memberCard: {
+    backgroundColor: Colors.surfaceRaised,
+    borderRadius: Radius.md,
+    padding: Spacing.sm,
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: Spacing.sm,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  memberAvatarWrap: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: Colors.infoFaded,
+    borderWidth: 1,
+    borderColor: Colors.info + "40",
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  memberAvatarText: {
+    color: Colors.info,
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  memberNameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 4,
+  },
+  memberName: {
+    color: Colors.textPrimary,
+    fontSize: 11,
+    fontWeight: "600",
+    flex: 1,
+  },
+  memberPhone: {
+    color: Colors.textMuted,
+    fontSize: 9,
+    marginTop: 1,
+  },
+  feeBadge: {
+    fontSize: 9,
+    fontWeight: "700",
+    flexShrink: 0,
+  },
+  feePaid: { color: Colors.success },
+  feeUnpaid: { color: Colors.warning },
+
+  // Expiry
+  expiryRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    marginTop: 3,
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+    borderRadius: 4,
+    alignSelf: "flex-start",
+  },
+  expiryExpired: { backgroundColor: Colors.errorFaded },
+  expiryWarning: { backgroundColor: Colors.warningFaded },
+  expiryNormal: { backgroundColor: "transparent" },
+  expiryText: { fontSize: 9, fontWeight: "600" },
+
+  // Empty slot
+  emptySlot: {
+    alignItems: "center",
+    justifyContent: "center",
+    height: 32,
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderStyle: "dashed",
+  },
+  emptySlotText: { color: Colors.textDisabled, fontSize: 10 },
+
+  // Action buttons inside card
+  cardActions: {
+    flexDirection: "row",
+    gap: Spacing.xs,
+    marginTop: 2,
+  },
+  actionBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+    paddingVertical: 6,
+    borderRadius: Radius.md,
+    borderWidth: 1,
+  },
+  actionBtnPrimary: {
+    backgroundColor: Colors.primaryFaded,
+    borderColor: Colors.primary + "40",
+  },
+  actionBtnDefault: {
+    backgroundColor: Colors.surfaceRaised,
+    borderColor: Colors.border,
+  },
+  actionBtnDanger: {
+    backgroundColor: Colors.errorFaded,
+    borderColor: Colors.error + "30",
+  },
+  actionBtnText: {
+    fontSize: 10,
+    fontWeight: "700",
+  },
+
+  // Empty state
   emptyAction: {
     flexDirection: "row",
     alignItems: "center",
@@ -935,10 +1719,7 @@ const s = StyleSheet.create({
   },
 
   // Modal shared
-  modalScroll: {
-    padding: Spacing.lg,
-    paddingBottom: 40,
-  },
+  modalScroll: { padding: Spacing.lg, paddingBottom: 40 },
   modalHeader: {
     flexDirection: "row",
     alignItems: "center",
@@ -949,6 +1730,27 @@ const s = StyleSheet.create({
     color: Colors.textPrimary,
     fontSize: Typography.xl,
     fontWeight: "700",
+    flex: 1,
+    marginRight: Spacing.sm,
+  },
+
+  // Fee hint in assign modal
+  feeHint: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    backgroundColor: Colors.primaryFaded,
+    borderWidth: 1,
+    borderColor: Colors.primary + "30",
+    borderRadius: Radius.lg,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    marginBottom: Spacing.md,
+  },
+  feeHintText: {
+    color: Colors.primary,
+    fontSize: Typography.xs,
+    fontWeight: "600",
   },
 
   // Member picker in assign modal
@@ -969,52 +1771,80 @@ const s = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
   },
-  memberRowActive: {
-    backgroundColor: Colors.primaryFaded,
-  },
-  memberName: {
+  memberRowActive: { backgroundColor: Colors.primaryFaded },
+  memberNameList: {
     color: Colors.textPrimary,
     fontSize: Typography.sm,
     fontWeight: "600",
   },
-  memberSub: {
-    color: Colors.textMuted,
-    fontSize: Typography.xs,
-  },
+  memberSubList: { color: Colors.textMuted, fontSize: Typography.xs },
 
-  // Fee collected toggle
-  toggleLabel: {
-    color: Colors.textMuted,
-    fontSize: Typography.xs,
-    fontWeight: "500",
-    marginBottom: 6,
-    letterSpacing: 0.3,
-  },
-  toggleRow: {
+  // Switch row
+  switchRow: {
     flexDirection: "row",
-    gap: Spacing.sm,
-  },
-  toggleBtn: {
-    flex: 1,
-    height: 44,
+    alignItems: "center",
+    gap: Spacing.md,
+    backgroundColor: Colors.surfaceRaised,
     borderRadius: Radius.lg,
     borderWidth: 1,
     borderColor: Colors.border,
-    backgroundColor: Colors.surfaceRaised,
-    alignItems: "center",
-    justifyContent: "center",
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    marginBottom: Spacing.md,
   },
-  toggleBtnActive: {
-    backgroundColor: Colors.primaryFaded,
-    borderColor: Colors.primary,
-  },
-  toggleBtnText: {
-    color: Colors.textMuted,
+  switchLabel: {
+    color: Colors.textPrimary,
     fontSize: Typography.sm,
     fontWeight: "600",
   },
-  toggleBtnTextActive: {
-    color: Colors.primary,
-    fontWeight: "700",
+  switchSub: { color: Colors.textMuted, fontSize: Typography.xs, marginTop: 2 },
+
+  // Bulk add modal
+  bulkHint: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: Spacing.sm,
+    backgroundColor: Colors.surfaceRaised,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    marginBottom: Spacing.md,
+  },
+  bulkHintText: {
+    color: Colors.textMuted,
+    fontSize: Typography.xs,
+    flex: 1,
+    lineHeight: 16,
+  },
+  bulkRangeRow: {
+    flexDirection: "row",
+    gap: Spacing.sm,
+  },
+  bulkCountText: {
+    color: Colors.textMuted,
+    fontSize: Typography.xs,
+    marginBottom: Spacing.md,
+    marginTop: -Spacing.sm,
+  },
+
+  // Delete button in edit modal
+  deleteBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.sm,
+    marginTop: Spacing.md,
+    paddingVertical: Spacing.md,
+    borderRadius: Radius.lg,
+    backgroundColor: Colors.errorFaded,
+    borderWidth: 1,
+    borderColor: Colors.error + "30",
+  },
+  deleteBtnText: {
+    color: Colors.error,
+    fontSize: Typography.sm,
+    fontWeight: "600",
   },
 });

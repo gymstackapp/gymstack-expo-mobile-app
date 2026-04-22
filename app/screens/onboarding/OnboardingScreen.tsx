@@ -788,6 +788,7 @@ const fp = StyleSheet.create({
   wrap: {
     width: (SW - Spacing.lg * 2 - Spacing.sm * 2) / 3,
     alignItems: "center",
+    justifyContent: "center",
     gap: 5,
     paddingVertical: Spacing.xs,
   },
@@ -800,7 +801,7 @@ const fp = StyleSheet.create({
   },
   label: {
     color: Colors.textSecondary,
-    fontSize: 10,
+    fontSize: 16,
     textAlign: "center",
     lineHeight: 13,
   },
@@ -1335,7 +1336,13 @@ const sl = StyleSheet.create({
     fontWeight: "600",
     textAlign: "center",
   },
-  featureGrid: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.sm },
+  featureGrid: {
+    marginVertical: Spacing.md,
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: Spacing.sm,
+    justifyContent: "center",
+  },
   highlight: {
     flexDirection: "row",
     alignItems: "flex-start",

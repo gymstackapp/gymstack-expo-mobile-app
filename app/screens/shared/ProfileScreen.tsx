@@ -1,6 +1,13 @@
 // mobile/src/screens/shared/ProfileScreen.tsx
 import { profileApi } from "@/api/endpoints";
-import { Button, Card, Dropdown, Header, ImageUpload, Input } from "@/components";
+import {
+  Button,
+  Card,
+  Dropdown,
+  Header,
+  ImageUpload,
+  Input,
+} from "@/components";
 import { showAlert } from "@/components/AppAlert";
 import { useAuthStore } from "@/store/authStore";
 import { Colors, Radius, Spacing, Typography } from "@/theme";
@@ -28,6 +35,7 @@ export function ProfileScreen() {
   const { profile, logout, updateProfile } = useAuthStore();
 
   const [editing, setEditing] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [form, setForm] = useState({
     fullName: profile?.fullName ?? "",
     mobileNumber: profile?.mobileNumber ?? "",
@@ -145,7 +153,14 @@ export function ProfileScreen() {
   const onLogout = () => {
     showAlert("Sign Out", "Are you sure you want to sign out?", [
       { text: "Cancel", style: "cancel" },
-      { text: "Sign Out", style: "destructive", onPress: logout },
+      {
+        text: "Sign Out",
+        style: "destructive",
+        onPress: async () => {
+          setIsLoggingOut(true);
+          await logout();
+        },
+      },
     ]);
   };
 
@@ -228,7 +243,7 @@ export function ProfileScreen() {
         </View>
 
         {/* ── Wallet balance ──────────────────────────────────── */}
-        {profile?.wallet != null && (
+        {/* {profile?.wallet != null && (
           <Card style={styles.walletCard}>
             <View style={styles.walletRow}>
               <View style={styles.walletIconWrap}>
@@ -243,7 +258,7 @@ export function ProfileScreen() {
               <Icon name="chevron-right" size={18} color={Colors.textMuted} />
             </View>
           </Card>
-        )}
+        )} */}
 
         {/* ── Personal info card ──────────────────────────────── */}
         <Card style={styles.card}>
@@ -278,7 +293,12 @@ export function ProfileScreen() {
                   <ActivityIndicator color={Colors.primary} size="small" />
                 </View>
               )}
-              <View style={[styles.editForm, updateMutation.isPending && styles.editFormDimmed]}>
+              <View
+                style={[
+                  styles.editForm,
+                  updateMutation.isPending && styles.editFormDimmed,
+                ]}
+              >
                 <Input
                   label="Full Name *"
                   value={form.fullName}
@@ -288,9 +308,12 @@ export function ProfileScreen() {
                 <Input
                   label="Mobile Number"
                   value={form.mobileNumber}
-                  onChangeText={(v) => setForm((f) => ({ ...f, mobileNumber: v }))}
+                  onChangeText={(v) =>
+                    setForm((f) => ({ ...f, mobileNumber: v }))
+                  }
                   keyboardType="phone-pad"
-                  editable={!updateMutation.isPending}
+                  editable={false}
+                  style={{ color: Colors.textDisabled }}
                 />
                 <Input
                   label="City"
@@ -302,7 +325,12 @@ export function ProfileScreen() {
                   label="Gender"
                   value={form.gender}
                   onChange={(v) => setForm((f) => ({ ...f, gender: v }))}
-                  options={["Male", "Female", "Non-binary", "Prefer not to say"]}
+                  options={[
+                    "Male",
+                    "Female",
+                    "Non-binary",
+                    "Prefer not to say",
+                  ]}
                   placeholder="Select gender"
                   leftIcon="gender-male-female"
                   disabled={updateMutation.isPending}
@@ -428,12 +456,19 @@ export function ProfileScreen() {
 
         {/* ── Sign out ─────────────────────────────────────────── */}
         <TouchableOpacity
-          style={styles.logoutBtn}
+          style={[styles.logoutBtn, isLoggingOut && { opacity: 0.6 }]}
           onPress={onLogout}
           activeOpacity={0.8}
+          disabled={isLoggingOut}
         >
-          <Icon name="logout" size={18} color={Colors.error} />
-          <Text style={styles.logoutText}>Sign Out</Text>
+          {isLoggingOut ? (
+            <ActivityIndicator size="small" color={Colors.error} />
+          ) : (
+            <Icon name="logout" size={18} color={Colors.error} />
+          )}
+          <Text style={styles.logoutText}>
+            {isLoggingOut ? "Signing out..." : "Sign Out"}
+          </Text>
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
@@ -442,7 +477,7 @@ export function ProfileScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.bg },
-  scroll: { padding: Spacing.lg, paddingBottom: 48 },
+  scroll: { padding: Spacing.lg },
 
   // ── Hero ──────────────────────────────────────────────────
   hero: {
@@ -605,7 +640,6 @@ const styles = StyleSheet.create({
     fontSize: Typography.sm,
     fontWeight: Typography.medium,
   },
-
 
   // ── Edit form ─────────────────────────────────────────────
   editFormWrap: { position: "relative" },

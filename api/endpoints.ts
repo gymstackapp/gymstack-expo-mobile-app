@@ -37,8 +37,8 @@ export const authCompletionApi = {
   // Complete an INVITED profile — either via SMS token or email OTP
   complete: (data: {
     profileId: string;
-    token?: string;      // SMS token from invitation
-    emailOtp?: string;   // OTP sent to email
+    token?: string; // SMS token from invitation
+    emailOtp?: string; // OTP sent to email
     email: string;
     password: string;
     city?: string;
@@ -69,8 +69,12 @@ export const subscriptionApi = {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const ownerDashboardApi = {
-  get: (params?: { gymId?: string; range?: string }) =>
-    api.get<any>("/api/owner/dashboard", params),
+  get: (params?: {
+    gymId?: string;
+    range?: string;
+    customStart?: string;
+    customEnd?: string;
+  }) => api.get<any>("/api/owner/dashboard", params),
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -91,7 +95,8 @@ export const gymsApi = {
     facilities?: string[];
     gymImages?: string[];
   }) => api.post("/api/owner/gyms", data),
-  update: (id: string, data: object) => api.patch(`/api/owner/gyms/${id}`, data),
+  update: (id: string, data: object) =>
+    api.patch(`/api/owner/gyms/${id}`, data),
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -107,13 +112,12 @@ export const membersApi = {
   }) => api.get("/api/owner/members", params),
   get: (id: string) => api.get(`/api/owner/members/${id}`),
   // Simplified create — backend handles check/create profile by mobile, sends SMS if INVITED
-  create: (data: {
-    gymId: string;
-    fullName: string;
-    mobileNumber: string;
-  }) => api.post("/api/owner/members", data),
-  update: (id: string, data: object) => api.patch(`/api/owner/members/${id}`, data),
-  renew: (id: string, data: object) => api.post(`/api/owner/members/${id}/renew`, data),
+  create: (data: { gymId: string; fullName: string; mobileNumber: string }) =>
+    api.post("/api/owner/members", data),
+  update: (id: string, data: object) =>
+    api.patch(`/api/owner/members/${id}`, data),
+  renew: (id: string, data: object) =>
+    api.post(`/api/owner/members/${id}/renew`, data),
   // Bulk add members — backend handles SMS / in-app notifications per status
   bulkAdd: (data: {
     gymId: string;
@@ -129,12 +133,10 @@ export const trainersApi = {
   list: (params?: { gymId?: string }) => api.get("/api/owner/trainers", params),
   get: (id: string) => api.get(`/api/owner/trainers/${id}`),
   // Simplified create — backend handles profile lookup by mobile + SMS/notification
-  create: (data: {
-    gymId: string;
-    fullName: string;
-    mobileNumber: string;
-  }) => api.post("/api/owner/trainers", data),
-  update: (id: string, data: object) => api.patch(`/api/owner/trainers/${id}`, data),
+  create: (data: { gymId: string; fullName: string; mobileNumber: string }) =>
+    api.post("/api/owner/trainers", data),
+  update: (id: string, data: object) =>
+    api.patch(`/api/owner/trainers/${id}`, data),
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -144,7 +146,8 @@ export const trainersApi = {
 export const membershipPlansApi = {
   list: (gymId: string) => api.get("/api/owner/plans", { gymId }),
   create: (data: object) => api.post("/api/owner/plans", data),
-  update: (id: string, data: object) => api.patch(`/api/owner/plans/${id}`, data),
+  update: (id: string, data: object) =>
+    api.patch(`/api/owner/plans/${id}`, data),
   delete: (id: string) => api.delete(`/api/owner/plans/${id}`),
 };
 
@@ -181,7 +184,8 @@ export const supplementsApi = {
   list: (params?: { gymId?: string; search?: string }) =>
     api.get("/api/owner/supplements", params),
   create: (data: object) => api.post("/api/owner/supplements", data),
-  update: (id: string, data: object) => api.patch(`/api/owner/supplements/${id}`, data),
+  update: (id: string, data: object) =>
+    api.patch(`/api/owner/supplements/${id}`, data),
   sell: (data: {
     supplementId: string;
     gymId: string;
@@ -189,8 +193,14 @@ export const supplementsApi = {
     memberId?: string;
     memberName?: string;
     paymentMethod?: string;
-    unitPrice?: number;   // override listed price for this sale
+    unitPrice?: number;
+    notes?: string;
   }) => api.post("/api/owner/supplements/sell", data),
+  listSales: (params?: {
+    gymId?: string;
+    range?: string;
+    page?: number;
+  }) => api.get("/api/owner/supplements/sell", params),
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -200,13 +210,15 @@ export const supplementsApi = {
 export const workoutsApi = {
   list: (params?: { gymId?: string }) => api.get("/api/owner/workouts", params),
   create: (data: object) => api.post("/api/owner/workouts", data),
-  update: (id: string, data: object) => api.patch(`/api/owner/workouts/${id}`, data),
+  update: (id: string, data: object) =>
+    api.patch(`/api/owner/workouts/${id}`, data),
 };
 
 export const dietsApi = {
   list: (params?: { gymId?: string }) => api.get("/api/owner/diets", params),
   create: (data: object) => api.post("/api/owner/diets", data),
-  update: (id: string, data: object) => api.patch(`/api/owner/diets/${id}`, data),
+  update: (id: string, data: object) =>
+    api.patch(`/api/owner/diets/${id}`, data),
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -214,7 +226,8 @@ export const dietsApi = {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const notificationsApi = {
-  list: (params?: { gymId?: string }) => api.get("/api/owner/notifications", params),
+  list: (params?: { gymId?: string }) =>
+    api.get("/api/owner/notifications", params),
   send: (data: {
     gymId: string;
     title: string;
@@ -238,7 +251,7 @@ export const reportsApi = {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const referralApi = {
-  get: () => api.get("/api/owner/referral"),
+  get: () => api.get("/api/referral"),
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -250,7 +263,8 @@ export const memberDashboardApi = {
 };
 
 export const memberAttendanceApi = {
-  list: (params?: { page?: number }) => api.get("/api/member/attendance", params),
+  list: (params?: { page?: number }) =>
+    api.get("/api/member/attendance", params),
   checkIn: () => api.post("/api/member/attendance"),
 };
 
@@ -263,9 +277,11 @@ export const memberDietApi = {
 };
 
 export const memberNotificationsApi = {
-  list: (params?: { page?: number }) => api.get("/api/member/notifications", params),
+  list: (params?: { page?: number }) =>
+    api.get("/api/member/notifications", params),
   markRead: (id: string) => api.patch("/api/member/notifications", { id }),
-  markAllRead: () => api.patch("/api/member/notifications", { markAllRead: true }),
+  markAllRead: () =>
+    api.patch("/api/member/notifications", { markAllRead: true }),
   unreadCount: () => api.get("/api/notifications/unread-count"),
 };
 
@@ -286,13 +302,18 @@ export const discoverApi = {
   getGym: (id: string) => api.get(`/api/member/discover/${id}`),
 };
 
+export const memberGymsApi = {
+  list: () => api.get("/api/member/gyms"),
+};
+
 export const memberSupplementsApi = {
   list: (params?: { search?: string; category?: string }) =>
     api.get("/api/member/supplements", params),
 };
 
 export const memberAnnouncementsApi = {
-  list: (params?: { page?: number }) => api.get("/api/member/announcements", params),
+  list: (params?: { page?: number }) =>
+    api.get("/api/member/announcements", params),
 };
 
 // Member body metrics — read-only view of metrics logged by trainer
@@ -309,14 +330,16 @@ export const trainerDashboardApi = {
 };
 
 export const trainerMembersApi = {
-  list: (params?: { search?: string }) => api.get("/api/trainer/members", params),
+  list: (params?: { search?: string }) =>
+    api.get("/api/trainer/members", params),
   get: (id: string) => api.get(`/api/trainer/members/${id}`),
 };
 
 export const trainerDietsApi = {
-  list: (params?: object) => api.get("/api/trainer/diets", params),
+  list: (params?: Record<string, string | number | boolean | undefined>) => api.get("/api/trainer/diets", params),
   create: (data: object) => api.post("/api/trainer/diets", data),
-  update: (id: string, data: object) => api.patch(`/api/trainer/diets/${id}`, data),
+  update: (id: string, data: object) =>
+    api.patch(`/api/trainer/diets/${id}`, data),
   delete: (id: string) => api.delete(`/api/trainer/diets/${id}`),
   assignToMember: (dietId: string, data: { memberId: string }) =>
     api.post(`/api/trainer/diets/${dietId}/assign`, data),
@@ -326,25 +349,58 @@ export const trainerDietsApi = {
 export const trainerBodyMetricsApi = {
   list: (memberId: string) =>
     api.get(`/api/trainer/members/${memberId}/body-metrics`),
-  create: (memberId: string, data: {
-    date?: string;
-    weight?: number;
-    bodyFatPercent?: number;
-    muscleMass?: number;
-    bmi?: number;
-    chestCm?: number;
-    waistCm?: number;
-    hipsCm?: number;
-    notes?: string;
-  }) => api.post(`/api/trainer/members/${memberId}/body-metrics`, data),
+  create: (
+    memberId: string,
+    data: {
+      date?: string;
+      weight?: number;
+      bodyFatPercent?: number;
+      muscleMass?: number;
+      bmi?: number;
+      chestCm?: number;
+      waistCm?: number;
+      hipsCm?: number;
+      notes?: string;
+    },
+  ) => api.post(`/api/trainer/members/${memberId}/body-metrics`, data),
 };
 
 export const trainerNotificationsApi = {
-  list: (params?: { page?: number }) => api.get("/api/trainer/notifications", params),
+  listSent: () => api.get("/api/trainer/notifications"),
+  listInbox: (params?: { page?: number }) =>
+    api.get("/api/trainer/notifications", { type: "inbox", ...params }),
+  send: (data: { title: string; body: string; expiresAt?: string | null }) =>
+    api.post("/api/trainer/notifications", data),
+  delete: (id: string) => api.delete(`/api/trainer/notifications?id=${id}`),
   markRead: (id: string) =>
     api.patch("/api/trainer/notifications", { notificationId: id }),
-  markAllRead: () => api.patch("/api/trainer/notifications", { markAllRead: true }),
+  markAllRead: () =>
+    api.patch("/api/trainer/notifications", { markAllRead: true }),
   unreadCount: () => api.get("/api/notifications/unread-count"),
+};
+
+export const trainerWorkoutsApi = {
+  list: () => api.get("/api/trainer/workouts"),
+  get: (id: string) => api.get(`/api/trainer/workouts/${id}`),
+  create: (data: object) => api.post("/api/trainer/workouts", data),
+  update: (id: string, data: object) =>
+    api.patch(`/api/trainer/workouts/${id}`, data),
+  delete: (id: string) => api.delete(`/api/trainer/workouts/${id}`),
+};
+
+export const trainerAttendanceApi = {
+  list: (params?: { date?: string; endDate?: string }) =>
+    api.get("/api/trainer/attendance", params),
+};
+
+export const trainerGymsApi = {
+  list: () => api.get("/api/trainer/gyms"),
+};
+
+export const trainerDiscoverApi = {
+  list: (params?: { search?: string; city?: string }) =>
+    api.get("/api/trainer/discover", params),
+  getGym: (id: string) => api.get(`/api/trainer/discover/${id}`),
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -367,7 +423,8 @@ export const expensesApi = {
     expenseDate: string;
     receiptUrl?: string;
   }) => api.post("/api/owner/expenses", data),
-  update: (id: string, data: object) => api.patch(`/api/owner/expenses/${id}`, data),
+  update: (id: string, data: object) =>
+    api.patch(`/api/owner/expenses/${id}`, data),
   delete: (id: string) => api.delete(`/api/owner/expenses/${id}`),
 };
 
@@ -379,13 +436,20 @@ export const lockersApi = {
   list: (gymId: string, status?: string) =>
     api.get("/api/owner/lockers", { gymId, status }),
   create: (data: object) => api.post("/api/owner/lockers", data),
-  update: (id: string, data: object) => api.patch(`/api/owner/lockers/${id}`, data),
+  update: (id: string, data: object) =>
+    api.patch(`/api/owner/lockers/${id}`, data),
   delete: (id: string) => api.delete(`/api/owner/lockers/${id}`),
   assign: (
     lockerId: string,
-    data: { memberId: string; expiresAt?: string; notes?: string; feeCollected?: boolean },
+    data: {
+      memberId: string;
+      expiresAt?: string;
+      notes?: string;
+      feeCollected?: boolean;
+    },
   ) => api.post(`/api/owner/lockers/${lockerId}/assign`, data),
-  unassign: (lockerId: string) => api.delete(`/api/owner/lockers/${lockerId}/assign`),
+  unassign: (lockerId: string) =>
+    api.delete(`/api/owner/lockers/${lockerId}/assign`),
   updateAssignment: (
     lockerId: string,
     data: { expiresAt?: string; notes?: string; feeCollected?: boolean },
@@ -400,5 +464,8 @@ export const pushApi = {
   registerToken: (expoPushToken: string) =>
     api.post("/api/push/register-device", { expoPushToken }),
   unregisterToken: (expoPushToken?: string) =>
-    api.delete("/api/push/register-device", expoPushToken ? ({ expoPushToken } as Record<string, string>) : undefined),
+    api.delete(
+      "/api/push/register-device",
+      expoPushToken ? ({ expoPushToken } as Record<string, string>) : undefined,
+    ),
 };

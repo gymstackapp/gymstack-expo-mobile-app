@@ -112,7 +112,7 @@ export default function OwnerAttendanceScreen() {
 
   const monthLabel = new Date(calYear, calMonth, 1).toLocaleDateString(
     "en-IN",
-    { month: "long", year: "numeric" }
+    { month: "long", year: "numeric" },
   );
 
   function prevMonth() {
@@ -140,7 +140,7 @@ export default function OwnerAttendanceScreen() {
   return (
     <SafeAreaView style={st.safe}>
       <View style={st.top}>
-        <Header title="Attendance" back />
+        <Header title="Attendance" menu />
         {gyms.length > 1 && (
           <View style={st.pills}>
             {[{ id: "", name: "All" } as Gym, ...gyms].map((g) => (
@@ -220,9 +220,7 @@ export default function OwnerAttendanceScreen() {
                       isSelected && st.cellSelected,
                       isToday && !isSelected && st.cellToday,
                     ]}
-                    onPress={() =>
-                      setSelectedDate(isSelected ? null : dateStr)
-                    }
+                    onPress={() => setSelectedDate(isSelected ? null : dateStr)}
                     disabled={isFuture}
                     activeOpacity={0.7}
                   >
@@ -265,18 +263,19 @@ export default function OwnerAttendanceScreen() {
               {selectedDate
                 ? new Date(selectedDate + "T00:00:00").toLocaleDateString(
                     "en-IN",
-                    { weekday: "long", day: "numeric", month: "long" }
+                    { weekday: "long", day: "numeric", month: "long" },
                   )
                 : "Today"}
             </Text>
-            <Text style={st.listCount}>
-              {listRecords.length} check-ins
-            </Text>
+            <Text style={st.listCount}>{listRecords.length} check-ins</Text>
           </View>
 
           {/* Search */}
           <View
-            style={[st.searchBox, { marginHorizontal: Spacing.lg, marginBottom: Spacing.md }]}
+            style={[
+              st.searchBox,
+              { marginHorizontal: Spacing.lg, marginBottom: Spacing.md },
+            ]}
           >
             <Icon name="magnify" size={18} color={Colors.textMuted} />
             <TextInput
@@ -306,9 +305,7 @@ export default function OwnerAttendanceScreen() {
             <View style={{ paddingHorizontal: Spacing.lg, paddingBottom: 32 }}>
               {listRecords.map((r, idx) => {
                 const cin = new Date(r.checkInTime);
-                const cout = r.checkOutTime
-                  ? new Date(r.checkOutTime)
-                  : null;
+                const cout = r.checkOutTime ? new Date(r.checkOutTime) : null;
                 const dur = cout
                   ? Math.round((cout.getTime() - cin.getTime()) / 60000)
                   : null;

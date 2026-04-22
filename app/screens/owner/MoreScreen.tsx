@@ -54,7 +54,7 @@
 //     title: "Account",
 //     items: [
 //       { icon: "gift-outline",           label: "Refer & Earn",  screen: "OwnerReferral",      featureKey: "hasReferAndEarn", color: Colors.yellow, bg: Colors.yellowFaded },
-//       { icon: "lightning-bolt-outline", label: "Billing & Plans",screen: "OwnerBilling",      color: Colors.primary, bg: Colors.primaryFaded },
+//       { icon: "lightning-bolt-outline", label: "Subscriptions & Plans",screen: "OwnerSubscriptions",      color: Colors.primary, bg: Colors.primaryFaded },
 //       { icon: "account-circle-outline", label: "Profile",       screen: "Profile" },
 //     ],
 //   },
@@ -90,7 +90,7 @@
 //         {sub.subscription && (
 //           <TouchableOpacity
 //             style={styles.planBadge}
-//             onPress={() => (navigation as any).navigate("OwnerBilling")}
+//             onPress={() => (navigation as any).navigate("OwnerSubscriptions")}
 //           >
 //             <Icon name="crown-outline" size={16} color={Colors.primary} />
 //             <Text style={styles.planBadgeText}>{sub.subscription.planName} Plan</Text>
@@ -174,8 +174,10 @@ import { Avatar } from "@/components";
 import { useAuthStore } from "@/store/authStore";
 import { Colors, Radius, Spacing, Typography } from "@/theme";
 import { useNavigation } from "@react-navigation/native";
-import React from "react";
+import React, { useState } from "react";
 import {
+  ActivityIndicator,
+  Alert,
   ScrollView,
   StyleSheet,
   Text,
@@ -283,8 +285,8 @@ const MENU_SECTIONS: { title: string; items: MenuItem[] }[] = [
       },
       {
         icon: "lightning-bolt-outline",
-        label: "Billing & Plans",
-        screen: "OwnerBilling",
+        label: "Subscriptions & Plans",
+        screen: "OwnerSubscriptions",
         color: Colors.primary,
         bg: Colors.primaryFaded,
       },
@@ -295,6 +297,21 @@ const MENU_SECTIONS: { title: string; items: MenuItem[] }[] = [
 const MoreScreen = () => {
   const navigation = useNavigation();
   const { profile, logout } = useAuthStore();
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  const handleLogout = () => {
+    Alert.alert("Sign Out", "Are you sure you want to sign out?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Sign Out",
+        style: "destructive",
+        onPress: async () => {
+          setIsLoggingOut(true);
+          await logout();
+        },
+      },
+    ]);
+  };
   // const sub = useSubscription();
 
   // const isLocked = (featureKey?: string) => {
@@ -325,7 +342,7 @@ const MoreScreen = () => {
 
         {/* Plan Badge */}
         {/* {sub.subscription && (
-          <TouchableOpacity style={styles.planBadge} onPress={() => (navigation as any).navigate('OwnerBilling')}>
+          <TouchableOpacity style={styles.planBadge} onPress={() => (navigation as any).navigate('OwnerSubscriptions')}>
             <Icon name="crown-outline" size={16} color={Colors.primary} />
             <Text style={styles.planBadgeText}>{sub.subscription.planName} Plan</Text>
             {sub.daysRemaining !== null && sub.daysRemaining <= 14 && (
@@ -403,9 +420,20 @@ const MoreScreen = () => {
           </View>
         ))}
         {/* Logout */}
-        <TouchableOpacity style={styles.logoutBtn} onPress={logout}>
-          <Icon name="logout" size={18} color={Colors.error} />
-          <Text style={styles.logoutText}>Sign Out</Text>
+        <TouchableOpacity
+          style={[styles.logoutBtn, isLoggingOut && { opacity: 0.6 }]}
+          onPress={handleLogout}
+          activeOpacity={0.8}
+          disabled={isLoggingOut}
+        >
+          {isLoggingOut ? (
+            <ActivityIndicator size="small" color={Colors.error} />
+          ) : (
+            <Icon name="logout" size={18} color={Colors.error} />
+          )}
+          <Text style={styles.logoutText}>
+            {isLoggingOut ? "Signing out..." : "Sign Out"}
+          </Text>
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>

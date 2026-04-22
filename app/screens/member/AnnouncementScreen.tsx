@@ -3,7 +3,8 @@
 // Announcements are posted by gym owners. They appear with gym branding,
 // author info, and expiry dates.
 import { memberAnnouncementsApi } from "@/api/endpoints";
-import { Avatar, Card, EmptyState, SkeletonGroup } from "@/components";
+import { Avatar, Card, EmptyState, NoGymState, SkeletonGroup } from "@/components";
+import { useMemberGym } from "@/hooks/useMemberGym";
 import { Colors, Radius, Spacing, Typography } from "@/theme";
 import { DrawerActions, useNavigation } from "@react-navigation/native";
 import { useQuery } from "@tanstack/react-query";
@@ -104,6 +105,15 @@ export default function AnnouncementsScreen() {
 
   const announcements = data?.announcements ?? [];
 
+  const { hasGym, gymLoading } = useMemberGym();
+  if (!isLoading && !gymLoading && !hasGym) {
+    return (
+      <SafeAreaView style={s.safe} edges={["top"]}>
+        <NoGymState pageName="Announcements" />
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={s.safe} edges={["top"]}>
       {/* Header */}
@@ -122,7 +132,7 @@ export default function AnnouncementsScreen() {
         </View>
       </View>
 
-      {isLoading ? (
+      {isLoading || gymLoading ? (
         <View style={{ padding: Spacing.lg }}>
           <SkeletonGroup variant="listRow" count={4} />
         </View>

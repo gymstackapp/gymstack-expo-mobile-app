@@ -62,7 +62,7 @@ export function StatCard({
         {label}
       </Text>
       {sub ? (
-        <Text style={styles.sub} numberOfLines={1}>
+        <Text style={[styles.sub, { color }]} numberOfLines={1}>
           {sub}
         </Text>
       ) : null}
@@ -88,7 +88,7 @@ export function StatCard({
 const styles = StyleSheet.create({
   card: {
     flex: 1,
-    minWidth: 80,
+    minWidth: 100,
   },
   iconWrap: {
     width: 32,
@@ -105,7 +105,7 @@ const styles = StyleSheet.create({
   },
   label: {
     color: Colors.textMuted,
-    fontSize: Typography.xs,
+    fontSize: Typography.sm,
     marginTop: 3,
   },
   sub: {

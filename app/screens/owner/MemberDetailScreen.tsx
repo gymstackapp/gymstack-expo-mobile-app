@@ -39,6 +39,7 @@ export default function OwnerMemberDetailScreen() {
     queryFn: () => membersApi.get(memberId) as Promise<GymMemberDetail>,
     enabled: !!memberId,
   });
+  console.log("data", data);
 
   const suspendMutation = useMutation({
     mutationFn: () =>
@@ -439,9 +440,7 @@ export default function OwnerMemberDetailScreen() {
               }
             >
               <Icon name="plus" size={18} color="#fff" />
-              <Text
-                style={{ color: "#fff", fontWeight: "700", fontSize: 14 }}
-              >
+              <Text style={{ color: "#fff", fontWeight: "700", fontSize: 14 }}>
                 Add Payment
               </Text>
             </TouchableOpacity>
@@ -470,7 +469,7 @@ export default function OwnerMemberDetailScreen() {
                           })
                         : "—"}
                       {" · "}
-                      {p.paymentMethod ?? "CASH"}
+                      {p.paymentMethod}
                     </Text>
                   </View>
                   <View style={{ alignItems: "flex-end", gap: 4 }}>

@@ -30,32 +30,37 @@ import OwnerMemberDetailScreen from "../screens/owner/MemberDetailScreen";
 import OwnerMembersScreen from "../screens/owner/MembersScreen";
 // Trainers
 import AddTrainerScreen from "../screens/owner/AddTrainerScreen";
+import TrainerDetailScreen from "../screens/owner/TrainerDetailScreen";
 import TrainersScreen from "../screens/owner/TrainersScreen";
 // Attendance
 import OwnerAttendanceScreen from "../screens/owner/AttendanceScreen";
 // Payments
 import OwnerPaymentsScreen from "../screens/owner/PaymentsScreen";
 // Plans
-import OwnerPlansScreen from "../screens/owner/PlansScreen";
+import GymMembershipPlansScreen from "../screens/owner/GymMembershipPlansScreen";
 // Supplements
 import SupplementsScreen from "../screens/owner/SupplementsScreen";
 // Workouts & Diets
 import OwnerDietsScreen from "../screens/owner/DietsScreen";
 import OwnerWorkoutsScreen from "../screens/owner/WorkoutsScreen";
+import WorkoutPlanDetailScreen from "../screens/owner/WorkoutPlanDetailScreen";
 // Reports
 import ReportsScreen from "../screens/owner/ReportsScreen";
 // Notifications
 import OwnerNotificationsScreen from "../screens/owner/NotificationsScreen";
 // Referral
 // import ReferralScreen from "../screens/owner/ReferralScreen";
-// Billing
-import BillingScreen from "../screens/owner/BillingScreen";
+// Subscriptions
+import SubscriptionsScreen from "../screens/owner/SubscriptionsScreen";
 // Profile
 import { ProfileScreen } from "../screens/shared/ProfileScreen";
 
 import AddDietPlanScreen from "../screens/owner/AddDietPlanScreen";
 import AddPaymentScreen from "../screens/owner/AddPaymentScreen";
+import AddSupplementItemScreen from "../screens/owner/AddSupplementItemScreen";
+import { AddWorkoutPlanScreen } from "../screens/owner/AddWorkoutPlanScreen";
 import ExpensesScreen from "../screens/owner/ExpensesScreen";
+import GymImageViewerScreen from "../screens/owner/GymImageViewerScreen";
 import LockersScreen from "../screens/owner/LockersScreen";
 import { OwnerDrawerContent } from "./OwnerDrawerContent";
 
@@ -78,6 +83,7 @@ function DashboardStack() {
       />
       <Stack.Screen name="OwnerAddPayment" component={AddPaymentScreen} />
       <Stack.Screen name="Attendance" component={OwnerAttendanceScreen} />
+      <Stack.Screen name="GymImageViewer" component={GymImageViewerScreen} />
     </Stack.Navigator>
   );
 }
@@ -88,7 +94,11 @@ function GymsStack() {
       <Stack.Screen name="OwnerGyms" component={OwnerGymsScreen} />
       <Stack.Screen name="OwnerGymDetail" component={OwnerGymDetailScreen} />
       <Stack.Screen name="OwnerAddGym" component={AddGymScreen} />
-      <Stack.Screen name="OwnerPlans" component={OwnerPlansScreen} />
+      <Stack.Screen
+        name="GymMembershipPlans"
+        component={GymMembershipPlansScreen}
+      />
+      <Stack.Screen name="GymImageViewer" component={GymImageViewerScreen} />
     </Stack.Navigator>
   );
 }
@@ -122,6 +132,7 @@ function TrainersStack() {
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="OwnerTrainersList" component={TrainersScreen} />
       <Stack.Screen name="OwnerAddTrainer" component={AddTrainerScreen} />
+      <Stack.Screen name="OwnerTrainerDetail" component={TrainerDetailScreen} />
     </Stack.Navigator>
   );
 }
@@ -155,6 +166,10 @@ function SupplementsStack() {
         name="OwnerSupplementsScreen"
         component={SupplementsScreen}
       />
+      <Stack.Screen
+        name="OwnerAddSupplement"
+        component={AddSupplementItemScreen}
+      />
     </Stack.Navigator>
   );
 }
@@ -166,7 +181,14 @@ function WorkoutsStack() {
         name="OwnerWorkoutsScreen"
         component={OwnerWorkoutsScreen}
       />
-      <Stack.Screen name="OwnerAddWorkoutPlan" component={AddDietPlanScreen} />
+      <Stack.Screen
+        name="OwnerAddWorkoutPlan"
+        component={AddWorkoutPlanScreen}
+      />
+      <Stack.Screen
+        name="OwnerWorkoutPlanDetail"
+        component={WorkoutPlanDetailScreen}
+      />
     </Stack.Navigator>
   );
 }
@@ -207,10 +229,13 @@ function NotificationsStack() {
 //   );
 // }
 
-function BillingStack() {
+function SubscriptionsStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="OwnerBillingScreen" component={BillingScreen} />
+      <Stack.Screen
+        name="OwnerSubscriptionsScreen"
+        component={SubscriptionsScreen}
+      />
     </Stack.Navigator>
   );
 }
@@ -227,6 +252,17 @@ function LockersStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="OwnerLockersScreen" component={LockersScreen} />
+    </Stack.Navigator>
+  );
+}
+
+function MembershipPlansStack() {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen
+        name="MembershipPlansScreen"
+        component={GymMembershipPlansScreen}
+      />
     </Stack.Navigator>
   );
 }
@@ -296,13 +332,17 @@ export function OwnerNavigator() {
       <Drawer.Screen name="OwnerTrainers" component={TrainersStack} />
       <Drawer.Screen name="OwnerAttendance" component={AttendanceStack} />
       <Drawer.Screen name="OwnerPayments" component={PaymentsStack} />
+      <Drawer.Screen
+        name="OwnerMembershipPlans"
+        component={MembershipPlansStack}
+      />
       <Drawer.Screen name="OwnerSupplements" component={SupplementsStack} />
       <Drawer.Screen name="OwnerWorkouts" component={WorkoutsStack} />
       <Drawer.Screen name="OwnerDiets" component={DietsStack} />
       <Drawer.Screen name="OwnerReports" component={ReportsStack} />
       <Drawer.Screen name="OwnerNotifications" component={NotificationsStack} />
       {/* <Drawer.Screen name="OwnerReferral" component={ReferralStack} /> */}
-      <Drawer.Screen name="OwnerBilling" component={BillingStack} />
+      <Drawer.Screen name="OwnerSubscriptions" component={SubscriptionsStack} />
       <Drawer.Screen name="OwnerExpenses" component={ExpensesStack} />
       <Drawer.Screen name="OwnerLockers" component={LockersStack} />
     </Drawer.Navigator>

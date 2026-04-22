@@ -1,707 +1,7 @@
-// // mobile/src/screens/owner/DashboardScreen.tsx
-// import { ownerDashboardApi } from "@/api/endpoints";
-// import { Avatar, Card, Skeleton, StatCard } from "@/components";
-// import { useAuthStore } from "@/store/authStore";
-// import { Colors, Radius, Spacing, Typography } from "@/theme";
-// import type {
-//   DashboardCheckin,
-//   DashboardRecentMember,
-//   DashboardResponse,
-// } from "@/types/api";
-// import { DrawerActions, useNavigation } from "@react-navigation/native";
-// import { useQuery } from "@tanstack/react-query";
-// import React, { useState } from "react";
-// import {
-//   RefreshControl,
-//   ScrollView,
-//   StyleSheet,
-//   Text,
-//   TouchableOpacity,
-//   View,
-// } from "react-native";
-// import { SafeAreaView } from "react-native-safe-area-context";
-// import Icon from "react-native-vector-icons/MaterialCommunityIcons";
-
-// // Extend DashboardResponse locally with new expense fields
-// type ExtendedDashboard = DashboardResponse & {
-//   rangeExpenses: number;
-//   todayExpenses: number;
-//   netRevenue: number;
-//   dailyExpenses: { date: string; amount: number }[];
-//   dailySupplementRevenue: { date: string; amount: number }[];
-//   recentExpenses: {
-//     id: string;
-//     title: string;
-//     amount: number;
-//     category: string;
-//     expenseDate: string;
-//     gym: { name: string };
-//   }[];
-// };
-
-// const RANGES = [
-//   { key: "today", label: "Today" },
-//   { key: "this_week", label: "Week" },
-//   { key: "this_month", label: "Month" },
-//   { key: "last_3_months", label: "3 Mon" },
-//   { key: "last_year", label: "Year" },
-// ];
-
-// function fmt(n: number) {
-//   if (n >= 100000) return `₹${(n / 100000).toFixed(1)}L`;
-//   if (n >= 1000) return `₹${(n / 1000).toFixed(1)}K`;
-//   return `₹${n.toLocaleString("en-IN")}`;
-// }
-
-// function SparkLine({
-//   revenue,
-//   expenses,
-//   supplementRevenue,
-// }: {
-//   revenue: { date: string; revenue: number }[];
-//   expenses?: { date: string; amount: number }[];
-//   supplementRevenue?: { date: string; amount: number }[];
-// }) {
-//   if (!revenue?.length) return null;
-//   const expMap: Record<string, number> = {};
-//   for (const e of expenses ?? []) expMap[e.date] = e.amount;
-//   const suppMap: Record<string, number> = {};
-//   for (const s of supplementRevenue ?? []) suppMap[s.date] = s.amount;
-
-//   const allValues = [
-//     ...revenue.map((d) => d.revenue),
-//     ...revenue.map((d) => expMap[d.date] ?? 0),
-//     ...revenue.map((d) => suppMap[d.date] ?? 0),
-//     1,
-//   ];
-//   const max = Math.max(...allValues);
-//   const H = 44;
-//   const hasExpenses = (expenses?.length ?? 0) > 0;
-//   const hasSupplements = (supplementRevenue?.length ?? 0) > 0;
-
-//   return (
-//     <View>
-//       <View style={{ flexDirection: "row", gap: 10, marginBottom: 6 }}>
-//         <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-//           <View
-//             style={{
-//               width: 10,
-//               height: 10,
-//               borderRadius: 2,
-//               backgroundColor: Colors.primary,
-//             }}
-//           />
-//           <Text style={{ color: Colors.textMuted, fontSize: 10 }}>Membership</Text>
-//         </View>
-//         {hasSupplements && (
-//           <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-//             <View
-//               style={{
-//                 width: 10,
-//                 height: 10,
-//                 borderRadius: 2,
-//                 backgroundColor: Colors.success,
-//               }}
-//             />
-//             <Text style={{ color: Colors.textMuted, fontSize: 10 }}>
-//               Supplements
-//             </Text>
-//           </View>
-//         )}
-//         {hasExpenses && (
-//           <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-//             <View
-//               style={{
-//                 width: 10,
-//                 height: 10,
-//                 borderRadius: 2,
-//                 backgroundColor: Colors.error,
-//               }}
-//             />
-//             <Text style={{ color: Colors.textMuted, fontSize: 10 }}>
-//               Expenses
-//             </Text>
-//           </View>
-//         )}
-//       </View>
-//       <View
-//         style={{
-//           flexDirection: "row",
-//           alignItems: "flex-end",
-//           height: H,
-//           gap: 3,
-//         }}
-//       >
-//         {revenue.map((d, i) => {
-//           const revH = max > 0 ? (d.revenue / max) * H : 2;
-//           const suppH = max > 0 ? ((suppMap[d.date] ?? 0) / max) * H : 0;
-//           const expH = max > 0 ? ((expMap[d.date] ?? 0) / max) * H : 0;
-//           return (
-//             <View
-//               key={i}
-//               style={{
-//                 flex: 1,
-//                 flexDirection: "row",
-//                 alignItems: "flex-end",
-//                 gap: 1,
-//               }}
-//             >
-//               <View
-//                 style={{
-//                   flex: 1,
-//                   height: Math.max(revH, 2),
-//                   backgroundColor: Colors.primary,
-//                   borderRadius: 2,
-//                   opacity: 0.8,
-//                 }}
-//               />
-//               {suppH > 0 && (
-//                 <View
-//                   style={{
-//                     flex: 1,
-//                     height: Math.max(suppH, 2),
-//                     backgroundColor: Colors.success,
-//                     borderRadius: 2,
-//                     opacity: 0.8,
-//                   }}
-//                 />
-//               )}
-//               {expH > 0 && (
-//                 <View
-//                   style={{
-//                     flex: 1,
-//                     height: Math.max(expH, 2),
-//                     backgroundColor: Colors.error,
-//                     borderRadius: 2,
-//                     opacity: 0.7,
-//                   }}
-//                 />
-//               )}
-//             </View>
-//           );
-//         })}
-//       </View>
-//     </View>
-//   );
-// }
-
-// function ExpiryAlert({
-//   names,
-//   count,
-//   days,
-// }: {
-//   names?: string[];
-//   count: number;
-//   days: number;
-// }) {
-//   if (!count) return null;
-//   const color =
-//     days === 0 ? Colors.error : days <= 3 ? Colors.warning : Colors.info;
-//   const bg =
-//     days === 0
-//       ? Colors.errorFaded
-//       : days <= 3
-//         ? Colors.warningFaded
-//         : Colors.infoFaded;
-//   return (
-//     <View
-//       style={[styles.alert, { backgroundColor: bg, borderColor: color + "40" }]}
-//     >
-//       <Icon name="alert-circle-outline" size={16} color={color} />
-//       <Text style={[styles.alertText, { color }]}>
-//         {days === 0
-//           ? `Last day: ${names?.join(", ") ?? count + " memberships"}`
-//           : `${count} expiring in ${days} day${days !== 1 ? "s" : ""}`}
-//       </Text>
-//     </View>
-//   );
-// }
-
-// export default function OwnerDashboardScreen() {
-//   const navigation = useNavigation();
-//   const { profile } = useAuthStore();
-//   const [range, setRange] = useState("this_month");
-//   const [gymId, setGymId] = useState("");
-
-//   const { data, isLoading, refetch, isRefetching } =
-//     useQuery<ExtendedDashboard>({
-//       queryKey: ["ownerDashboard", range, gymId],
-//       queryFn: () =>
-//         ownerDashboardApi.get({ range, gymId: gymId || undefined }),
-//       staleTime: 2 * 60 * 1000,
-//     });
-
-//   const firstName = profile?.fullName?.split(" ")[0] ?? "there";
-
-//   return (
-//     <SafeAreaView style={styles.safe}>
-//       <ScrollView
-//         contentContainerStyle={styles.scroll}
-//         showsVerticalScrollIndicator={false}
-//         refreshControl={
-//           <RefreshControl
-//             refreshing={isRefetching}
-//             onRefresh={refetch}
-//             tintColor={Colors.primary}
-//           />
-//         }
-//       >
-//         {/* ── Header ─────────────────────────────────────────── */}
-//         <View style={styles.header}>
-//           <TouchableOpacity
-//             onPress={() => navigation.dispatch(DrawerActions.openDrawer())}
-//             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-//             style={styles.menuBtn}
-//           >
-//             <Icon name="menu" size={24} color={Colors.textPrimary} />
-//           </TouchableOpacity>
-//           <View style={{ flex: 1 }}>
-//             <Text style={styles.greeting}>Good {getGreeting()} 👋</Text>
-//             <Text style={styles.name}>{firstName}</Text>
-//           </View>
-//           <TouchableOpacity
-//             onPress={() => (navigation as any).navigate("Profile")}
-//           >
-//             <Avatar
-//               name={profile?.fullName ?? "O"}
-//               url={profile?.avatarUrl}
-//               size={42}
-//             />
-//           </TouchableOpacity>
-//         </View>
-
-//         {/* ── Gym filter ─────────────────────────────────────── */}
-//         {(data?.gyms?.length ?? 0) > 1 && (
-//           <ScrollView
-//             horizontal
-//             showsHorizontalScrollIndicator={false}
-//             style={styles.gymFilter}
-//           >
-//             {[{ id: "", name: "All Gyms" }, ...(data?.gyms ?? [])].map((g) => (
-//               <TouchableOpacity
-//                 key={g.id}
-//                 onPress={() => setGymId(g.id)}
-//                 style={[styles.gymChip, gymId === g.id && styles.gymChipActive]}
-//               >
-//                 <Text
-//                   style={[
-//                     styles.gymChipText,
-//                     gymId === g.id && styles.gymChipTextActive,
-//                   ]}
-//                 >
-//                   {g.name}
-//                 </Text>
-//               </TouchableOpacity>
-//             ))}
-//           </ScrollView>
-//         )}
-
-//         {/* ── Range tabs ─────────────────────────────────────── */}
-//         <View style={styles.rangeTabs}>
-//           {RANGES.map((r) => (
-//             <TouchableOpacity
-//               key={r.key}
-//               onPress={() => setRange(r.key)}
-//               style={[
-//                 styles.rangeTab,
-//                 range === r.key && styles.rangeTabActive,
-//               ]}
-//             >
-//               <Text
-//                 style={[
-//                   styles.rangeTabText,
-//                   range === r.key && styles.rangeTabTextActive,
-//                 ]}
-//               >
-//                 {r.label}
-//               </Text>
-//             </TouchableOpacity>
-//           ))}
-//         </View>
-
-//         {/* ── Expiry alerts ──────────────────────────────────── */}
-//         {!isLoading && (
-//           <View style={{ gap: Spacing.sm }}>
-//             <ExpiryAlert
-//               names={data?.expiringToday}
-//               count={data?.expiringToday?.length ?? 0}
-//               days={0}
-//             />
-//             <ExpiryAlert count={data?.expiringMembers3 ?? 0} days={3} />
-//             <ExpiryAlert count={data?.expiringMembers ?? 0} days={7} />
-//           </View>
-//         )}
-
-//         {/* ── Revenue card ───────────────────────────────────── */}
-//         {isLoading ? (
-//           <Skeleton height={140} style={{ marginTop: Spacing.lg }} />
-//         ) : (
-//           <Card style={styles.revenueCard}>
-//             <Text style={styles.revenueLabel}>Total Revenue</Text>
-//             <Text style={styles.revenueValue}>
-//               {fmt(data?.totalRevenue ?? 0)}
-//             </Text>
-//             <View style={styles.revenueSplit}>
-//               <View>
-//                 <Text style={styles.revenueSplitLabel}>Memberships</Text>
-//                 <Text
-//                   style={[styles.revenueSplitValue, { color: Colors.primary }]}
-//                 >
-//                   {fmt(data?.rangeRevenue ?? 0)}
-//                 </Text>
-//               </View>
-//               <View>
-//                 <Text style={styles.revenueSplitLabel}>Supplements</Text>
-//                 <Text
-//                   style={[styles.revenueSplitValue, { color: Colors.success }]}
-//                 >
-//                   {fmt(data?.rangeSupplementRevenue ?? 0)}
-//                 </Text>
-//               </View>
-//               {(data?.rangeExpenses ?? 0) > 0 && (
-//                 <View>
-//                   <Text style={styles.revenueSplitLabel}>Expenses</Text>
-//                   <Text
-//                     style={[
-//                       styles.revenueSplitValue,
-//                       { color: Colors.error },
-//                     ]}
-//                   >
-//                     −{fmt(data?.rangeExpenses ?? 0)}
-//                   </Text>
-//                 </View>
-//               )}
-//             </View>
-//             <SparkLine
-//               revenue={data?.dailyRevenue ?? []}
-//               expenses={data?.dailyExpenses ?? []}
-//               supplementRevenue={data?.dailySupplementRevenue ?? []}
-//             />
-//           </Card>
-//         )}
-
-//         {/* ── Stats grid ─────────────────────────────────────── */}
-//         {isLoading ? (
-//           <View style={styles.statsGrid}>
-//             {[...Array(4)].map((_, i) => (
-//               <Skeleton key={i} height={90} style={{ flex: 1 }} />
-//             ))}
-//           </View>
-//         ) : (
-//           <View style={styles.statsGrid}>
-//             <StatCard
-//               icon="account-group-outline"
-//               label="Members"
-//               value={data?.totalMembers ?? 0}
-//             />
-//             <StatCard
-//               icon="dumbbell"
-//               label="Active Gyms"
-//               value={data?.activeGyms ?? 0}
-//               color={Colors.info}
-//               bg={Colors.infoFaded}
-//             />
-//             <StatCard
-//               icon="calendar-check-outline"
-//               label="Check-ins"
-//               value={data?.todayAttendance ?? 0}
-//               color={Colors.success}
-//               bg={Colors.successFaded}
-//             />
-//             <StatCard
-//               icon="account-plus-outline"
-//               label="New Today"
-//               value={data?.todayNewMembers ?? 0}
-//               color={Colors.purple}
-//               bg={Colors.purpleFaded}
-//             />
-//           </View>
-//         )}
-
-//         {/* ── Recent Expenses ────────────────────────────────── */}
-//         {(data?.recentExpenses?.length ?? 0) > 0 && (
-//           <View style={{ marginTop: Spacing.lg }}>
-//             <View style={styles.rowBetween}>
-//               <Text style={styles.sectionTitle}>Recent Expenses</Text>
-//               <TouchableOpacity
-//                 onPress={() => (navigation as any).navigate("OwnerExpenses")}
-//               >
-//                 <Text style={styles.seeAll}>See all</Text>
-//               </TouchableOpacity>
-//             </View>
-//             {data!.recentExpenses.map(
-//               (e: ExtendedDashboard["recentExpenses"][0]) => (
-//                 <View key={e.id} style={styles.listRow}>
-//                   <View
-//                     style={{
-//                       width: 36,
-//                       height: 36,
-//                       borderRadius: Radius.md,
-//                       backgroundColor: Colors.errorFaded,
-//                       alignItems: "center",
-//                       justifyContent: "center",
-//                     }}
-//                   >
-//                     <Icon
-//                       name="receipt-outline"
-//                       size={16}
-//                       color={Colors.error}
-//                     />
-//                   </View>
-//                   <View style={{ flex: 1, marginLeft: Spacing.md }}>
-//                     <Text style={styles.listName} numberOfLines={1}>
-//                       {e.title}
-//                     </Text>
-//                     <Text style={styles.listSub}>
-//                       {new Date(e.expenseDate).toLocaleDateString("en-IN", {
-//                         day: "numeric",
-//                         month: "short",
-//                       })}
-//                     </Text>
-//                   </View>
-//                   <Text
-//                     style={{
-//                       color: Colors.error,
-//                       fontSize: Typography.sm,
-//                       fontWeight: "700",
-//                     }}
-//                   >
-//                     −{fmt(e.amount)}
-//                   </Text>
-//                 </View>
-//               ),
-//             )}
-//           </View>
-//         )}
-
-//         {/* ── Recent check-ins ───────────────────────────────── */}
-//         {(data?.todayCheckins?.length ?? 0) > 0 && (
-//           <View style={{ marginTop: Spacing.lg }}>
-//             <View style={styles.rowBetween}>
-//               <Text style={styles.sectionTitle}>Today's Check-ins</Text>
-//               <TouchableOpacity
-//                 onPress={() => (navigation as any).navigate("Attendance")}
-//               >
-//                 <Text style={styles.seeAll}>View all</Text>
-//               </TouchableOpacity>
-//             </View>
-//             {data!.todayCheckins.slice(0, 5).map((c: DashboardCheckin) => (
-//               <View key={c.id} style={styles.listRow}>
-//                 <Avatar
-//                   name={c.member?.profile?.fullName ?? "?"}
-//                   url={c.member?.profile?.avatarUrl}
-//                   size={36}
-//                 />
-//                 <View style={{ flex: 1, marginLeft: Spacing.md }}>
-//                   <Text style={styles.listName}>
-//                     {c.member?.profile?.fullName}
-//                   </Text>
-//                   <Text style={styles.listSub}>
-//                     {new Date(c.checkInTime).toLocaleTimeString("en-IN", {
-//                       hour: "2-digit",
-//                       minute: "2-digit",
-//                     })}
-//                   </Text>
-//                 </View>
-//                 <View style={styles.activeBadge}>
-//                   <Text style={styles.activeBadgeText}>Active</Text>
-//                 </View>
-//               </View>
-//             ))}
-//           </View>
-//         )}
-
-//         {/* ── Recent members ─────────────────────────────────── */}
-//         {(data?.recentMembers?.length ?? 0) > 0 && (
-//           <View style={{ marginTop: Spacing.lg }}>
-//             <View style={styles.rowBetween}>
-//               <Text style={styles.sectionTitle}>Recent Members</Text>
-//               <TouchableOpacity
-//                 onPress={() => (navigation as any).navigate("Members")}
-//               >
-//                 <Text style={styles.seeAll}>See all</Text>
-//               </TouchableOpacity>
-//             </View>
-//             {data!.recentMembers.slice(0, 4).map((m: DashboardRecentMember) => (
-//               <TouchableOpacity
-//                 key={m.id}
-//                 style={styles.listRow}
-//                 onPress={() =>
-//                   (navigation as any).navigate("OwnerMemberDetail", {
-//                     memberId: m.id,
-//                   })
-//                 }
-//               >
-//                 <Avatar
-//                   name={m.profile?.fullName ?? "?"}
-//                   url={m.profile?.avatarUrl}
-//                   size={36}
-//                 />
-//                 <View style={{ flex: 1, marginLeft: Spacing.md }}>
-//                   <Text style={styles.listName}>{m.profile?.fullName}</Text>
-//                   <Text style={styles.listSub}>{m.gym?.name}</Text>
-//                 </View>
-//                 <Icon name="chevron-right" size={18} color={Colors.textMuted} />
-//               </TouchableOpacity>
-//             ))}
-//           </View>
-//         )}
-//       </ScrollView>
-//     </SafeAreaView>
-//   );
-// }
-
-// function getGreeting() {
-//   const h = new Date().getHours();
-//   if (h < 12) return "morning";
-//   if (h < 17) return "afternoon";
-//   return "evening";
-// }
-
-// const styles = StyleSheet.create({
-//   safe: { flex: 1, backgroundColor: Colors.bg },
-//   scroll: { padding: Spacing.lg, paddingBottom: 40 },
-//   header: {
-//     flexDirection: "row",
-//     alignItems: "center",
-//     justifyContent: "space-between",
-//     marginBottom: Spacing.xl,
-//     gap: Spacing.md,
-//   },
-//   menuBtn: {
-//     width: 38,
-//     height: 38,
-//     alignItems: "center",
-//     justifyContent: "center",
-//     flexShrink: 0,
-//   },
-//   greeting: { color: Colors.textMuted, fontSize: Typography.sm },
-//   name: {
-//     color: Colors.textPrimary,
-//     fontSize: Typography.xxl,
-//     fontWeight: Typography.bold,
-//   },
-//   gymFilter: { marginBottom: Spacing.md },
-//   gymChip: {
-//     paddingHorizontal: Spacing.md,
-//     paddingVertical: 6,
-//     borderRadius: Radius.full,
-//     backgroundColor: Colors.surfaceRaised,
-//     marginRight: Spacing.sm,
-//     borderWidth: 1,
-//     borderColor: Colors.border,
-//   },
-//   gymChipActive: {
-//     backgroundColor: Colors.primaryFaded,
-//     borderColor: Colors.primary,
-//   },
-//   gymChipText: { color: Colors.textMuted, fontSize: Typography.xs },
-//   gymChipTextActive: { color: Colors.primary, fontWeight: Typography.semibold },
-//   rangeTabs: {
-//     flexDirection: "row",
-//     backgroundColor: Colors.surfaceRaised,
-//     borderRadius: Radius.lg,
-//     padding: 4,
-//     marginBottom: Spacing.lg,
-//   },
-//   rangeTab: {
-//     flex: 1,
-//     paddingVertical: 8,
-//     alignItems: "center",
-//     borderRadius: Radius.md,
-//   },
-//   rangeTabActive: { backgroundColor: Colors.primary },
-//   rangeTabText: {
-//     color: Colors.textMuted,
-//     fontSize: Typography.xs,
-//     fontWeight: Typography.medium,
-//   },
-//   rangeTabTextActive: { color: "#fff", fontWeight: Typography.bold },
-//   alert: {
-//     flexDirection: "row",
-//     alignItems: "center",
-//     gap: Spacing.sm,
-//     padding: Spacing.md,
-//     borderRadius: Radius.lg,
-//     borderWidth: 1,
-//     marginBottom: Spacing.sm,
-//   },
-//   alertText: {
-//     fontSize: Typography.xs,
-//     fontWeight: Typography.medium,
-//     flex: 1,
-//   },
-//   revenueCard: { marginTop: Spacing.lg },
-//   revenueLabel: {
-//     color: Colors.textMuted,
-//     fontSize: Typography.sm,
-//     marginBottom: 4,
-//   },
-//   revenueValue: {
-//     color: Colors.textPrimary,
-//     fontSize: Typography.xxxl,
-//     fontWeight: Typography.bold,
-//     marginBottom: Spacing.md,
-//   },
-//   revenueSplit: {
-//     flexDirection: "row",
-//     gap: Spacing.xxl,
-//     marginBottom: Spacing.md,
-//   },
-//   revenueSplitLabel: { color: Colors.textMuted, fontSize: Typography.xs },
-//   revenueSplitValue: {
-//     fontSize: Typography.lg,
-//     fontWeight: Typography.bold,
-//     marginTop: 2,
-//   },
-//   statsGrid: {
-//     flexDirection: "row",
-//     flexWrap: "wrap",
-//     gap: Spacing.sm,
-//     marginTop: Spacing.lg,
-//   },
-//   sectionTitle: {
-//     color: Colors.textPrimary,
-//     fontSize: Typography.base,
-//     fontWeight: Typography.semibold,
-//     marginBottom: Spacing.md,
-//   },
-//   listRow: {
-//     flexDirection: "row",
-//     alignItems: "center",
-//     paddingVertical: Spacing.sm,
-//     borderBottomWidth: 1,
-//     borderBottomColor: Colors.border,
-//   },
-//   listName: {
-//     color: Colors.textPrimary,
-//     fontSize: Typography.sm,
-//     fontWeight: Typography.medium,
-//   },
-//   listSub: { color: Colors.textMuted, fontSize: Typography.xs },
-//   activeBadge: {
-//     backgroundColor: Colors.successFaded,
-//     paddingHorizontal: 8,
-//     paddingVertical: 3,
-//     borderRadius: Radius.full,
-//   },
-//   activeBadgeText: {
-//     color: Colors.success,
-//     fontSize: Typography.xs,
-//     fontWeight: Typography.semibold,
-//   },
-//   rowBetween: {
-//     flexDirection: "row",
-//     alignItems: "center",
-//     justifyContent: "space-between",
-//     marginBottom: Spacing.md,
-//   },
-//   seeAll: { color: Colors.primary, fontSize: Typography.sm },
-// });
-
 // mobile/src/screens/owner/DashboardScreen.tsx
 import { ownerDashboardApi } from "@/api/endpoints";
-import { Avatar, Card, Skeleton, StatCard } from "@/components";
+import { Avatar, Card, RangePicker, Skeleton, StatCard } from "@/components";
+import { useSubscription } from "@/hooks/useSubsciption";
 import { useAuthStore } from "@/store/authStore";
 import { Colors, Radius, Spacing, Typography } from "@/theme";
 import { DrawerActions, useNavigation } from "@react-navigation/native";
@@ -741,6 +41,7 @@ interface DashboardData {
   todayRevenue: number;
   todayAttendance: number;
   todayNewMembers: number;
+  expiredMembers: number;
   expiringMembers: number;
   expiringMembers3: number;
   expiringToday: string[];
@@ -782,19 +83,29 @@ interface DashboardData {
     id: string;
     name: string;
     brand?: string | null;
+    category?: string | null;
     stockQty: number;
     lowStockAt: number;
     gymId: string;
+    gym?: { name: string } | null;
   }[];
 }
 
 // ── Constants ──────────────────────────────────────────────────────────────────
+// const RANGES = [
+//   { key: "today", label: "Today" },
+//   { key: "this_week", label: "Week" },
+//   { key: "this_month", label: "Month" },
+//   { key: "last_3_months", label: "3 Mo" },
+//   { key: "last_year", label: "Year" },
+// ];
 const RANGES = [
   { key: "today", label: "Today" },
-  { key: "this_week", label: "Week" },
-  { key: "this_month", label: "Month" },
-  { key: "last_3_months", label: "3 Mo" },
-  { key: "last_year", label: "Year" },
+  { key: "last_7_days", label: "Last 7 Days" },
+  { key: "last_30_days", label: "Last 30 Days" },
+  { key: "last_90_days", label: "This Quarter (90 days)" },
+  { key: "financial_year", label: "Financial Year (Apr-Mar)" },
+  { key: "custom", label: "Custom Range" },
 ];
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -1017,24 +328,44 @@ function ExpiryAlert({
   count: number;
   days: number;
 }) {
+  const navigation = useNavigation();
   if (!count) return null;
   const color =
-    days === 0 ? Colors.error : days <= 3 ? Colors.warning : Colors.info;
+    days < 1 ? Colors.error : days <= 3 ? Colors.warning : Colors.info;
   const bg =
-    days === 0
+    days < 1
       ? Colors.errorFaded
       : days <= 3
         ? Colors.warningFaded
         : Colors.infoFaded;
+  const message =
+    days < 0
+      ? `${count} expired memberships`
+      : days === 0
+        ? `Last day: ${names?.join(", ") ?? count + " memberships"}`
+        : `${count} expiring in ${days} day${days !== 1 ? "s" : ""}`;
   return (
-    <View style={[s.alert, { backgroundColor: bg, borderColor: color + "40" }]}>
-      <Icon name="alert-circle-outline" size={16} color={color} />
-      <Text style={[s.alertTxt, { color }]}>
-        {days === 0
-          ? `Last day: ${names?.join(", ") ?? count + " memberships"}`
-          : `${count} expiring in ${days} day${days !== 1 ? "s" : ""}`}
-      </Text>
-    </View>
+    <TouchableOpacity
+      style={[s.alert, { backgroundColor: bg, borderColor: color + "40" }]}
+      onPress={() => (navigation as any).navigate("Members")}
+    >
+      <View
+        style={{
+          flex: 1,
+          flexDirection: "row",
+          justifyContent: "space-between",
+          alignItems: "center",
+        }}
+      >
+        <View style={{ flexDirection: "row", gap: 5, alignItems: "center" }}>
+          <Icon name="alert-circle-outline" size={16} color={color} />
+          <Text style={[s.alertTxt, { color }]}>{message}</Text>
+        </View>
+      </View>
+      <View>
+        <Icon name="arrow-right" size={16} color={color} />
+      </View>
+    </TouchableOpacity>
   );
 }
 
@@ -1043,22 +374,20 @@ function QuickAction({
   icon,
   label,
   color,
-  bg,
   onPress,
 }: {
   icon: string;
   label: string;
   color: string;
-  bg: string;
   onPress: () => void;
 }) {
   return (
     <TouchableOpacity
-      style={[qa.btn, { backgroundColor: bg + "22" }]}
+      style={[qa.btn, { backgroundColor: Colors.surface }]}
       onPress={onPress}
       activeOpacity={0.75}
     >
-      <View style={[qa.iconWrap, { backgroundColor: bg + "33" }]}>
+      <View style={[qa.iconWrap, { backgroundColor: Colors.surface }]}>
         <Icon name={icon} size={20} color={color} />
       </View>
       <Text style={[qa.label, { color }]}>{label}</Text>
@@ -1071,10 +400,12 @@ const qa = StyleSheet.create({
     alignItems: "center",
     gap: 6,
     paddingVertical: Spacing.md,
-    paddingHorizontal: 4,
+    paddingHorizontal: Spacing.sm,
     borderRadius: Radius.xl,
     borderWidth: 1,
-    borderColor: "transparent",
+    borderColor: Colors.border,
+    minWidth: 100,
+    height: 90,
   },
   iconWrap: {
     width: 40,
@@ -1084,8 +415,7 @@ const qa = StyleSheet.create({
     justifyContent: "center",
   },
   label: {
-    fontSize: 10,
-    fontWeight: "700",
+    fontSize: Typography.sm,
     textAlign: "center",
     lineHeight: 13,
   },
@@ -1096,44 +426,103 @@ const qa = StyleSheet.create({
 function StockAlertItem({
   item,
   onPress,
+  multiGym,
 }: {
   item: NonNullable<DashboardData["lowStockAlerts"]>[0];
   onPress: () => void;
+  multiGym?: boolean;
 }) {
   const pulse = useRef(new Animated.Value(1)).current;
   const isOut = item.stockQty === 0;
   const isCritical = !isOut && item.stockQty <= Math.floor(item.lowStockAt / 2);
 
-  // Pulse animation for critical / out-of-stock
   useEffect(() => {
     if (!isOut && !isCritical) return;
     const anim = Animated.loop(
       Animated.sequence([
-        Animated.timing(pulse, { toValue: 0.25, duration: 600, useNativeDriver: true }),
-        Animated.timing(pulse, { toValue: 1, duration: 600, useNativeDriver: true }),
+        Animated.timing(pulse, {
+          toValue: 0.25,
+          duration: 600,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulse, {
+          toValue: 1,
+          duration: 600,
+          useNativeDriver: true,
+        }),
       ]),
     );
     anim.start();
     return () => anim.stop();
   }, [isOut, isCritical]);
 
-  const color = isOut ? Colors.error : isCritical ? Colors.warning : Colors.yellow;
-  const bg = isOut ? Colors.errorFaded : isCritical ? Colors.warningFaded : Colors.yellowFaded;
-  const label = isOut ? "Out of Stock" : isCritical ? "Critical" : "Low Stock";
+  const color = isOut
+    ? Colors.error
+    : isCritical
+      ? Colors.warning
+      : Colors.yellow;
+  const bg = isOut
+    ? Colors.errorFaded
+    : isCritical
+      ? Colors.warningFaded
+      : Colors.yellowFaded;
+  const label = isOut ? "Out of Stock" : `${item.stockQty} left`;
+
+  const stockPct =
+    item.lowStockAt > 0
+      ? Math.min((item.stockQty / item.lowStockAt) * 100, 100)
+      : 0;
+
+  const meta = [item.category, multiGym && item.gym?.name]
+    .filter(Boolean)
+    .join(" · ");
 
   return (
-    <TouchableOpacity style={[ls.row, { borderLeftColor: color }]} onPress={onPress} activeOpacity={0.75}>
+    <TouchableOpacity
+      style={[ls.row, { borderLeftColor: color }]}
+      onPress={onPress}
+      activeOpacity={0.75}
+    >
       {(isOut || isCritical) && (
-        <Animated.View style={[ls.pulse, { backgroundColor: color, opacity: pulse }]} />
+        <Animated.View
+          style={[ls.pulse, { backgroundColor: color, opacity: pulse }]}
+        />
       )}
       <View style={{ flex: 1, minWidth: 0 }}>
-        <Text style={ls.name} numberOfLines={1}>{item.name}</Text>
-        {item.brand ? <Text style={ls.brand}>{item.brand}</Text> : null}
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+          <Text style={ls.name} numberOfLines={1}>
+            {item.name}
+          </Text>
+          {item.brand ? (
+            <Text style={ls.brand} numberOfLines={1}>
+              · {item.brand}
+            </Text>
+          ) : null}
+        </View>
+        {meta ? (
+          <Text style={ls.meta} numberOfLines={1}>
+            {meta}
+          </Text>
+        ) : null}
+        {/* Stock progress bar */}
+        <View style={ls.barTrack}>
+          <View
+            style={[
+              ls.barFill,
+              {
+                width: item.stockQty === 0 ? 3 : (`${stockPct}%` as any),
+                backgroundColor: color,
+              },
+            ]}
+          />
+        </View>
+        <Text style={ls.units}>
+          {item.stockQty} / {item.lowStockAt} units
+        </Text>
       </View>
       <View style={[ls.badge, { backgroundColor: bg }]}>
         <Text style={[ls.badgeTxt, { color }]}>{label}</Text>
       </View>
-      <Text style={[ls.qty, { color }]}>{item.stockQty} left</Text>
     </TouchableOpacity>
   );
 }
@@ -1155,7 +544,11 @@ const ls = StyleSheet.create({
     borderRadius: 4,
     flexShrink: 0,
   },
-  name: { color: Colors.textPrimary, fontSize: Typography.sm, fontWeight: "600" },
+  name: {
+    color: Colors.textPrimary,
+    fontSize: Typography.sm,
+    fontWeight: "600",
+  },
   brand: { color: Colors.textMuted, fontSize: Typography.xs, marginTop: 1 },
   badge: {
     paddingHorizontal: 8,
@@ -1164,72 +557,191 @@ const ls = StyleSheet.create({
     flexShrink: 0,
   },
   badgeTxt: { fontSize: 10, fontWeight: "700" },
-  qty: { fontSize: Typography.xs, fontWeight: "700", flexShrink: 0, minWidth: 44, textAlign: "right" },
+  qty: {
+    fontSize: Typography.xs,
+    fontWeight: "700",
+    flexShrink: 0,
+    minWidth: 44,
+    textAlign: "right",
+  },
+  meta: { color: Colors.textMuted, fontSize: 10, marginTop: 1 },
+  barTrack: {
+    height: 4,
+    backgroundColor: Colors.surfaceRaised,
+    borderRadius: 2,
+    overflow: "hidden",
+    marginTop: Spacing.xs,
+  },
+  barFill: { height: "100%", borderRadius: 2, minWidth: 3 },
+  units: { color: Colors.textMuted, fontSize: 9, marginTop: 2 },
+});
+
+// ── Subscription badge ───────────────────────────────────────────────────────
+function SubscriptionBadge() {
+  const navigation = useNavigation<any>();
+  const { subscription } = useSubscription();
+
+  if (!subscription) return null;
+
+  const { planSlug, isExpired } = subscription;
+  const planName =
+    planSlug === "free"
+      ? "Free"
+      : planSlug.charAt(0).toUpperCase() + planSlug.slice(1);
+  const isEnterprise = planSlug === "enterprise";
+
+  if (isEnterprise && !isExpired) return null; // Don't show for enterprise users
+
+  return (
+    <TouchableOpacity
+      style={sb.container}
+      onPress={() => navigation.navigate("OwnerSubscriptions")}
+      activeOpacity={0.8}
+    >
+      <View style={sb.content}>
+        <View style={sb.iconContainer}>
+          {isExpired ? (
+            <Icon name="lightning-bolt" size={20} color="#a855f7" />
+          ) : (
+            <Icon name="crown" size={20} color="#a855f7" />
+          )}
+        </View>
+        <View style={sb.textContainer}>
+          <Text style={sb.title}>
+            Current Plan: {planName} {isExpired && "(Expired)"}
+          </Text>
+          <Text style={sb.subtitle}>
+            Upgrade to Enterprise for unlimited gyms, advanced analytics, and
+            premium features
+          </Text>
+        </View>
+        <Icon name="chevron-right" size={16} color="#a855f7" />
+      </View>
+    </TouchableOpacity>
+  );
+}
+
+const sb = StyleSheet.create({
+  container: {
+    backgroundColor: "rgba(168, 85, 247, 0.1)", // purple-500/10
+    borderColor: "rgba(168, 85, 247, 0.2)", // purple-500/20
+    borderWidth: 1,
+    borderRadius: Radius.xl,
+    padding: Spacing.lg,
+    marginBottom: Spacing.lg,
+  },
+  content: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.md,
+  },
+  iconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: Radius.lg,
+    backgroundColor: "rgba(168, 85, 247, 0.2)", // purple-500/20
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  textContainer: {
+    flex: 1,
+  },
+  title: {
+    color: Colors.textPrimary,
+    fontSize: Typography.sm,
+    fontWeight: "700",
+    marginBottom: 2,
+  },
+  subtitle: {
+    color: Colors.textMuted,
+    fontSize: Typography.xs,
+    lineHeight: 14,
+  },
 });
 
 // ── Main screen ────────────────────────────────────────────────────────────────
 export default function OwnerDashboardScreen() {
   const navigation = useNavigation<any>();
   const { profile } = useAuthStore();
-  const [range, setRange] = useState("this_month");
+  const [range, setRange] = useState("last_30_days");
   const [gymId, setGymId] = useState("");
+  const [customStart, setCustomStart] = useState("");
+  const [customEnd, setCustomEnd] = useState("");
 
   const { data, isLoading, refetch, isRefetching } = useQuery<DashboardData>({
-    queryKey: ["ownerDashboard", range, gymId],
+    queryKey: ["ownerDashboard", range, gymId, customStart, customEnd],
     queryFn: () =>
       ownerDashboardApi.get({
         range,
         gymId: gymId || undefined,
+        ...(range === "custom" && customStart && customEnd
+          ? { customStart, customEnd }
+          : {}),
       }) as Promise<DashboardData>,
     staleTime: 2 * 60_000,
   });
 
   const firstName = profile?.fullName?.split(" ")[0] ?? "there";
-  const rangeLabel = RANGES.find((r) => r.key === range)?.label ?? "Month";
+  const rangeLabel =
+    RANGES.find((r) => r.key === range)?.label ?? "Last 30 Days";
 
   const QUICK_ACTIONS = [
     {
       icon: "account-plus-outline",
       label: "Add Member",
       color: "#60a5fa",
-      bg: "#3b82f6",
-      screen: "OwnerMembers",
+      // bg: "#3b82f6",
+      screen: "Members",
+      params: { screen: "OwnerAddMember" } as any,
+    },
+    {
+      icon: "account-plus-outline",
+      label: "Add Trainer",
+      color: "#facc15",
+      bg: "#eab308",
+      screen: "OwnerTrainers",
     },
     {
       icon: "calendar-check-outline",
       label: "Attendance",
       color: "#34d399",
-      bg: "#10b981",
-      screen: "Attendance",
+      // bg: "#10b981",
+      screen: "OwnerAttendance",
     },
     {
-      icon: "clipboard-list-outline",
-      label: "Workouts",
-      color: "#c084fc",
-      bg: "#8b5cf6",
-      screen: "OwnerWorkouts",
-    },
-    {
-      icon: "chart-bar",
-      label: "Reports",
-      color: "#fb923c",
-      bg: "#f97316",
-      screen: "OwnerReports",
+      icon: "currency-rupee",
+      label: "Expenses",
+      color: Colors.error,
+      screen: "OwnerExpenses",
     },
     {
       icon: "shopping-outline",
       label: "Supplements",
       color: "#4ade80",
-      bg: "#22c55e",
+      // bg: "#22c55e",
       screen: "OwnerSupplements",
     },
+    // {
+    //   icon: "clipboard-list-outline",
+    //   label: "Workouts",
+    //   color: "#c084fc",
+    //   bg: "#8b5cf6",
+    //   screen: "OwnerWorkouts",
+    // },
     {
-      icon: "gift-outline",
-      label: "Refer & Earn",
-      color: "#facc15",
-      bg: "#eab308",
-      screen: "OwnerReferral",
+      icon: "chart-bar",
+      label: "Reports",
+      color: "#fb923c",
+      // bg: "#f97316",
+      screen: "OwnerReports",
     },
+    // {
+    //   icon: "gift-outline",
+    //   label: "Refer & Earn",
+    //   color: "#facc15",
+    //   bg: "#eab308",
+    //   screen: "OwnerReferral",
+    // },
   ];
 
   const SkelRow = ({ n = 2 }: { n?: number }) => (
@@ -1267,7 +779,7 @@ export default function OwnerDashboardScreen() {
             <Text style={s.greeting}>Good {getGreeting()} 👋</Text>
             <Text style={s.name}>{firstName}</Text>
           </View>
-          <TouchableOpacity onPress={() => navigation.navigate("OwnerProfile")}>
+          <TouchableOpacity onPress={() => navigation.navigate("Profile")}>
             <Avatar
               name={profile?.fullName ?? "O"}
               url={profile?.avatarUrl}
@@ -1299,26 +811,28 @@ export default function OwnerDashboardScreen() {
           </ScrollView>
         )}
 
-        {/* ── Range tabs ────────────────────────────────────────── */}
-        <View style={s.rangeTabs}>
-          {RANGES.map((r) => (
-            <TouchableOpacity
-              key={r.key}
-              onPress={() => setRange(r.key)}
-              style={[s.rangeTab, range === r.key && s.rangeTabActive]}
-            >
-              <Text
-                style={[s.rangeTabTxt, range === r.key && s.rangeTabTxtActive]}
-              >
-                {r.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
+        {/* ── Range picker ──────────────────────────────────────── */}
+        <View style={{ marginBottom: Spacing.md, flex: 1, width: "100%" }}>
+          <RangePicker
+            options={RANGES}
+            value={range}
+            customStart={customStart}
+            customEnd={customEnd}
+            onChange={(r, cs, ce) => {
+              setRange(r);
+              setCustomStart(cs ?? "");
+              setCustomEnd(ce ?? "");
+            }}
+          />
         </View>
+
+        {/* ── Subscription badge ────────────────────────────────────────────── */}
+        <SubscriptionBadge />
 
         {/* ── Expiry alerts ──────────────────────────────────────── */}
         {!isLoading && (
           <View style={{ gap: Spacing.sm }}>
+            <ExpiryAlert count={data?.expiredMembers ?? 0} days={-1} />
             <ExpiryAlert
               names={data?.expiringToday}
               count={data?.expiringToday?.length ?? 0}
@@ -1341,6 +855,8 @@ export default function OwnerDashboardScreen() {
               value={fmt(data?.todayRevenue ?? 0)}
               color={Colors.primary}
               bg={Colors.primaryFaded}
+              sub="Membership + Supplements"
+              style={{ flex: 1 }}
             />
             <StatCard
               icon="calendar-check-outline"
@@ -1348,6 +864,8 @@ export default function OwnerDashboardScreen() {
               value={data?.todayAttendance ?? 0}
               color={Colors.success}
               bg={Colors.successFaded}
+              sub="Members in gym today"
+              style={{ flex: 1 }}
             />
             <StatCard
               icon="account-plus-outline"
@@ -1355,13 +873,17 @@ export default function OwnerDashboardScreen() {
               value={data?.todayNewMembers ?? 0}
               color="#3b82f6"
               bg="#3b82f620"
+              sub="Joined Today"
+              style={{ flex: 1 }}
             />
             <StatCard
-              icon="receipt-outline"
+              icon="trending-down"
               label="Today Expenses"
               value={fmt(data?.todayExpenses ?? 0)}
               color={Colors.error}
               bg={Colors.errorFaded}
+              sub="Operation Costs"
+              style={{ flex: 1 }}
             />
           </View>
         )}
@@ -1376,7 +898,7 @@ export default function OwnerDashboardScreen() {
               icon="account-group-outline"
               label="Active Members"
               value={data?.totalMembers ?? 0}
-              sub={`${data?.activeGyms ?? 0} gyms`}
+              sub={`Across ${data?.activeGyms ?? 0} ${data?.activeGyms && data?.activeGyms > 1 ? "gyms" : "gym"}`}
             />
             <StatCard
               icon="account-plus-outline"
@@ -1391,6 +913,7 @@ export default function OwnerDashboardScreen() {
               value={fmt(data?.rangeRevenue ?? 0)}
               color={Colors.primary}
               bg={Colors.primaryFaded}
+              sub={rangeLabel.toUpperCase()}
             />
             <StatCard
               icon="shopping-outline"
@@ -1398,6 +921,7 @@ export default function OwnerDashboardScreen() {
               value={fmt(data?.rangeSupplementRevenue ?? 0)}
               color={Colors.success}
               bg={Colors.successFaded}
+              sub={rangeLabel.toUpperCase()}
             />
             <StatCard
               icon="trending-down"
@@ -1405,6 +929,7 @@ export default function OwnerDashboardScreen() {
               value={fmt(data?.rangeExpenses ?? 0)}
               color={Colors.error}
               bg={Colors.errorFaded}
+              sub={rangeLabel.toUpperCase()}
             />
             <StatCard
               icon="trending-up"
@@ -1418,6 +943,7 @@ export default function OwnerDashboardScreen() {
                   ? Colors.successFaded
                   : Colors.errorFaded
               }
+              sub="Revenue - Expenses"
             />
           </View>
         )}
@@ -1437,11 +963,23 @@ export default function OwnerDashboardScreen() {
         {!isLoading && (data?.lowStockAlerts?.length ?? 0) > 0 && (
           <Card style={{ marginTop: Spacing.md }}>
             <View style={s.cardHeader}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: Spacing.xs }}>
-                <Icon name="alert-circle-outline" size={16} color={Colors.warning} />
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: Spacing.xs,
+                }}
+              >
+                <Icon
+                  name="alert-circle-outline"
+                  size={16}
+                  color={Colors.warning}
+                />
                 <Text style={s.cardTitle}>Low Stock Alerts</Text>
               </View>
-              <TouchableOpacity onPress={() => navigation.navigate("OwnerSupplements")}>
+              <TouchableOpacity
+                onPress={() => navigation.navigate("OwnerSupplements")}
+              >
                 <Text style={s.seeAll}>Manage</Text>
               </TouchableOpacity>
             </View>
@@ -1451,6 +989,7 @@ export default function OwnerDashboardScreen() {
                 <StockAlertItem
                   key={item.id}
                   item={item}
+                  multiGym={(data?.gyms?.length ?? 0) > 1}
                   onPress={() => navigation.navigate("OwnerSupplements")}
                 />
               ))}
@@ -1461,18 +1000,25 @@ export default function OwnerDashboardScreen() {
         <Text style={[s.sectionCap, { marginTop: Spacing.lg }]}>
           QUICK ACTIONS
         </Text>
-        <View style={s.quickGrid}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{
+            gap: Spacing.md,
+            paddingHorizontal: Spacing.md,
+            paddingVertical: Spacing.sm,
+          }}
+        >
           {QUICK_ACTIONS.map((q) => (
             <QuickAction
               key={q.screen}
               icon={q.icon}
               label={q.label}
               color={q.color}
-              bg={q.bg}
-              onPress={() => navigation.navigate(q.screen)}
+              onPress={() => navigation.navigate(q.screen as any, q.params)}
             />
           ))}
-        </View>
+        </ScrollView>
 
         {/* ── Recent Members + Today's Check-ins ─────────────────── */}
         <View style={s.twoCol}>
@@ -1481,7 +1027,11 @@ export default function OwnerDashboardScreen() {
             <View style={s.cardHeader}>
               <Text style={s.cardTitle}>Recent Members</Text>
               <TouchableOpacity
-                onPress={() => navigation.navigate("OwnerMembers")}
+                onPress={() =>
+                  navigation.navigate("Members", {
+                    screen: "OwnerAddMember",
+                  } as any)
+                }
               >
                 <Text style={s.seeAll}>See all</Text>
               </TouchableOpacity>
@@ -1560,7 +1110,7 @@ export default function OwnerDashboardScreen() {
           {/* Today's Check-ins */}
           <Card style={{ flex: 1 }}>
             <View style={s.cardHeader}>
-              <Text style={s.cardTitle}>Check-ins</Text>
+              <Text style={s.cardTitle}>Today's Check-ins</Text>
               <TouchableOpacity
                 onPress={() => navigation.navigate("Attendance")}
               >
@@ -1660,7 +1210,7 @@ export default function OwnerDashboardScreen() {
         {(data?.recentSupplementSales?.length ?? 0) > 0 && (
           <Card style={{ marginTop: Spacing.md }}>
             <View style={s.cardHeader}>
-              <Text style={s.cardTitle}>Supplement Sales</Text>
+              <Text style={s.cardTitle}>Recent Supplement Sales</Text>
               <TouchableOpacity
                 onPress={() => navigation.navigate("OwnerSupplements")}
               >
@@ -1740,26 +1290,6 @@ const s = StyleSheet.create({
   },
   gymChipTxt: { color: Colors.textMuted, fontSize: Typography.xs },
   gymChipTxtActive: { color: Colors.primary, fontWeight: "700" },
-  // Range tabs
-  rangeTabs: {
-    flexDirection: "row",
-    backgroundColor: Colors.surfaceRaised,
-    borderRadius: Radius.lg,
-    padding: 3,
-  },
-  rangeTab: {
-    flex: 1,
-    paddingVertical: 8,
-    alignItems: "center",
-    borderRadius: Radius.md,
-  },
-  rangeTabActive: { backgroundColor: Colors.primary },
-  rangeTabTxt: {
-    color: Colors.textMuted,
-    fontSize: Typography.xs,
-    fontWeight: "600",
-  },
-  rangeTabTxtActive: { color: "#fff", fontWeight: "800" },
   // Alerts
   alert: {
     flexDirection: "row",
@@ -1772,13 +1302,17 @@ const s = StyleSheet.create({
   alertTxt: { fontSize: Typography.xs, fontWeight: "600", flex: 1 },
   // Section caps
   sectionCap: {
-    color: Colors.textMuted,
-    fontSize: 10,
+    color: Colors.textPrimary,
+    fontSize: Typography.sm,
     fontWeight: "700",
     letterSpacing: 1,
   },
   // Stats grid
-  statsGrid: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.sm },
+  statsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: Spacing.md,
+  },
   // Card
   cardHeader: {
     flexDirection: "row",
@@ -1794,7 +1328,7 @@ const s = StyleSheet.create({
   cardSub: { color: Colors.textMuted, fontSize: Typography.xs },
   seeAll: { color: Colors.primary, fontSize: Typography.xs },
   // Quick actions
-  quickGrid: { flexDirection: "row", gap: Spacing.sm },
+  quickGrid: { flex: 1, gap: Spacing.md },
   // Two-column section
   twoCol: { flexDirection: "column", gap: Spacing.md },
   // List rows

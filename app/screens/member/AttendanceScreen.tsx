@@ -1,6 +1,7 @@
 // mobile/src/screens/member/AttendanceScreen.tsx
 import { memberAttendanceApi } from "@/api/endpoints";
-import { Header, Skeleton, SkeletonGroup, StatCard } from "@/components";
+import { Header, NoGymState, Skeleton, SkeletonGroup, StatCard } from "@/components";
+import { useMemberGym } from "@/hooks/useMemberGym";
 import { Colors, Radius, Spacing, Typography } from "@/theme";
 import type {
   MemberAttendanceIndividual,
@@ -139,6 +140,15 @@ export default function AttendanceScreen() {
     }
   }
 
+  const { hasGym, gymLoading } = useMemberGym();
+  if (!isLoading && !gymLoading && !hasGym) {
+    return (
+      <SafeAreaView style={st.safe} edges={["top"]}>
+        <NoGymState pageName="Attendance" />
+      </SafeAreaView>
+    );
+  }
+
   const checkInRight = checkedInToday ? (
     <View style={st.checkedInBadge}>
       <Icon name="check-circle-outline" size={13} color={Colors.success} />
@@ -169,7 +179,7 @@ export default function AttendanceScreen() {
           title="Attendance"
           subtitle={currentMonthLabel}
           menu
-          right={isLoading ? undefined : checkInRight}
+          right={isLoading || gymLoading ? undefined : checkInRight}
         />
       </View>
 
@@ -186,7 +196,7 @@ export default function AttendanceScreen() {
         }
       >
         {/* ── Stats row ── */}
-        {isLoading ? (
+        {isLoading || gymLoading ? (
           <Skeleton height={96} />
         ) : (
           <ScrollView
@@ -234,7 +244,7 @@ export default function AttendanceScreen() {
         )}
 
         {/* ── Calendar card ── */}
-        {isLoading ? (
+        {isLoading || gymLoading ? (
           <Skeleton height={320} />
         ) : (
           <View style={st.calCard}>
@@ -369,7 +379,7 @@ export default function AttendanceScreen() {
             <Text style={st.historyTitle}>Recent History</Text>
           </View>
 
-          {isLoading ? (
+          {isLoading || gymLoading ? (
             <SkeletonGroup variant="listRow" count={4} />
           ) : records.length === 0 ? (
             <View style={st.emptyHistory}>

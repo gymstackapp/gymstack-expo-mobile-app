@@ -516,3 +516,29 @@ export interface DashboardResponse {
   dailyRevenue: { date: string; revenue: number }[];
   filteredGymId: string | null;
 }
+
+export interface DiscoverGym {
+  id: string;
+  name: string;
+  city: string | null;
+  address: string | null;
+  state: string | null;
+  services: string[];
+  facilities: string[];
+  gymImages: string[];
+  isEnrolled: boolean;
+  isActive: boolean;
+  contactNumber: string | null;
+  owner: {
+    fullName: string;
+    avatarUrl: string | null;
+    mobileNumber: string | null;
+  };
+  membershipPlans: {
+    id: string;
+    name: string;
+    price: number;
+    durationMonths: number;
+  }[];
+  _count: { members: number };
+}

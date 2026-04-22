@@ -33,20 +33,36 @@ const NAV_ITEMS: NavItem[] = [
     screen: "MainTabs",
     tab: "Dashboard",
   },
-  { icon: "dumbbell", label: "Gyms", screen: "MainTabs", tab: "Gyms" },
+  {
+    icon: "office-building-outline",
+    label: "Gyms",
+    screen: "MainTabs",
+    tab: "Gyms",
+  },
   {
     icon: "account-group-outline",
     label: "Members",
     screen: "MainTabs",
     tab: "Members",
   },
-  { icon: "account-tie-outline", label: "Trainers", screen: "OwnerTrainers" },
+  { icon: "account-check-outline", label: "Trainers", screen: "OwnerTrainers" },
   {
     icon: "calendar-check-outline",
     label: "Attendance",
     screen: "OwnerAttendance",
   },
   { icon: "credit-card-outline", label: "Payments", screen: "OwnerPayments" },
+  {
+    icon: "tag-outline",
+    label: "Membership Plans",
+    screen: "OwnerMembershipPlans",
+  },
+  {
+    icon: "currency-rupee",
+    label: "Expenses",
+    screen: "OwnerExpenses",
+  },
+  { icon: "lock-outline", label: "Lockers", screen: "OwnerLockers" },
   {
     icon: "shopping-outline",
     label: "Supplements",
@@ -58,12 +74,6 @@ const NAV_ITEMS: NavItem[] = [
     screen: "OwnerWorkouts",
   },
   { icon: "food-apple-outline", label: "Diet Plans", screen: "OwnerDiets" },
-  { icon: "lock-outline", label: "Lockers", screen: "OwnerLockers" },
-  {
-    icon: "currency-rupee",
-    label: "Expenses",
-    screen: "OwnerExpenses",
-  },
   // { icon: "gift-outline", label: "Refer & Earn", screen: "OwnerReferral" },
   {
     icon: "bell-outline",
@@ -71,10 +81,14 @@ const NAV_ITEMS: NavItem[] = [
     screen: "OwnerNotifications",
   },
   { icon: "chart-bar", label: "Reports", screen: "OwnerReports" },
-  { icon: "lightning-bolt-outline", label: "Billing", screen: "OwnerBilling" },
+  {
+    icon: "lightning-bolt-outline",
+    label: "Subscriptions",
+    screen: "OwnerSubscriptions",
+  },
   {
     icon: "account-circle-outline",
-    label: "Settings",
+    label: "Profile",
     screen: "MainTabs",
     tab: "Profile",
   },

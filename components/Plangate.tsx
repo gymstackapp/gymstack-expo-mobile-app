@@ -35,7 +35,7 @@ export function PlanGate({ allowed, featureLabel, children }: PlanGateProps) {
 
       {/* CTA */}
       <TouchableOpacity
-        onPress={() => (navigation as any).navigate("OwnerBilling")}
+        onPress={() => (navigation as any).navigate("OwnerSubscriptions")}
         activeOpacity={0.85}
         style={styles.btnWrap}
       >

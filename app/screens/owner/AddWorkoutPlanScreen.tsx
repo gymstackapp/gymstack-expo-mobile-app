@@ -1173,7 +1173,7 @@
 //          — PATCH /api/owner/workouts/:id (edit)
 
 import { gymsApi, membersApi, workoutsApi } from "@/api/endpoints";
-import { Card, Skeleton } from "@/components";
+import { Card, Skeleton, SkeletonGroup } from "@/components";
 import { Colors, Radius, Spacing, Typography } from "@/theme";
 import type { Gym, GymMemberListItem, WorkoutPlan } from "@/types/api";
 import { useNavigation, useRoute } from "@react-navigation/native";
@@ -1240,6 +1240,7 @@ interface PlanForm {
   difficulty: string;
   durationWeeks: number;
   isGlobal: boolean;
+  isTemplate: boolean;
   assignedToMemberId: string;
 }
 
@@ -1267,18 +1268,19 @@ function buildInitialPlanData(weeks: number): PlanData {
 
 // ── Small sub-components ──────────────────────────────────────────────────────
 
-function SectionLabel({ label }: { label: string }) {
-  return <Text style={sc.label}>{label}</Text>;
+function SectionLabel({ label, first }: { label: string; first?: boolean }) {
+  return <Text style={[sc.label, first && sc.labelFirst]}>{label}</Text>;
 }
 const sc = StyleSheet.create({
   label: {
     color: Colors.textMuted,
     fontSize: Typography.xs,
     fontWeight: "700",
-    letterSpacing: 0.8,
-    marginBottom: Spacing.sm,
+    letterSpacing: 0.6,
+    marginBottom: Spacing.xs,
     marginTop: Spacing.md,
   },
+  labelFirst: { marginTop: 0 },
 });
 
 function Pill({
@@ -1776,6 +1778,7 @@ export function AddWorkoutPlanScreen() {
     difficulty: editPlan?.difficulty ?? "BEGINNER",
     durationWeeks: editPlan?.durationWeeks ?? 4,
     isGlobal: editPlan?.isGlobal ?? false,
+    isTemplate: (editPlan as any)?.isTemplate ?? false,
     assignedToMemberId: (editPlan as any)?.assignedToMemberId ?? "",
   });
 
@@ -1914,6 +1917,7 @@ export function AddWorkoutPlanScreen() {
       difficulty: form.difficulty,
       durationWeeks: form.durationWeeks,
       isGlobal: form.isGlobal,
+      isTemplate: form.isTemplate,
       assignedToMemberId: form.isGlobal
         ? null
         : form.assignedToMemberId || null,
@@ -2012,14 +2016,40 @@ export function AddWorkoutPlanScreen() {
         </View>
 
         {/* ── STEP 1: Plan details ───────────────────────────────────── */}
-        {step === 1 && (
+        {step === 1 && gymsLoading && (
+          <ScrollView
+            contentContainerStyle={s.scroll}
+            showsVerticalScrollIndicator={false}
+          >
+            <Card>
+              <Skeleton height={12} width={60} style={{ marginBottom: Spacing.sm }} />
+              <SkeletonGroup count={1} itemHeight={44} gap={0} />
+              <Skeleton height={12} width={80} style={{ marginTop: Spacing.md, marginBottom: Spacing.sm }} />
+              <SkeletonGroup count={1} itemHeight={44} gap={0} />
+              <Skeleton height={12} width={60} style={{ marginTop: Spacing.md, marginBottom: Spacing.sm }} />
+              <SkeletonGroup count={1} itemHeight={44} gap={0} />
+            </Card>
+            <Card>
+              <Skeleton height={12} width={80} style={{ marginBottom: Spacing.sm }} />
+              <SkeletonGroup count={1} itemHeight={44} gap={0} />
+              <Skeleton height={12} width={70} style={{ marginTop: Spacing.md, marginBottom: Spacing.sm }} />
+              <SkeletonGroup count={1} itemHeight={44} gap={0} />
+            </Card>
+            <Card>
+              <Skeleton height={12} width={90} style={{ marginBottom: Spacing.sm }} />
+              <SkeletonGroup count={2} itemHeight={44} gap={Spacing.sm} />
+            </Card>
+          </ScrollView>
+        )}
+
+        {step === 1 && !gymsLoading && (
           <ScrollView
             contentContainerStyle={s.scroll}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
           >
             <Card>
-              <SectionLabel label="GYM *" />
+              <SectionLabel label="GYM *" first />
               {gymsLoading ? (
                 <Skeleton height={44} />
               ) : gyms.length === 0 ? (
@@ -2074,7 +2104,7 @@ export function AddWorkoutPlanScreen() {
             </Card>
 
             <Card>
-              <SectionLabel label="DIFFICULTY" />
+              <SectionLabel label="DIFFICULTY" first />
               <View style={s.pillRow}>
                 {DIFFICULTIES.map((d) => (
                   <Pill
@@ -2101,7 +2131,7 @@ export function AddWorkoutPlanScreen() {
             </Card>
 
             <Card>
-              <SectionLabel label="ASSIGNMENT" />
+              <SectionLabel label="ASSIGNMENT" first />
               <Toggle
                 label="Global plan (visible to all gym members)"
                 value={form.isGlobal}
@@ -2109,6 +2139,11 @@ export function AddWorkoutPlanScreen() {
                   setF("isGlobal")(!form.isGlobal);
                   if (!form.isGlobal) setF("assignedToMemberId")("");
                 }}
+              />
+              <Toggle
+                label="Save as template"
+                value={form.isTemplate}
+                onToggle={() => setF("isTemplate")(!form.isTemplate)}
               />
 
               {!form.isGlobal && form.gymId && (

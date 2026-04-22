@@ -26,6 +26,8 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { icon: "view-dashboard-outline", label: "Dashboard", screen: "TrainerTabs", tab: "Dashboard" },
   { icon: "account-group-outline", label: "Members", screen: "TrainerTabs", tab: "Members" },
+  { icon: "office-building-outline", label: "My Gyms", screen: "TrainerGyms" },
+  { icon: "compass-outline", label: "Discover Gyms", screen: "TrainerDiscover" },
   { icon: "calendar-check-outline", label: "Attendance", screen: "TrainerAttendance" },
   { icon: "bell-outline", label: "Notifications", screen: "TrainerNotifications" },
   { icon: "account-circle-outline", label: "Profile", screen: "TrainerTabs", tab: "Profile" },

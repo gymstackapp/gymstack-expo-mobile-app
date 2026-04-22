@@ -1,16 +1,15 @@
 import { gymsApi } from "@/api/endpoints";
 import { EmptyState, Header, SkeletonGroup } from "@/components";
+import ImageCarousel from "@/components/ImageCarousel";
 import { useSubscription } from "@/hooks/useSubsciption";
 import { Colors, Radius, Spacing, Typography } from "@/theme";
 import type { Gym } from "@/types/api";
 import { useNavigation } from "@react-navigation/native";
 import { useQuery } from "@tanstack/react-query";
-import React, { useEffect, useRef, useState } from "react";
+import React from "react";
 import {
   FlatList,
-  Image,
   RefreshControl,
-  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -18,108 +17,6 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
-function GymImageCarousel({
-  images,
-  height,
-}: {
-  images: string[];
-  height: number;
-}) {
-  const scrollRef = useRef<ScrollView>(null);
-  const [activeIndex, setActiveIndex] = useState(0);
-  const [containerWidth, setContainerWidth] = useState(0);
-  const extData = images.length > 1 ? [...images, images[0]] : images;
-
-  useEffect(() => {
-    if (images.length <= 1 || containerWidth === 0) return;
-    const interval = setInterval(() => {
-      setActiveIndex((prev) => {
-        const next = prev + 1;
-        if (next >= images.length) {
-          scrollRef.current?.scrollTo({
-            x: images.length * containerWidth,
-            animated: true,
-          });
-          setTimeout(
-            () => scrollRef.current?.scrollTo({ x: 0, animated: false }),
-            350,
-          );
-          return 0;
-        }
-        scrollRef.current?.scrollTo({
-          x: next * containerWidth,
-          animated: true,
-        });
-        return next;
-      });
-    }, 3000);
-    return () => clearInterval(interval);
-  }, [images.length, containerWidth]);
-
-  if (images.length === 0) {
-    return (
-      <View style={{ height, alignItems: "center", justifyContent: "center" }}>
-        <Icon name="dumbbell" size={28} color={Colors.textMuted} />
-      </View>
-    );
-  }
-
-  return (
-    <View
-      style={{ height }}
-      onLayout={(e) => setContainerWidth(e.nativeEvent.layout.width)}
-    >
-      {containerWidth > 0 && (
-        <ScrollView
-          ref={scrollRef}
-          horizontal
-          pagingEnabled
-          scrollEnabled={false}
-          showsHorizontalScrollIndicator={false}
-        >
-          {extData.map((uri, i) => (
-            <Image
-              key={i}
-              source={{ uri }}
-              style={{ width: containerWidth, height }}
-              resizeMode="cover"
-            />
-          ))}
-        </ScrollView>
-      )}
-      {images.length > 1 && (
-        <View style={carouselStyles.dots}>
-          {images.map((_, i) => (
-            <View
-              key={i}
-              style={[
-                carouselStyles.dot,
-                i === activeIndex && carouselStyles.dotActive,
-              ]}
-            />
-          ))}
-        </View>
-      )}
-    </View>
-  );
-}
-
-const carouselStyles = StyleSheet.create({
-  dots: {
-    position: "absolute",
-    bottom: 8,
-    alignSelf: "center",
-    flexDirection: "row",
-    gap: 5,
-  },
-  dot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: "rgba(255,255,255,0.45)",
-  },
-  dotActive: { width: 16, backgroundColor: "#fff" },
-});
 
 function GymCard({ gym, onPress }: { gym: Gym; onPress: () => void }) {
   return (
@@ -129,7 +26,8 @@ function GymCard({ gym, onPress }: { gym: Gym; onPress: () => void }) {
       style={styles.gymCard}
     >
       <View style={styles.gymCover}>
-        <GymImageCarousel images={gym.gymImages ?? []} height={300} />
+        {/* <GymImageCarousel images={gym.gymImages ?? []} height={300} /> */}
+        <ImageCarousel images={gym.gymImages ?? []} height={300} />
         <View
           style={[
             styles.activePill,

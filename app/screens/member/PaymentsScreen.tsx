@@ -1,6 +1,7 @@
 // mobile/src/screens/member/PaymentsScreen.tsx
 import { memberPaymentsApi } from "@/api/endpoints";
-import { Badge, Card, EmptyState, Header, SkeletonGroup } from "@/components";
+import { Badge, Card, EmptyState, Header, NoGymState, SkeletonGroup } from "@/components";
+import { useMemberGym } from "@/hooks/useMemberGym";
 import { Colors, Radius, Spacing, Typography } from "@/theme";
 import { useQuery } from "@tanstack/react-query";
 import React, { useState } from "react";
@@ -64,6 +65,15 @@ export default function MemberPaymentsScreen() {
     .filter((p: any) => p.status === "COMPLETED")
     .reduce((sum: number, p: any) => sum + Number(p.amount), 0);
 
+  const { hasGym, gymLoading } = useMemberGym();
+  if (!isLoading && !gymLoading && !hasGym) {
+    return (
+      <SafeAreaView style={s.safe} edges={["top"]}>
+        <NoGymState pageName="Payments" />
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={s.safe} edges={["top"]}>
       <View style={s.headerWrap}>
@@ -71,7 +81,7 @@ export default function MemberPaymentsScreen() {
       </View>
 
       {/* Summary card */}
-      {!isLoading && data.length > 0 && (
+      {!isLoading && !gymLoading && data.length > 0 && (
         <View style={s.summaryCard}>
           <View style={s.summaryItem}>
             <Text style={[s.summaryVal, { color: Colors.success }]}>
@@ -97,7 +107,7 @@ export default function MemberPaymentsScreen() {
       )}
 
       {/* Filter tabs */}
-      {!isLoading && data.length > 0 && (
+      {!isLoading && !gymLoading && data.length > 0 && (
         <View style={s.filters}>
           {(["ALL", "COMPLETED", "PENDING", "FAILED"] as Filter[]).map((f) => (
             <TouchableOpacity
@@ -113,7 +123,7 @@ export default function MemberPaymentsScreen() {
         </View>
       )}
 
-      {isLoading ? (
+      {isLoading || gymLoading ? (
         <View style={{ padding: Spacing.lg }}>
           <SkeletonGroup variant="listRow" count={5} />
         </View>

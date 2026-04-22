@@ -4,11 +4,11 @@ import { Colors, Spacing, Typography } from "@/theme";
 import { DrawerActions, useNavigation } from "@react-navigation/native";
 import React from "react";
 import {
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
-    ViewStyle,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+  ViewStyle,
 } from "react-native";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 
@@ -88,8 +88,8 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: "row",
     alignItems: "center",
-    gap: Spacing.md,
-    marginBottom: Spacing.xl,
+    gap: Spacing.sm,
+    marginBottom: Spacing.sm,
   },
   backBtn: {
     width: 38,
@@ -105,9 +105,9 @@ const styles = StyleSheet.create({
   },
   title: {
     color: Colors.textPrimary,
-    fontSize: Typography.xxl,
+    fontSize: Typography.lg,
     fontWeight: Typography.bold,
-    lineHeight: Typography.xxl * 1.2,
+    lineHeight: Typography.xxl * 1,
   },
   subtitle: {
     color: Colors.textMuted,

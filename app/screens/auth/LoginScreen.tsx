@@ -305,7 +305,11 @@ export function LoginScreen() {
 
 const styles = StyleSheet.create({
   scroll: { flexGrow: 1, padding: Spacing.xl, justifyContent: "center" },
-  logo: { alignItems: "center", marginBottom: Spacing.xxl, marginTop: Spacing.xxxl },
+  logo: {
+    alignItems: "center",
+    marginBottom: Spacing.xxl,
+    marginTop: Spacing.xxxl,
+  },
   logoIcon: {
     width: 64,
     height: 64,

@@ -6,15 +6,15 @@
 // Detection: if the part after "__" matches /^\d{1,2}:\d{2} (AM|PM)$/ → new format.
 
 import { memberDietApi } from "@/api/endpoints";
-import { Card, EmptyState, SkeletonGroup } from "@/components";
+import { Card, EmptyState, Header, NoGymState, SkeletonGroup } from "@/components";
+import { useMemberGym } from "@/hooks/useMemberGym";
 import { Colors, Radius, Spacing, Typography } from "@/theme";
-import { DrawerActions, useNavigation } from "@react-navigation/native";
+import { useNavigation } from "@react-navigation/native";
 import { useQuery } from "@tanstack/react-query";
-import React, { useState } from "react";
+import React from "react";
 import {
   FlatList,
   RefreshControl,
-  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -25,7 +25,15 @@ import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+const DAYS = [
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+  "Sunday",
+];
 const TODAY = DAYS[new Date().getDay() === 0 ? 6 : new Date().getDay() - 1];
 
 // Legacy fixed meal order for old-format plans
@@ -56,7 +64,10 @@ function parseTimeMinutes(timeStr: string): number {
 }
 
 /** Get all slot names that have items for a given day, sorted correctly. */
-function getSlotsForDay(planData: Record<string, any[]>, day: string): string[] {
+function getSlotsForDay(
+  planData: Record<string, any[]>,
+  day: string,
+): string[] {
   const prefix = `${day}__`;
   const slots = Object.keys(planData)
     .filter((k) => k.startsWith(prefix) && (planData[k]?.length ?? 0) > 0)
@@ -79,15 +90,34 @@ function dayCalories(planData: Record<string, any[]>, day: string): number {
   return Object.entries(planData)
     .filter(([k]) => k.startsWith(`${day}__`))
     .reduce((sum, [, items]) => {
-      return sum + (items as any[]).reduce((s, it) => s + (parseFloat(it.calories) || 0), 0);
+      return (
+        sum +
+        (items as any[]).reduce(
+          (s, it) => s + (parseFloat(it.calories) || 0),
+          0,
+        )
+      );
     }, 0);
 }
 
 // ── Macro pill ────────────────────────────────────────────────────────────────
 
-function MacroPill({ label, value, color }: { label: string; value: string; color: string }) {
+function MacroPill({
+  label,
+  value,
+  color,
+}: {
+  label: string;
+  value: string;
+  color: string;
+}) {
   return (
-    <View style={[mp.pill, { backgroundColor: color + "18", borderColor: color + "35" }]}>
+    <View
+      style={[
+        mp.pill,
+        { backgroundColor: color + "18", borderColor: color + "35" },
+      ]}
+    >
       <Text style={[mp.val, { color }]}>{value}</Text>
       <Text style={mp.lbl}>{label}</Text>
     </View>
@@ -119,10 +149,26 @@ function FoodRow({ item, index }: { item: any; index: number }) {
         <Text style={fr.name}>{item.name || "Food item"}</Text>
         {!!item.quantity && <Text style={fr.qty}>{item.quantity}</Text>}
         <View style={fr.macros}>
-          {cals > 0 && <Text style={[fr.macro, { color: Colors.primary }]}>{cals}kcal</Text>}
-          {item.protein && <Text style={[fr.macro, { color: "#3b82f6" }]}>P {item.protein}g</Text>}
-          {item.carbs && <Text style={[fr.macro, { color: Colors.warning }]}>C {item.carbs}g</Text>}
-          {item.fat && <Text style={[fr.macro, { color: Colors.error }]}>F {item.fat}g</Text>}
+          {cals > 0 && (
+            <Text style={[fr.macro, { color: Colors.primary }]}>
+              {cals}kcal
+            </Text>
+          )}
+          {item.protein && (
+            <Text style={[fr.macro, { color: "#3b82f6" }]}>
+              P {item.protein}g
+            </Text>
+          )}
+          {item.carbs && (
+            <Text style={[fr.macro, { color: Colors.warning }]}>
+              C {item.carbs}g
+            </Text>
+          )}
+          {item.fat && (
+            <Text style={[fr.macro, { color: Colors.error }]}>
+              F {item.fat}g
+            </Text>
+          )}
         </View>
       </View>
       {cals > 0 && (
@@ -135,20 +181,38 @@ function FoodRow({ item, index }: { item: any; index: number }) {
   );
 }
 const fr = StyleSheet.create({
-  row: { flexDirection: "row", alignItems: "flex-start", gap: Spacing.sm, paddingVertical: Spacing.sm },
+  row: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: Spacing.sm,
+    paddingVertical: Spacing.sm,
+  },
   num: {
-    width: 24, height: 24, borderRadius: 12,
-    backgroundColor: Colors.successFaded, alignItems: "center", justifyContent: "center",
-    flexShrink: 0, marginTop: 2,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: Colors.successFaded,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+    marginTop: 2,
   },
   numTxt: { color: Colors.success, fontSize: 11, fontWeight: "800" },
-  name: { color: Colors.textPrimary, fontSize: Typography.sm, fontWeight: "600" },
+  name: {
+    color: Colors.textPrimary,
+    fontSize: Typography.sm,
+    fontWeight: "600",
+  },
   qty: { color: Colors.textMuted, fontSize: Typography.xs, marginTop: 2 },
   macros: { flexDirection: "row", gap: 8, marginTop: 3, flexWrap: "wrap" },
   macro: { fontSize: Typography.xs, fontWeight: "600" },
   calBadge: {
-    backgroundColor: Colors.primaryFaded, borderRadius: Radius.lg,
-    paddingHorizontal: 8, paddingVertical: 4, alignItems: "center", minWidth: 52,
+    backgroundColor: Colors.primaryFaded,
+    borderRadius: Radius.lg,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    alignItems: "center",
+    minWidth: 52,
   },
   calTxt: { color: Colors.primary, fontSize: Typography.sm, fontWeight: "800" },
   calUnit: { color: Colors.primary, fontSize: 9 },
@@ -157,12 +221,28 @@ const fr = StyleSheet.create({
 // ── Meal slot card ────────────────────────────────────────────────────────────
 
 function SlotCard({ slot, items }: { slot: string; items: any[] }) {
-  const slotCals = items.reduce((s, it) => s + (parseFloat(it.calories) || 0), 0);
+  const slotCals = items.reduce(
+    (s, it) => s + (parseFloat(it.calories) || 0),
+    0,
+  );
   const isTime = isTimeSlot(slot);
   return (
     <Card style={{ marginBottom: Spacing.md }}>
-      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: Spacing.sm }}>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: Spacing.xs }}>
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "space-between",
+          marginBottom: Spacing.sm,
+        }}
+      >
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            gap: Spacing.xs,
+          }}
+        >
           <Icon
             name={isTime ? "clock-outline" : "food-fork-drink"}
             size={14}
@@ -179,7 +259,15 @@ function SlotCard({ slot, items }: { slot: string; items: any[] }) {
       </View>
       {items.map((item, i) => (
         <React.Fragment key={i}>
-          {i > 0 && <View style={{ height: 1, backgroundColor: Colors.border, marginVertical: Spacing.xs }} />}
+          {i > 0 && (
+            <View
+              style={{
+                height: 1,
+                backgroundColor: Colors.border,
+                marginVertical: Spacing.xs,
+              }}
+            />
+          )}
           <FoodRow item={item} index={i} />
         </React.Fragment>
       ))}
@@ -187,119 +275,10 @@ function SlotCard({ slot, items }: { slot: string; items: any[] }) {
   );
 }
 
-// ── Plan detail view ──────────────────────────────────────────────────────────
-
-function PlanDetail({ plan, onBack }: { plan: any; onBack: () => void }) {
-  const [selDay, setSelDay] = useState(TODAY);
-  const planData: Record<string, any[]> = plan.planData ?? {};
-
-  const slots = getSlotsForDay(planData, selDay);
-  const dayTotalCal = dayCalories(planData, selDay);
-
-  return (
-    <SafeAreaView style={s.safe} edges={["top"]}>
-      {/* Header */}
-      <View style={s.detailHeader}>
-        <TouchableOpacity
-          onPress={onBack}
-          style={s.backBtn}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        >
-          <Icon name="arrow-left" size={22} color={Colors.textPrimary} />
-        </TouchableOpacity>
-        <View style={{ flex: 1 }}>
-          <Text style={s.detailTitle} numberOfLines={1}>{plan.title ?? "Diet Plan"}</Text>
-          <Text style={s.detailSub}>{plan.gym?.name} · by {plan.creator?.fullName}</Text>
-        </View>
-      </View>
-
-      <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-        {/* Macro targets */}
-        {(plan.caloriesTarget || plan.proteinG || plan.carbsG || plan.fatG) && (
-          <View style={{ paddingHorizontal: Spacing.lg, paddingTop: Spacing.md }}>
-            <Card>
-              <Text style={s.cardHead}>Daily Targets</Text>
-              <View style={s.macroRow}>
-                {plan.caloriesTarget && <MacroPill label="Calories" value={`${plan.caloriesTarget}`} color={Colors.primary} />}
-                {plan.proteinG && <MacroPill label="Protein" value={`${plan.proteinG}g`} color="#3b82f6" />}
-                {plan.carbsG && <MacroPill label="Carbs" value={`${plan.carbsG}g`} color={Colors.warning} />}
-                {plan.fatG && <MacroPill label="Fat" value={`${plan.fatG}g`} color={Colors.error} />}
-              </View>
-            </Card>
-          </View>
-        )}
-
-        {/* Day selector */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={s.dayScroll}
-        >
-          {DAYS.map((day) => {
-            const cnt = Object.keys(planData)
-              .filter((k) => k.startsWith(`${day}__`))
-              .reduce((sum, k) => sum + (planData[k]?.length ?? 0), 0);
-            const isToday = day === TODAY;
-            const isActive = day === selDay;
-            return (
-              <TouchableOpacity
-                key={day}
-                style={[s.dayPill, isActive && s.dayPillActive, isToday && !isActive && s.dayPillToday]}
-                onPress={() => setSelDay(day)}
-              >
-                <Text style={[s.dayPillTxt, isActive && s.dayPillTxtActive]}>
-                  {day.slice(0, 3)}
-                </Text>
-                {isToday && (
-                  <View style={[s.todayDot, isActive && { backgroundColor: "#fff" }]} />
-                )}
-                {cnt > 0 && !isToday && (
-                  <Text style={[s.dayCount, isActive && { color: "#fff" }]}>{cnt}</Text>
-                )}
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
-
-        {/* Day calorie total */}
-        {dayTotalCal > 0 && (
-          <View style={s.dayCalRow}>
-            <Icon name="fire" size={14} color={Colors.primary} />
-            <Text style={s.dayCalTxt}>
-              {selDay}: ~{Math.round(dayTotalCal)} kcal
-            </Text>
-            {selDay === TODAY && (
-              <View style={s.todayTag}>
-                <Text style={s.todayTagTxt}>Today</Text>
-              </View>
-            )}
-          </View>
-        )}
-
-        {/* Slots */}
-        <View style={{ paddingHorizontal: Spacing.lg, paddingBottom: Spacing.xl }}>
-          {slots.length === 0 ? (
-            <View style={s.emptyMeal}>
-              <Icon name="food-off-outline" size={26} color={Colors.textMuted} />
-              <Text style={s.emptyMealTxt}>Nothing planned for {selDay}</Text>
-            </View>
-          ) : (
-            slots.map((slot) => {
-              const items = planData[`${selDay}__${slot}`] ?? [];
-              return <SlotCard key={slot} slot={slot} items={items} />;
-            })
-          )}
-        </View>
-      </ScrollView>
-    </SafeAreaView>
-  );
-}
-
 // ── Plan list ─────────────────────────────────────────────────────────────────
 
 export default function DietScreen() {
   const navigation = useNavigation<any>();
-  const [selectedPlan, setSelectedPlan] = useState<any | null>(null);
 
   const {
     data: plans = [],
@@ -312,126 +291,189 @@ export default function DietScreen() {
     staleTime: 2 * 60_000,
   });
 
-  if (selectedPlan) {
-    return <PlanDetail plan={selectedPlan} onBack={() => setSelectedPlan(null)} />;
-  }
-
   // Today's total calories across all plans (all slot formats)
   const todayCals = plans.reduce((sum, plan) => {
     return sum + dayCalories(plan.planData ?? {}, TODAY);
   }, 0);
 
+  const { hasGym, gymLoading } = useMemberGym();
+  if (!isLoading && !gymLoading && !hasGym) {
+    return (
+      <SafeAreaView style={s.safe} edges={["top"]}>
+        <NoGymState pageName="Nutrition" />
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={s.safe} edges={["top"]}>
-      {/* Header */}
-      <View style={s.header}>
-        <Text style={s.screenTitle}>Nutrition</Text>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: Spacing.sm }}>
-          {todayCals > 0 && (
-            <View style={s.calChip}>
-              <Icon name="fire" size={12} color={Colors.primary} />
-              <Text style={s.calChipTxt}>{Math.round(todayCals)} kcal today</Text>
-            </View>
-          )}
-          <TouchableOpacity
-            style={s.menuBtn}
-            onPress={() => navigation.dispatch(DrawerActions.openDrawer())}
-          >
-            <Icon name="menu" size={24} color={Colors.textPrimary} />
-          </TouchableOpacity>
-        </View>
-      </View>
+      <View
+        style={{
+          flex: 1,
+          paddingHorizontal: Spacing.lg,
+          paddingTop: Spacing.lg,
+          gap: Spacing.md,
+        }}
+      >
+        <Header menu title="Nutrition" />
 
-      {/* Today summary card */}
-      {todayCals > 0 && !isLoading && (
-        <View style={{ paddingHorizontal: Spacing.lg, paddingBottom: Spacing.sm }}>
-          <TouchableOpacity
-            style={s.todayCard}
-            onPress={() => setSelectedPlan(plans[0])}
-            activeOpacity={0.85}
+        {/* Today summary card */}
+        {todayCals > 0 && !isLoading && !gymLoading && (
+          <View
+            style={{ paddingHorizontal: Spacing.lg, paddingBottom: Spacing.sm }}
           >
-            <Icon name="food-apple-outline" size={22} color={Colors.success} />
-            <View style={{ flex: 1 }}>
-              <Text style={s.todayCardLabel}>TODAY · {TODAY.toUpperCase()}</Text>
-              <Text style={s.todayCardCals}>~{Math.round(todayCals)} kcal planned</Text>
-            </View>
-            <Icon name="chevron-right" size={18} color={Colors.success} />
-          </TouchableOpacity>
-        </View>
-      )}
+            <TouchableOpacity
+              style={s.todayCard}
+              onPress={() =>
+                navigation.navigate("DietPlanDetailsScreen", { plan: plans[0] })
+              }
+              activeOpacity={0.85}
+            >
+              <Icon
+                name="food-apple-outline"
+                size={22}
+                color={Colors.success}
+              />
+              <View style={{ flex: 1 }}>
+                <Text style={s.todayCardLabel}>
+                  TODAY · {TODAY.toUpperCase()}
+                </Text>
+                <Text style={s.todayCardCals}>
+                  ~{Math.round(todayCals)} kcal planned
+                </Text>
+              </View>
+              <Icon name="chevron-right" size={18} color={Colors.success} />
+            </TouchableOpacity>
+          </View>
+        )}
 
-      {isLoading ? (
-        <View style={{ padding: Spacing.lg }}>
-          <SkeletonGroup variant="card" count={3} itemHeight={120} gap={Spacing.md} />
-        </View>
-      ) : plans.length === 0 ? (
-        <EmptyState
-          icon="food-apple-outline"
-          title="No diet plans yet"
-          subtitle="Your trainer or gym will assign nutrition plans here"
-        />
-      ) : (
-        <FlatList
-          data={plans}
-          keyExtractor={(p) => p.id}
-          contentContainerStyle={{ padding: Spacing.lg, paddingBottom: 40, gap: Spacing.md }}
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl
-              refreshing={isRefetching}
-              onRefresh={refetch}
-              tintColor={Colors.primary}
-              colors={[Colors.primary]}
+        {isLoading || gymLoading ? (
+          <View style={{ padding: Spacing.lg }}>
+            <SkeletonGroup
+              variant="card"
+              count={3}
+              itemHeight={120}
+              gap={Spacing.md}
             />
-          }
-          renderItem={({ item: p }) => {
-            const pd = p.planData ?? {};
-            const todaySlots = getSlotsForDay(pd, TODAY);
-            const todayItemCount = todaySlots.reduce((sum, slot) => sum + (pd[`${TODAY}__${slot}`]?.length ?? 0), 0);
-            const todayCalsForPlan = dayCalories(pd, TODAY);
+          </View>
+        ) : plans.length === 0 ? (
+          <EmptyState
+            icon="food-apple-outline"
+            title="No diet plans yet"
+            subtitle="Your trainer or gym will assign nutrition plans here"
+          />
+        ) : (
+          <FlatList
+            data={plans}
+            keyExtractor={(p) => p.id}
+            contentContainerStyle={{
+              paddingBottom: 40,
+              gap: Spacing.md,
+            }}
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl
+                refreshing={isRefetching}
+                onRefresh={refetch}
+                tintColor={Colors.primary}
+                colors={[Colors.primary]}
+              />
+            }
+            renderItem={({ item: p }) => {
+              const pd = p.planData ?? {};
+              const todaySlots = getSlotsForDay(pd, TODAY);
+              const todayItemCount = todaySlots.reduce(
+                (sum, slot) => sum + (pd[`${TODAY}__${slot}`]?.length ?? 0),
+                0,
+              );
+              const todayCalsForPlan = dayCalories(pd, TODAY);
 
-            return (
-              <TouchableOpacity onPress={() => setSelectedPlan(p)} activeOpacity={0.78}>
-                <Card>
-                  <View style={s.planTop}>
-                    <View style={s.planIcon}>
-                      <Icon name="food-apple-outline" size={20} color={Colors.success} />
+              return (
+                <TouchableOpacity
+                  onPress={() =>
+                    navigation.navigate("DietPlanDetailsScreen", { plan: p })
+                  }
+                  activeOpacity={0.78}
+                >
+                  <Card>
+                    <View style={s.planTop}>
+                      <View style={s.planIcon}>
+                        <Icon
+                          name="food-apple-outline"
+                          size={20}
+                          color={Colors.success}
+                        />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={s.planTitle}>
+                          {p.title ?? "Diet Plan"}
+                        </Text>
+                        <Text style={s.planBy}>
+                          by {p.creator?.fullName} · {p.gym?.name}
+                        </Text>
+                      </View>
                     </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={s.planTitle}>{p.title ?? "Diet Plan"}</Text>
-                      <Text style={s.planBy}>by {p.creator?.fullName} · {p.gym?.name}</Text>
-                    </View>
-                  </View>
 
-                  {(p.caloriesTarget || p.proteinG || p.carbsG || p.fatG) && (
-                    <View style={s.macroRow}>
-                      {p.caloriesTarget && <MacroPill label="Cal" value={`${p.caloriesTarget}`} color={Colors.primary} />}
-                      {p.proteinG && <MacroPill label="Protein" value={`${p.proteinG}g`} color="#3b82f6" />}
-                      {p.carbsG && <MacroPill label="Carbs" value={`${p.carbsG}g`} color={Colors.warning} />}
-                      {p.fatG && <MacroPill label="Fat" value={`${p.fatG}g`} color={Colors.error} />}
-                    </View>
-                  )}
+                    {(p.caloriesTarget || p.proteinG || p.carbsG || p.fatG) && (
+                      <View style={s.macroRow}>
+                        {p.caloriesTarget && (
+                          <MacroPill
+                            label="Cal"
+                            value={`${p.caloriesTarget}`}
+                            color={Colors.primary}
+                          />
+                        )}
+                        {p.proteinG && (
+                          <MacroPill
+                            label="Protein"
+                            value={`${p.proteinG}g`}
+                            color="#3b82f6"
+                          />
+                        )}
+                        {p.carbsG && (
+                          <MacroPill
+                            label="Carbs"
+                            value={`${p.carbsG}g`}
+                            color={Colors.warning}
+                          />
+                        )}
+                        {p.fatG && (
+                          <MacroPill
+                            label="Fat"
+                            value={`${p.fatG}g`}
+                            color={Colors.error}
+                          />
+                        )}
+                      </View>
+                    )}
 
-                  {todayItemCount > 0 && (
-                    <View style={s.todayBadge}>
-                      <Icon name="fire" size={11} color={Colors.primary} />
-                      <Text style={s.todayBadgeTxt}>
-                        {todayItemCount} items today
-                        {todayCalsForPlan > 0 ? ` · ~${Math.round(todayCalsForPlan)} kcal` : ""}
-                      </Text>
-                    </View>
-                  )}
+                    {todayItemCount > 0 && (
+                      <View style={s.todayBadge}>
+                        <Icon name="fire" size={11} color={Colors.primary} />
+                        <Text style={s.todayBadgeTxt}>
+                          {todayItemCount} items today
+                          {todayCalsForPlan > 0
+                            ? ` · ~${Math.round(todayCalsForPlan)} kcal`
+                            : ""}
+                        </Text>
+                      </View>
+                    )}
 
-                  <View style={s.planFooter}>
-                    <Text style={s.tapHint}>Tap to view meals</Text>
-                    <Icon name="chevron-right" size={16} color={Colors.textMuted} />
-                  </View>
-                </Card>
-              </TouchableOpacity>
-            );
-          }}
-        />
-      )}
+                    <View style={s.planFooter}>
+                      <Text style={s.tapHint}>Tap to view meals</Text>
+                      <Icon
+                        name="chevron-right"
+                        size={16}
+                        color={Colors.textMuted}
+                      />
+                    </View>
+                  </Card>
+                </TouchableOpacity>
+              );
+            }}
+          />
+        )}
+      </View>
     </SafeAreaView>
   );
 }
@@ -440,83 +482,213 @@ const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.bg },
   menuBtn: { padding: 4 },
   header: {
-    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-    paddingHorizontal: Spacing.lg, paddingTop: Spacing.lg, paddingBottom: Spacing.sm,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.lg,
+    paddingBottom: Spacing.sm,
   },
-  screenTitle: { color: Colors.textPrimary, fontSize: Typography.xxl, fontWeight: "800" },
+  screenTitle: {
+    color: Colors.textPrimary,
+    fontSize: Typography.xxl,
+    fontWeight: "800",
+  },
   calChip: {
-    flexDirection: "row", alignItems: "center", gap: 4,
-    backgroundColor: Colors.primaryFaded, borderRadius: Radius.full,
-    paddingHorizontal: 10, paddingVertical: 5, borderWidth: 1, borderColor: Colors.primary + "40",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: Colors.primaryFaded,
+    borderRadius: Radius.full,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderWidth: 1,
+    borderColor: Colors.primary + "40",
   },
-  calChipTxt: { color: Colors.primary, fontSize: Typography.xs, fontWeight: "700" },
+  calChipTxt: {
+    color: Colors.primary,
+    fontSize: Typography.xs,
+    fontWeight: "700",
+  },
   todayCard: {
-    flexDirection: "row", alignItems: "center", gap: Spacing.md,
-    backgroundColor: Colors.successFaded, borderRadius: Radius.xl,
-    borderWidth: 1, borderColor: Colors.success + "40", padding: Spacing.md,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.md,
+    backgroundColor: Colors.successFaded,
+    borderRadius: Radius.xl,
+    borderWidth: 1,
+    borderColor: Colors.success + "40",
+    padding: Spacing.md,
   },
-  todayCardLabel: { color: Colors.success, fontSize: Typography.xs, fontWeight: "700" },
-  todayCardCals: { color: Colors.textPrimary, fontSize: Typography.base, fontWeight: "800", marginTop: 2 },
-  planTop: { flexDirection: "row", alignItems: "flex-start", gap: Spacing.md, marginBottom: Spacing.sm },
+  todayCardLabel: {
+    color: Colors.success,
+    fontSize: Typography.xs,
+    fontWeight: "700",
+  },
+  todayCardCals: {
+    color: Colors.textPrimary,
+    fontSize: Typography.base,
+    fontWeight: "800",
+    marginTop: 2,
+  },
+  planTop: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: Spacing.md,
+    marginBottom: Spacing.sm,
+  },
   planIcon: {
-    width: 44, height: 44, borderRadius: Radius.lg,
-    backgroundColor: Colors.successFaded, alignItems: "center", justifyContent: "center", flexShrink: 0,
+    width: 44,
+    height: 44,
+    borderRadius: Radius.lg,
+    backgroundColor: Colors.successFaded,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
   },
-  planTitle: { color: Colors.textPrimary, fontSize: Typography.base, fontWeight: "700" },
+  planTitle: {
+    color: Colors.textPrimary,
+    fontSize: Typography.base,
+    fontWeight: "700",
+  },
   planBy: { color: Colors.textMuted, fontSize: Typography.xs, marginTop: 2 },
-  macroRow: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.xs, marginBottom: Spacing.sm },
-  todayBadge: {
-    flexDirection: "row", alignItems: "center", gap: 4,
-    backgroundColor: Colors.primaryFaded, borderRadius: Radius.lg,
-    paddingHorizontal: Spacing.sm, paddingVertical: 4,
-    alignSelf: "flex-start", marginBottom: Spacing.sm,
+  macroRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: Spacing.xs,
+    marginBottom: Spacing.sm,
   },
-  todayBadgeTxt: { color: Colors.primary, fontSize: Typography.xs, fontWeight: "700" },
+  todayBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: Colors.primaryFaded,
+    borderRadius: Radius.lg,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    alignSelf: "flex-start",
+    marginBottom: Spacing.sm,
+  },
+  todayBadgeTxt: {
+    color: Colors.primary,
+    fontSize: Typography.xs,
+    fontWeight: "700",
+  },
   planFooter: {
-    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-    borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: Spacing.sm,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+    paddingTop: Spacing.sm,
   },
   tapHint: { color: Colors.textMuted, fontSize: Typography.xs },
   // Detail view
   detailHeader: {
-    flexDirection: "row", alignItems: "center", gap: Spacing.md,
-    paddingHorizontal: Spacing.lg, paddingVertical: Spacing.md,
-    borderBottomWidth: 1, borderBottomColor: Colors.border,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
   },
   backBtn: {
-    width: 36, height: 36, borderRadius: Radius.lg,
-    backgroundColor: Colors.surfaceRaised, alignItems: "center", justifyContent: "center", flexShrink: 0,
+    width: 36,
+    height: 36,
+    borderRadius: Radius.lg,
+    backgroundColor: Colors.surfaceRaised,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
   },
-  detailTitle: { color: Colors.textPrimary, fontSize: Typography.base, fontWeight: "800" },
+  detailTitle: {
+    color: Colors.textPrimary,
+    fontSize: Typography.base,
+    fontWeight: "800",
+  },
   detailSub: { color: Colors.textMuted, fontSize: Typography.xs, marginTop: 2 },
-  cardHead: { color: Colors.textPrimary, fontSize: Typography.sm, fontWeight: "700" },
+  cardHead: {
+    color: Colors.textPrimary,
+    fontSize: Typography.sm,
+    fontWeight: "700",
+  },
   slotCalBadge: {
-    flexDirection: "row", alignItems: "center", gap: 3,
-    backgroundColor: Colors.primaryFaded, borderRadius: Radius.full,
-    paddingHorizontal: 8, paddingVertical: 3,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    backgroundColor: Colors.primaryFaded,
+    borderRadius: Radius.full,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
   },
   slotCalTxt: { color: Colors.primary, fontSize: 10, fontWeight: "700" },
-  dayScroll: { paddingHorizontal: Spacing.lg, paddingVertical: Spacing.md, gap: Spacing.xs },
-  dayPill: {
-    paddingHorizontal: 14, paddingVertical: 8, borderRadius: Radius.full,
-    backgroundColor: Colors.surfaceRaised, borderWidth: 1, borderColor: Colors.border,
-    alignItems: "center", minWidth: 52,
+  dayScroll: {
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    gap: Spacing.xs,
   },
-  dayPillActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+  dayPill: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: Radius.full,
+    backgroundColor: Colors.surfaceRaised,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    alignItems: "center",
+    minWidth: 52,
+  },
+  dayPillActive: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+  },
   dayPillToday: { borderColor: Colors.primary },
-  dayPillTxt: { color: Colors.textMuted, fontSize: Typography.xs, fontWeight: "600" },
+  dayPillTxt: {
+    color: Colors.textMuted,
+    fontSize: Typography.xs,
+    fontWeight: "600",
+  },
   dayPillTxtActive: { color: "#fff", fontWeight: "700" },
-  todayDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: Colors.primary, marginTop: 3 },
+  todayDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: Colors.primary,
+    marginTop: 3,
+  },
   dayCount: { color: Colors.textMuted, fontSize: 9, marginTop: 2 },
   dayCalRow: {
-    flexDirection: "row", alignItems: "center", gap: 6,
-    marginHorizontal: Spacing.lg, marginBottom: Spacing.sm,
-    backgroundColor: Colors.primaryFaded, borderRadius: Radius.lg,
-    paddingHorizontal: Spacing.md, paddingVertical: 6,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginHorizontal: Spacing.lg,
+    marginBottom: Spacing.sm,
+    backgroundColor: Colors.primaryFaded,
+    borderRadius: Radius.lg,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 6,
   },
-  dayCalTxt: { color: Colors.primary, fontSize: Typography.xs, fontWeight: "700", flex: 1 },
-  todayTag: { backgroundColor: Colors.primary, borderRadius: Radius.full, paddingHorizontal: 8, paddingVertical: 2 },
+  dayCalTxt: {
+    color: Colors.primary,
+    fontSize: Typography.xs,
+    fontWeight: "700",
+    flex: 1,
+  },
+  todayTag: {
+    backgroundColor: Colors.primary,
+    borderRadius: Radius.full,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
   todayTagTxt: { color: "#fff", fontSize: 10, fontWeight: "700" },
-  emptyMeal: { alignItems: "center", paddingVertical: Spacing.xxl, gap: Spacing.sm },
-  emptyMealTxt: { color: Colors.textSecondary, fontSize: Typography.base, fontWeight: "600" },
+  emptyMeal: {
+    alignItems: "center",
+    paddingVertical: Spacing.xxl,
+    gap: Spacing.sm,
+  },
+  emptyMealTxt: {
+    color: Colors.textSecondary,
+    fontSize: Typography.base,
+    fontWeight: "600",
+  },
 });

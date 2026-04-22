@@ -1,6 +1,5 @@
 // mobile/src/screens/owner/PlansScreen.tsx
 import { gymsApi, membershipPlansApi } from "@/api/endpoints";
-import { showAlert } from "@/components/AppAlert";
 import {
   Button,
   Card,
@@ -9,8 +8,10 @@ import {
   Input,
   SkeletonGroup,
 } from "@/components";
+import { showAlert } from "@/components/AppAlert";
 import { useSubscription } from "@/hooks/useSubsciption";
 import { Colors, Radius, Spacing, Typography } from "@/theme";
+import type { Gym, MembershipPlan } from "@/types/api";
 import { useRoute } from "@react-navigation/native";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import React, { useState } from "react";
@@ -31,7 +32,7 @@ function fmt(n: number) {
   return `₹${Number(n).toLocaleString("en-IN")}`;
 }
 
-export default function OwnerPlansScreen() {
+export default function GymMembershipPlansScreen() {
   const route = useRoute();
   const qc = useQueryClient();
   const { canAddMembershipPlan, hasPayments } = useSubscription();
@@ -47,9 +48,9 @@ export default function OwnerPlansScreen() {
     features: "",
   });
 
-  const { data: gyms = [] } = useQuery({
+  const { data: gyms = [] } = useQuery<Gym[]>({
     queryKey: ["ownerGyms"],
-    queryFn: gymsApi.list,
+    queryFn: async () => gymsApi.list() as Promise<Gym[]>,
     staleTime: 5 * 60_000,
   });
   const {
@@ -57,9 +58,10 @@ export default function OwnerPlansScreen() {
     isLoading,
     refetch,
     isRefetching,
-  } = useQuery({
+  } = useQuery<MembershipPlan[]>({
     queryKey: ["ownerPlans", gymId],
-    queryFn: () => membershipPlansApi.list(gymId),
+    queryFn: async () =>
+      membershipPlansApi.list(gymId) as Promise<MembershipPlan[]>,
     enabled: !!gymId,
     staleTime: 60_000,
   });
@@ -116,7 +118,7 @@ export default function OwnerPlansScreen() {
         <Header
           title="Membership Plans"
           subtitle={`${plans.length} plans`}
-          back
+          menu
           right={
             canAddMembershipPlan ? (
               <TouchableOpacity
@@ -139,7 +141,7 @@ export default function OwnerPlansScreen() {
           <View
             style={{ flexDirection: "row", gap: Spacing.xs, flexWrap: "wrap" }}
           >
-            {(gyms as any[]).map((g: any) => (
+            {gyms.map((g) => (
               <TouchableOpacity
                 key={g.id}
                 onPress={() => setGymId(g.id)}
@@ -208,7 +210,7 @@ export default function OwnerPlansScreen() {
         />
       ) : (
         <FlatList
-          data={plans as any[]}
+          data={plans}
           keyExtractor={(p) => p.id}
           contentContainerStyle={{ padding: Spacing.lg, paddingBottom: 32 }}
           showsVerticalScrollIndicator={false}

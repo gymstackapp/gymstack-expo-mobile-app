@@ -1,5 +1,6 @@
-// // mobile/src/screens/owner/WorkoutsScreen.tsx
-// import { gymsApi, workoutsApi } from "@/api/endpoints";
+// mobile/src/screens/owner/WorkoutsScreen.tsx
+// List view — create/edit via AddWorkoutPlanScreen.
+// Features: search, gym filter, duplicate, active-days count, isTemplate badge.
 // import {
 //   Badge,
 //   Button,
@@ -463,7 +464,8 @@
 // }
 
 // mobile/src/screens/owner/WorkoutsScreen.tsx
-// List view only — create/edit is handled by AddWorkoutPlanScreen.
+// List view — create/edit via AddWorkoutPlanScreen.
+// Features: search, gym filter, duplicate, active-days count, isTemplate badge.
 import { gymsApi, workoutsApi } from "@/api/endpoints";
 import {
   Badge,
@@ -473,18 +475,19 @@ import {
   PlanGate,
   SkeletonGroup,
 } from "@/components";
+import { showAlert } from "@/components/AppAlert";
 import { useSubscription } from "@/hooks/useSubsciption";
 import { Colors, Radius, Spacing, Typography } from "@/theme";
 import type { Gym, WorkoutPlan } from "@/types/api";
 import { useNavigation } from "@react-navigation/native";
-import { showAlert } from "@/components/AppAlert";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   FlatList,
   RefreshControl,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -498,11 +501,30 @@ const DIFF_VARIANT: Record<string, "success" | "warning" | "error"> = {
   ADVANCED: "error",
 };
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function calcPlanStats(planData: Record<string, Record<string, unknown[]>> | undefined) {
+  if (!planData) return { exercises: 0, activeDays: 0 };
+  let exercises = 0;
+  let activeDays = 0;
+  for (const days of Object.values(planData)) {
+    for (const exs of Object.values(days)) {
+      const len = exs?.length ?? 0;
+      exercises += len;
+      if (len > 0) activeDays += 1;
+    }
+  }
+  return { exercises, activeDays };
+}
+
+// ── Screen ────────────────────────────────────────────────────────────────────
+
 export default function OwnerWorkoutsScreen() {
   const navigation = useNavigation();
   const qc = useQueryClient();
   const { hasWorkoutPlans } = useSubscription();
   const [gymId, setGymId] = useState("");
+  const [searchQ, setSearchQ] = useState("");
 
   const { data: gyms = [] } = useQuery<Gym[]>({
     queryKey: ["ownerGyms"],
@@ -523,7 +545,21 @@ export default function OwnerWorkoutsScreen() {
     staleTime: 60_000,
   });
 
-  const deleteMutation = useMutation({
+  // ── Filtered list ────────────────────────────────────────────────────────
+
+  const filteredPlans = useMemo(() => {
+    const q = searchQ.trim().toLowerCase();
+    if (!q) return plans;
+    return plans.filter(
+      (p) =>
+        (p.title ?? "").toLowerCase().includes(q) ||
+        (p.goal ?? "").toLowerCase().includes(q),
+    );
+  }, [plans, searchQ]);
+
+  // ── Mutations ─────────────────────────────────────────────────────────────
+
+  const archiveMutation = useMutation({
     mutationFn: (id: string) => workoutsApi.update(id, { isActive: false }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["ownerWorkouts"] });
@@ -532,16 +568,37 @@ export default function OwnerWorkoutsScreen() {
     onError: (err: Error) => Toast.show({ type: "error", text1: err.message }),
   });
 
-  const confirmDelete = (plan: WorkoutPlan) => {
+  const duplicateMutation = useMutation({
+    mutationFn: (plan: WorkoutPlan) =>
+      workoutsApi.create({
+        gymId: (plan as any).gymId ?? (plan.gym as any)?.id,
+        title: `${plan.title} (Copy)`,
+        goal: plan.goal ?? null,
+        description: plan.description ?? null,
+        difficulty: plan.difficulty,
+        durationWeeks: plan.durationWeeks,
+        isGlobal: plan.isGlobal,
+        planData: (plan as any).planData ?? {},
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["ownerWorkouts"] });
+      Toast.show({ type: "success", text1: "Plan duplicated!" });
+    },
+    onError: (err: Error) => Toast.show({ type: "error", text1: err.message }),
+  });
+
+  const confirmArchive = (plan: WorkoutPlan) => {
     showAlert("Archive Plan", `Archive "${plan.title}"?`, [
       { text: "Cancel", style: "cancel" },
       {
         text: "Archive",
         style: "destructive",
-        onPress: () => deleteMutation.mutate(plan.id),
+        onPress: () => archiveMutation.mutate(plan.id),
       },
     ]);
   };
+
+  // ── Render ────────────────────────────────────────────────────────────────
 
   return (
     <SafeAreaView style={s.safe}>
@@ -562,6 +619,19 @@ export default function OwnerWorkoutsScreen() {
             ) : null
           }
         />
+
+        {/* Search */}
+        <View style={s.searchRow}>
+          <Icon name="magnify" size={18} color={Colors.textMuted} style={s.searchIcon} />
+          <TextInput
+            style={s.searchInput}
+            value={searchQ}
+            onChangeText={setSearchQ}
+            placeholder="Search plans..."
+            placeholderTextColor={Colors.textMuted}
+            clearButtonMode="while-editing"
+          />
+        </View>
 
         {/* Gym filter */}
         {gyms.length > 1 && (
@@ -584,33 +654,34 @@ export default function OwnerWorkoutsScreen() {
       <PlanGate allowed={hasWorkoutPlans} featureLabel="Workout Plans">
         {isLoading ? (
           <View style={{ padding: Spacing.lg }}>
-            <SkeletonGroup
-              variant="card"
-              count={4}
-              itemHeight={100}
-              gap={Spacing.md}
-            />
+            <SkeletonGroup variant="card" count={4} itemHeight={100} gap={Spacing.md} />
           </View>
-        ) : plans.length === 0 ? (
+        ) : filteredPlans.length === 0 ? (
           <EmptyState
             icon="clipboard-list-outline"
-            title="No workout plans"
-            subtitle="Create structured plans for your members"
+            title={searchQ ? "No plans match your search" : "No workout plans"}
+            subtitle={
+              searchQ
+                ? "Try a different keyword"
+                : "Create structured plans for your members"
+            }
             action={
-              <TouchableOpacity
-                style={s.emptyAction}
-                onPress={() =>
-                  (navigation as any).navigate("OwnerAddWorkoutPlan")
-                }
-              >
-                <Icon name="plus" size={16} color="#fff" />
-                <Text style={s.emptyActionText}>Create First Plan</Text>
-              </TouchableOpacity>
+              !searchQ ? (
+                <TouchableOpacity
+                  style={s.emptyAction}
+                  onPress={() =>
+                    (navigation as any).navigate("OwnerAddWorkoutPlan")
+                  }
+                >
+                  <Icon name="plus" size={16} color="#fff" />
+                  <Text style={s.emptyActionText}>Create First Plan</Text>
+                </TouchableOpacity>
+              ) : undefined
             }
           />
         ) : (
           <FlatList<WorkoutPlan>
-            data={plans}
+            data={filteredPlans}
             keyExtractor={(p) => p.id}
             contentContainerStyle={s.list}
             showsVerticalScrollIndicator={false}
@@ -622,106 +693,119 @@ export default function OwnerWorkoutsScreen() {
                 colors={[Colors.primary]}
               />
             }
-            ItemSeparatorComponent={() => (
-              <View style={{ height: Spacing.md }} />
-            )}
-            renderItem={({ item: p }) => (
-              <Card>
-                <View style={s.cardRow}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={s.planTitle}>
-                      {p.title ?? "Untitled Plan"}
-                    </Text>
-                    <Text style={s.planMeta}>
-                      {p.gym?.name} · {p.durationWeeks}w
-                    </Text>
-                    {p.goal ? <Text style={s.planGoal}>{p.goal}</Text> : null}
+            ItemSeparatorComponent={() => <View style={{ height: Spacing.md }} />}
+            renderItem={({ item: p }) => {
+              const { exercises, activeDays } = calcPlanStats(
+                (p as any).planData,
+              );
+              const isTemplate = !!(p as any).isTemplate;
 
-                    {/* Assignment / visibility */}
-                    {p.assignedMember ? (
-                      <View style={s.assignedRow}>
-                        <Icon
-                          name="account-outline"
-                          size={11}
-                          color={Colors.primary}
-                        />
-                        <Text style={s.assignedText}>
-                          {p.assignedMember.profile?.fullName}
-                        </Text>
-                      </View>
-                    ) : p.isGlobal ? (
-                      <View style={s.assignedRow}>
-                        <Icon name="earth" size={11} color={Colors.info} />
-                        <Text style={[s.assignedText, { color: Colors.info }]}>
-                          Global Plan
-                        </Text>
-                      </View>
-                    ) : null}
-
-                    {/* Exercise count if planData exists */}
-                    {(p as any).planData &&
-                      (() => {
-                        const count = Object.values(
-                          (p as any).planData as Record<
-                            string,
-                            Record<string, unknown[]>
-                          >,
-                        ).reduce(
-                          (ws, days) =>
-                            ws +
-                            Object.values(days).reduce(
-                              (ds, exs) => ds + (exs?.length ?? 0),
-                              0,
-                            ),
-                          0,
-                        );
-                        return count > 0 ? (
-                          <Text style={s.exerciseCount}>
-                            {count} exercise{count !== 1 ? "s" : ""} planned
+              return (
+                <TouchableOpacity
+                  activeOpacity={0.85}
+                  onPress={() =>
+                    (navigation as any).navigate("OwnerWorkoutPlanDetail", { plan: p })
+                  }
+                >
+                  <Card>
+                    <View style={s.cardRow}>
+                      <View style={{ flex: 1 }}>
+                        {/* Title + badges */}
+                        <View style={s.titleRow}>
+                          <Text style={s.planTitle} numberOfLines={1}>
+                            {p.title ?? "Untitled Plan"}
                           </Text>
-                        ) : null;
-                      })()}
-                  </View>
+                          {isTemplate && (
+                            <View style={s.templateBadge}>
+                              <Icon name="bookmark-outline" size={10} color={Colors.purple} />
+                              <Text style={s.templateBadgeTxt}>Template</Text>
+                            </View>
+                          )}
+                        </View>
 
-                  <View style={s.cardRight}>
-                    <Badge
-                      label={p.difficulty ?? "BEGINNER"}
-                      variant={
-                        DIFF_VARIANT[p.difficulty ?? "BEGINNER"] ?? "default"
-                      }
-                    />
+                        {/* Gym · duration */}
+                        <Text style={s.planMeta}>
+                          {p.gym?.name} · {p.durationWeeks}w
+                        </Text>
 
-                    <View style={s.actionBtns}>
-                      <TouchableOpacity
-                        style={s.editBtn}
-                        onPress={() =>
-                          (navigation as any).navigate("OwnerAddWorkoutPlan", {
-                            planId: p.id,
-                          })
-                        }
-                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                      >
-                        <Icon
-                          name="pencil-outline"
-                          size={15}
-                          color={Colors.primary}
+                        {p.goal ? <Text style={s.planGoal}>{p.goal}</Text> : null}
+
+                        {/* Assignment / visibility */}
+                        {p.assignedMember ? (
+                          <View style={s.assignedRow}>
+                            <Icon name="account-outline" size={11} color={Colors.primary} />
+                            <Text style={s.assignedText}>
+                              {p.assignedMember.profile?.fullName}
+                            </Text>
+                          </View>
+                        ) : p.isGlobal ? (
+                          <View style={s.assignedRow}>
+                            <Icon name="earth" size={11} color={Colors.info} />
+                            <Text style={[s.assignedText, { color: Colors.info }]}>
+                              Global Plan
+                            </Text>
+                          </View>
+                        ) : null}
+
+                        {/* Stats row */}
+                        {(exercises > 0 || activeDays > 0) && (
+                          <View style={s.statsRow}>
+                            {exercises > 0 && (
+                              <View style={s.stat}>
+                                <Icon name="dumbbell" size={10} color={Colors.textMuted} />
+                                <Text style={s.statTxt}>{exercises} ex</Text>
+                              </View>
+                            )}
+                            {activeDays > 0 && (
+                              <View style={s.stat}>
+                                <Icon name="calendar-check-outline" size={10} color={Colors.textMuted} />
+                                <Text style={s.statTxt}>
+                                  {activeDays} day{activeDays !== 1 ? "s" : ""}
+                                </Text>
+                              </View>
+                            )}
+                          </View>
+                        )}
+                      </View>
+
+                      <View style={s.cardRight}>
+                        <Badge
+                          label={p.difficulty ?? "BEGINNER"}
+                          variant={DIFF_VARIANT[p.difficulty ?? "BEGINNER"] ?? "default"}
                         />
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        onPress={() => confirmDelete(p)}
-                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                      >
-                        <Icon
-                          name="archive-outline"
-                          size={15}
-                          color={Colors.error}
-                        />
-                      </TouchableOpacity>
+
+                        {/* Action buttons — each stops touch from bubbling to card */}
+                        <View
+                          style={s.actionBtns}
+                          onStartShouldSetResponder={() => true}
+                        >
+                          <TouchableOpacity
+                            onPress={() => duplicateMutation.mutate(p)}
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                          >
+                            <Icon name="content-copy" size={15} color={Colors.textMuted} />
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            onPress={() =>
+                              (navigation as any).navigate("OwnerAddWorkoutPlan", { plan: p })
+                            }
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                          >
+                            <Icon name="pencil-outline" size={15} color={Colors.primary} />
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            onPress={() => confirmArchive(p)}
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                          >
+                            <Icon name="archive-outline" size={15} color={Colors.error} />
+                          </TouchableOpacity>
+                        </View>
+                      </View>
                     </View>
-                  </View>
-                </View>
-              </Card>
-            )}
+                  </Card>
+                </TouchableOpacity>
+              );
+            }}
           />
         )}
       </PlanGate>
@@ -735,6 +819,7 @@ const s = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.lg,
     gap: Spacing.md,
+    paddingBottom: Spacing.sm,
   },
   addBtn: {
     width: 38,
@@ -743,6 +828,23 @@ const s = StyleSheet.create({
     backgroundColor: Colors.primary,
     alignItems: "center",
     justifyContent: "center",
+  },
+  searchRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Colors.surfaceRaised,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    paddingHorizontal: Spacing.md,
+    height: 40,
+  },
+  searchIcon: { marginRight: 6 },
+  searchInput: {
+    flex: 1,
+    color: Colors.textPrimary,
+    fontSize: Typography.sm,
+    height: 40,
   },
   filterRow: { flexDirection: "row", gap: Spacing.xs, flexWrap: "wrap" },
   pill: {
@@ -761,28 +863,34 @@ const s = StyleSheet.create({
   pillTextActive: { color: Colors.primary, fontWeight: "700" },
   list: { padding: Spacing.lg, paddingBottom: 32 },
   cardRow: { flexDirection: "row", alignItems: "flex-start", gap: Spacing.md },
+  titleRow: { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" },
   planTitle: {
     color: Colors.textPrimary,
     fontSize: Typography.base,
     fontWeight: "700",
+    flexShrink: 1,
   },
-  planMeta: { color: Colors.textMuted, fontSize: Typography.xs, marginTop: 2 },
-  planGoal: {
-    color: Colors.textSecondary,
-    fontSize: Typography.xs,
-    marginTop: 3,
-  },
-  assignedRow: {
+  templateBadge: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    marginTop: 4,
+    gap: 3,
+    backgroundColor: Colors.purple + "18",
+    borderRadius: Radius.full,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderWidth: 1,
+    borderColor: Colors.purple + "40",
   },
+  templateBadgeTxt: { color: Colors.purple, fontSize: 9, fontWeight: "700" },
+  planMeta: { color: Colors.textMuted, fontSize: Typography.xs, marginTop: 2 },
+  planGoal: { color: Colors.textSecondary, fontSize: Typography.xs, marginTop: 3 },
+  assignedRow: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 4 },
   assignedText: { color: Colors.primary, fontSize: Typography.xs },
-  exerciseCount: { color: Colors.textMuted, fontSize: 10, marginTop: 3 },
+  statsRow: { flexDirection: "row", gap: Spacing.md, marginTop: 5 },
+  stat: { flexDirection: "row", alignItems: "center", gap: 3 },
+  statTxt: { color: Colors.textMuted, fontSize: 10 },
   cardRight: { alignItems: "flex-end", gap: Spacing.sm, flexShrink: 0 },
   actionBtns: { flexDirection: "row", gap: Spacing.md },
-  editBtn: {},
   emptyAction: {
     flexDirection: "row",
     alignItems: "center",
@@ -793,9 +901,5 @@ const s = StyleSheet.create({
     paddingVertical: Spacing.md,
     marginTop: Spacing.sm,
   },
-  emptyActionText: {
-    color: "#fff",
-    fontWeight: "700",
-    fontSize: Typography.sm,
-  },
+  emptyActionText: { color: "#fff", fontWeight: "700", fontSize: Typography.sm },
 });

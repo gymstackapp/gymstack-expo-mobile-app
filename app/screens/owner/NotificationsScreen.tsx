@@ -11,6 +11,7 @@ import {
 import { showAlert } from "@/components/AppAlert";
 import { useSubscription } from "@/hooks/useSubsciption";
 import { Colors, Radius, Spacing, Typography } from "@/theme";
+import { Gym } from "@/types/api";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import React, { useState } from "react";
 import {
@@ -18,7 +19,9 @@ import {
   Modal,
   RefreshControl,
   ScrollView,
+  StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -26,29 +29,89 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 
+// ── Constants ─────────────────────────────────────────────────────────────────
+
+const CATEGORIES = [
+  "General",
+  "Reminder",
+  "Offer",
+  "Holiday",
+  "Diet Plan",
+  "Workout Plan",
+  "Payment",
+];
+
+const CAT_EMOJI: Record<string, string> = {
+  General: "📢",
+  Reminder: "⏰",
+  Offer: "🎁",
+  Holiday: "🏖️",
+  "Diet Plan": "🍎",
+  "Workout Plan": "💪",
+  Payment: "💳",
+};
+
+type BadgeStyle = { bg: string; text: string };
+
+const CAT_BADGE: Record<string, BadgeStyle> = {
+  General: { bg: "rgba(59,130,246,0.15)", text: "#60a5fa" },
+  Reminder: { bg: Colors.warningFaded, text: Colors.warning },
+  Offer: { bg: Colors.successFaded, text: Colors.success },
+  Holiday: { bg: Colors.purpleFaded, text: Colors.purple },
+  "Diet Plan": { bg: Colors.primaryFaded, text: Colors.primary },
+  "Workout Plan": { bg: "rgba(6,182,212,0.15)", text: "#22d3ee" },
+  Payment: { bg: "rgba(236,72,153,0.15)", text: "#f472b6" },
+};
+
+const ROLE_BADGE: Record<string, BadgeStyle> = {
+  MEMBER: { bg: "rgba(59,130,246,0.15)", text: "#60a5fa" },
+  TRAINER: { bg: Colors.purpleFaded, text: Colors.purple },
+  OWNER: { bg: Colors.primaryFaded, text: Colors.primary },
+};
+
 const TARGET_ROLES = [
   { label: "Everyone", value: "" },
   { label: "Members only", value: "MEMBER" },
   { label: "Trainers only", value: "TRAINER" },
 ];
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function parseCategory(body: string): string {
+  const match = body.match(/^\[(.+?)\]/);
+  return match ? match[1] : "General";
+}
+
+function parseBody(body: string): string {
+  return body.replace(/^\[.+?\] /, "");
+}
+
+// ── Screen ────────────────────────────────────────────────────────────────────
+
 export default function OwnerNotificationsScreen() {
   const qc = useQueryClient();
   const { canSendNotification, usage, limits } = useSubscription();
+
   const [gymId, setGymId] = useState("");
   const [showAdd, setShowAdd] = useState(false);
+  const [search, setSearch] = useState("");
+  const [activeFilter, setActiveFilter] = useState("All");
+
   const [form, setForm] = useState({
     gymId: "",
     title: "",
     body: "",
     targetRole: "",
+    category: "General",
+    expiresAt: "",
   });
 
   const { data: gyms = [] } = useQuery({
     queryKey: ["ownerGyms"],
-    queryFn: gymsApi.list,
+    queryFn: () => gymsApi.list() as Promise<Gym[]>,
     staleTime: 5 * 60_000,
   });
+
   const {
     data: announcements = [],
     isLoading,
@@ -63,13 +126,22 @@ export default function OwnerNotificationsScreen() {
   const sendMutation = useMutation({
     mutationFn: () =>
       notificationsApi.send({
-        ...form,
-        gymId: form.gymId || gymId || (gyms as any[])[0]?.id,
+        gymId: form.gymId || gymId || (gyms as Gym[])[0]?.id,
+        title: form.title,
+        body: `[${form.category}] ${form.body}`,
+        targetRole: form.targetRole || undefined,
       }),
     onSuccess: (data: any) => {
       qc.invalidateQueries({ queryKey: ["ownerNotifications"] });
       setShowAdd(false);
-      setForm((f) => ({ ...f, title: "", body: "", targetRole: "" }));
+      setForm((f) => ({
+        ...f,
+        title: "",
+        body: "",
+        targetRole: "",
+        category: "General",
+        expiresAt: "",
+      }));
       Toast.show({
         type: "success",
         text1: `Sent to ${data.recipientCount ?? 0} recipients`,
@@ -90,13 +162,25 @@ export default function OwnerNotificationsScreen() {
   const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
 
   const monthlyLeft =
-    limits?.maxNotificationsPerMonth !== null &&
-    limits?.maxNotificationsPerMonth !== undefined
+    limits?.maxNotificationsPerMonth != null
       ? limits.maxNotificationsPerMonth - (usage?.notificationsThisMonth ?? 0)
       : null;
 
+  // Filter list by category + gym + search
+  const filtered = (announcements as any[]).filter((item) => {
+    const cat = parseCategory(item.body);
+    const matchCat = activeFilter === "All" || cat === activeFilter;
+    const matchGym = !gymId || item.gym?.id === gymId;
+    const matchSearch =
+      !search ||
+      item.title.toLowerCase().includes(search.toLowerCase()) ||
+      item.body.toLowerCase().includes(search.toLowerCase());
+    return matchCat && matchGym && matchSearch;
+  });
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: Colors.bg }}>
+      {/* ── Top section ── */}
       <View
         style={{
           paddingHorizontal: Spacing.lg,
@@ -111,32 +195,18 @@ export default function OwnerNotificationsScreen() {
               ? `${monthlyLeft} remaining this month`
               : undefined
           }
-          back
+          menu
           right={
             canSendNotification ? (
               <TouchableOpacity
-                style={{
-                  width: 38,
-                  height: 38,
-                  borderRadius: Radius.lg,
-                  backgroundColor: Colors.primary,
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
+                style={styles.sendBtn}
                 onPress={() => setShowAdd(true)}
               >
                 <Icon name="send-outline" size={18} color="#fff" />
               </TouchableOpacity>
             ) : (
               <TouchableOpacity
-                style={{
-                  backgroundColor: Colors.warningFaded,
-                  borderRadius: Radius.full,
-                  paddingHorizontal: 10,
-                  paddingVertical: 5,
-                  borderWidth: 1,
-                  borderColor: Colors.warning + "40",
-                }}
+                style={styles.limitBadge}
                 onPress={() =>
                   Toast.show({
                     type: "error",
@@ -144,42 +214,33 @@ export default function OwnerNotificationsScreen() {
                   })
                 }
               >
-                <Text
-                  style={{
-                    color: Colors.warning,
-                    fontSize: Typography.xs,
-                    fontWeight: "700",
-                  }}
-                >
-                  Limit reached
-                </Text>
+                <Text style={styles.limitBadgeText}>Limit reached</Text>
               </TouchableOpacity>
             )
           }
         />
-        {gyms.length > 1 && (
+
+        {/* Gym filter pills (only when multiple gyms) */}
+        {(gyms as Gym[]).length > 1 && (
           <View
             style={{ flexDirection: "row", gap: Spacing.xs, flexWrap: "wrap" }}
           >
-            {[{ id: "", name: "All" }, ...(gyms as any[])].map((g: any) => (
+            {[{ id: "", name: "All" }, ...(gyms as Gym[])].map((g) => (
               <TouchableOpacity
                 key={g.id}
                 onPress={() => setGymId(g.id)}
-                style={{
-                  paddingHorizontal: 12,
-                  paddingVertical: 6,
-                  borderRadius: Radius.full,
-                  backgroundColor:
-                    gymId === g.id ? Colors.primaryFaded : Colors.surfaceRaised,
-                  borderWidth: 1,
-                  borderColor: gymId === g.id ? Colors.primary : Colors.border,
-                }}
+                style={[
+                  styles.pill,
+                  gymId === g.id ? styles.pillActive : styles.pillInactive,
+                ]}
               >
                 <Text
-                  style={{
-                    color: gymId === g.id ? Colors.primary : Colors.textMuted,
-                    fontSize: Typography.xs,
-                  }}
+                  style={[
+                    styles.pillText,
+                    {
+                      color: gymId === g.id ? Colors.primary : Colors.textMuted,
+                    },
+                  ]}
                 >
                   {g.name}
                 </Text>
@@ -187,21 +248,85 @@ export default function OwnerNotificationsScreen() {
             ))}
           </View>
         )}
+
+        {/* Search box */}
+        <View style={styles.searchBox}>
+          <Icon name="magnify" size={18} color={Colors.textMuted} />
+          <TextInput
+            value={search}
+            onChangeText={setSearch}
+            placeholder="Search..."
+            placeholderTextColor={Colors.textMuted}
+            style={styles.searchInput}
+          />
+          {search ? (
+            <TouchableOpacity onPress={() => setSearch("")}>
+              <Icon name="close-circle" size={16} color={Colors.textMuted} />
+            </TouchableOpacity>
+          ) : null}
+        </View>
+
+        {/* Category filter tabs */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{
+            gap: Spacing.xs,
+            paddingRight: Spacing.xs,
+            marginBottom: Spacing.md,
+          }}
+        >
+          {["All", ...CATEGORIES].map((cat) => (
+            <TouchableOpacity
+              key={cat}
+              onPress={() => setActiveFilter(cat)}
+              style={[
+                styles.filterTab,
+                activeFilter === cat
+                  ? styles.filterTabActive
+                  : styles.filterTabInactive,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.filterTabText,
+                  {
+                    color:
+                      activeFilter === cat
+                        ? Colors.textPrimary
+                        : Colors.textMuted,
+                  },
+                ]}
+              >
+                {cat}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
       </View>
 
+      {/* ── List ── */}
       {isLoading ? (
         <View style={{ padding: Spacing.lg }}>
           <SkeletonGroup count={4} itemHeight={70} gap={Spacing.sm} />
         </View>
-      ) : (announcements as any[]).length === 0 ? (
+      ) : filtered.length === 0 ? (
         <EmptyState
           icon="bell-outline"
-          title="No notifications sent"
-          subtitle="Send your first announcement to members"
+          title={
+            activeFilter === "All"
+              ? "No notifications sent"
+              : `No ${activeFilter} notifications`
+          }
+          subtitle={
+            activeFilter === "All"
+              ? "Send your first announcement to members"
+              : "Try a different category"
+          }
         />
       ) : (
         <FlatList
-          data={announcements as any[]}
+          data={filtered}
           keyExtractor={(a) => a.id}
           contentContainerStyle={{ padding: Spacing.lg, paddingBottom: 32 }}
           showsVerticalScrollIndicator={false}
@@ -214,74 +339,120 @@ export default function OwnerNotificationsScreen() {
             />
           }
           ItemSeparatorComponent={() => <View style={{ height: Spacing.sm }} />}
-          renderItem={({ item: a }) => (
-            <Card>
-              <View
-                style={{
-                  flexDirection: "row",
-                  alignItems: "flex-start",
-                  gap: Spacing.md,
-                }}
-              >
-                <View style={{ flex: 1 }}>
-                  <Text
-                    style={{
-                      color: Colors.textPrimary,
-                      fontSize: Typography.sm,
-                      fontWeight: "700",
-                    }}
-                  >
-                    {a.title}
-                  </Text>
-                  <Text
-                    style={{
-                      color: Colors.textSecondary,
-                      fontSize: Typography.xs,
-                      marginTop: 2,
-                    }}
-                    numberOfLines={2}
-                  >
-                    {a.body}
-                  </Text>
-                  <Text
-                    style={{
-                      color: Colors.textMuted,
-                      fontSize: 10,
-                      marginTop: 4,
-                    }}
-                  >
-                    {a.gym?.name} · {a.targetRole ?? "Everyone"} ·{" "}
-                    {new Date(a.createdAt).toLocaleDateString("en-IN", {
-                      day: "numeric",
-                      month: "short",
-                    })}
-                  </Text>
-                </View>
-                <TouchableOpacity
-                  onPress={() =>
-                    showAlert("Delete", "Delete this announcement?", [
-                      { text: "Cancel", style: "cancel" },
-                      {
-                        text: "Delete",
-                        style: "destructive",
-                        onPress: () => deleteMutation.mutate(a.id),
-                      },
-                    ])
-                  }
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          renderItem={({ item: a }) => {
+            const cat = parseCategory(a.body);
+            const bodyText = parseBody(a.body);
+            const emoji = CAT_EMOJI[cat] ?? "📢";
+            const catStyle = CAT_BADGE[cat] ?? {
+              bg: Colors.surfaceRaised,
+              text: Colors.textMuted,
+            };
+            const roleStyle = a.targetRole ? ROLE_BADGE[a.targetRole] : null;
+            return (
+              <Card>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "flex-start",
+                    gap: Spacing.md,
+                  }}
                 >
-                  <Icon
-                    name="trash-can-outline"
-                    size={16}
-                    color={Colors.error}
-                  />
-                </TouchableOpacity>
-              </View>
-            </Card>
-          )}
+                  {/* Emoji icon */}
+                  <View style={styles.emojiIcon}>
+                    <Text style={{ fontSize: 16 }}>{emoji}</Text>
+                  </View>
+
+                  {/* Content */}
+                  <View style={{ flex: 1 }}>
+                    {/* Title + badges */}
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        flexWrap: "wrap",
+                        alignItems: "center",
+                        gap: 6,
+                        marginBottom: 3,
+                      }}
+                    >
+                      <Text style={styles.itemTitle}>{a.title}</Text>
+                      <View
+                        style={[styles.badge, { backgroundColor: catStyle.bg }]}
+                      >
+                        <Text
+                          style={[styles.badgeText, { color: catStyle.text }]}
+                        >
+                          {cat}
+                        </Text>
+                      </View>
+                      {a.gym?.name && (
+                        <View style={styles.badgeGray}>
+                          <Text style={styles.badgeGrayText}>{a.gym.name}</Text>
+                        </View>
+                      )}
+                      {roleStyle && (
+                        <View
+                          style={[
+                            styles.badge,
+                            { backgroundColor: roleStyle.bg },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.badgeText,
+                              { color: roleStyle.text },
+                            ]}
+                          >
+                            {a.targetRole.toLowerCase()}s
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+
+                    <Text style={styles.itemBody} numberOfLines={2}>
+                      {bodyText}
+                    </Text>
+
+                    <Text style={styles.itemMeta}>
+                      {new Date(a.createdAt).toLocaleString("en-IN", {
+                        day: "numeric",
+                        month: "short",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                      {a.expiresAt
+                        ? ` · Expires ${new Date(a.expiresAt).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}`
+                        : ""}
+                    </Text>
+                  </View>
+
+                  {/* Delete */}
+                  <TouchableOpacity
+                    onPress={() =>
+                      showAlert("Delete", "Delete this announcement?", [
+                        { text: "Cancel", style: "cancel" },
+                        {
+                          text: "Delete",
+                          style: "destructive",
+                          onPress: () => deleteMutation.mutate(a.id),
+                        },
+                      ])
+                    }
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <Icon
+                      name="trash-can-outline"
+                      size={16}
+                      color={Colors.error}
+                    />
+                  </TouchableOpacity>
+                </View>
+              </Card>
+            );
+          }}
         />
       )}
 
+      {/* ── Send Notification Modal ── */}
       <Modal
         visible={showAdd}
         animationType="slide"
@@ -297,39 +468,18 @@ export default function OwnerNotificationsScreen() {
             }}
             keyboardShouldPersistTaps="handled"
           >
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                justifyContent: "space-between",
-                marginBottom: Spacing.sm,
-              }}
-            >
-              <Text
-                style={{
-                  color: Colors.textPrimary,
-                  fontSize: Typography.xl,
-                  fontWeight: "700",
-                }}
-              >
-                Send Notification
-              </Text>
+            {/* Header */}
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Send Notification</Text>
               <TouchableOpacity onPress={() => setShowAdd(false)}>
                 <Icon name="close" size={22} color={Colors.textMuted} />
               </TouchableOpacity>
             </View>
-            {gyms.length > 1 && (
+
+            {/* Gym selector (multi-gym only) */}
+            {(gyms as Gym[]).length > 1 && (
               <View>
-                <Text
-                  style={{
-                    color: Colors.textMuted,
-                    fontSize: Typography.xs,
-                    fontWeight: "500",
-                    marginBottom: 8,
-                  }}
-                >
-                  Gym *
-                </Text>
+                <Text style={styles.fieldLabel}>Gym *</Text>
                 <View
                   style={{
                     flexDirection: "row",
@@ -337,31 +487,27 @@ export default function OwnerNotificationsScreen() {
                     gap: Spacing.xs,
                   }}
                 >
-                  {(gyms as any[]).map((g: any) => (
+                  {(gyms as Gym[]).map((g) => (
                     <TouchableOpacity
                       key={g.id}
                       onPress={() => set("gymId", g.id)}
-                      style={{
-                        paddingHorizontal: 12,
-                        paddingVertical: 6,
-                        borderRadius: Radius.full,
-                        backgroundColor:
-                          form.gymId === g.id
-                            ? Colors.primaryFaded
-                            : Colors.surfaceRaised,
-                        borderWidth: 1,
-                        borderColor:
-                          form.gymId === g.id ? Colors.primary : Colors.border,
-                      }}
+                      style={[
+                        styles.pill,
+                        form.gymId === g.id
+                          ? styles.pillActive
+                          : styles.pillInactive,
+                      ]}
                     >
                       <Text
-                        style={{
-                          color:
-                            form.gymId === g.id
-                              ? Colors.primary
-                              : Colors.textMuted,
-                          fontSize: Typography.xs,
-                        }}
+                        style={[
+                          styles.pillText,
+                          {
+                            color:
+                              form.gymId === g.id
+                                ? Colors.primary
+                                : Colors.textMuted,
+                          },
+                        ]}
                       >
                         {g.name}
                       </Text>
@@ -370,31 +516,69 @@ export default function OwnerNotificationsScreen() {
                 </View>
               </View>
             )}
+
+            {/* Category selector */}
+            <View>
+              <Text style={styles.fieldLabel}>Category</Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={{
+                  gap: Spacing.xs,
+                  paddingRight: Spacing.xs,
+                }}
+              >
+                {CATEGORIES.map((cat) => (
+                  <TouchableOpacity
+                    key={cat}
+                    onPress={() => set("category", cat)}
+                    style={[
+                      styles.pill,
+                      form.category === cat
+                        ? styles.pillActive
+                        : styles.pillInactive,
+                    ]}
+                  >
+                    <Text style={{ fontSize: 13, marginRight: 4 }}>
+                      {CAT_EMOJI[cat]}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.pillText,
+                        {
+                          color:
+                            form.category === cat
+                              ? Colors.primary
+                              : Colors.textMuted,
+                        },
+                      ]}
+                    >
+                      {cat}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+
             <Input
               label="Title *"
               value={form.title}
               onChangeText={(v) => set("title", v)}
-              placeholder="Notification title"
+              placeholder="e.g. Gym closed on Sunday"
             />
+
             <Input
               label="Message *"
               value={form.body}
               onChangeText={(v) => set("body", v)}
-              placeholder="Your message here..."
+              placeholder="Write your notification message here..."
               multiline
               numberOfLines={4}
             />
+
+            {/* Target audience */}
             <View>
-              <Text
-                style={{
-                  color: Colors.textMuted,
-                  fontSize: Typography.xs,
-                  fontWeight: "500",
-                  marginBottom: 8,
-                }}
-              >
-                Send To
-              </Text>
+              <Text style={styles.fieldLabel}>Send To</Text>
               <View style={{ gap: Spacing.xs }}>
                 {TARGET_ROLES.map((r) => (
                   <TouchableOpacity
@@ -432,6 +616,7 @@ export default function OwnerNotificationsScreen() {
                 ))}
               </View>
             </View>
+
             <Button
               label="Send Notification"
               onPress={() => {
@@ -452,3 +637,141 @@ export default function OwnerNotificationsScreen() {
     </SafeAreaView>
   );
 }
+
+// ── Styles ────────────────────────────────────────────────────────────────────
+
+const styles = StyleSheet.create({
+  sendBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: Radius.lg,
+    backgroundColor: Colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  limitBadge: {
+    backgroundColor: Colors.warningFaded,
+    borderRadius: Radius.full,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderWidth: 1,
+    borderColor: Colors.warning + "40",
+  },
+  limitBadgeText: {
+    color: Colors.warning,
+    fontSize: Typography.xs,
+    fontWeight: "700",
+  },
+  pill: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: Radius.full,
+    borderWidth: 1,
+  },
+  pillActive: {
+    backgroundColor: Colors.primaryFaded,
+    borderColor: Colors.primary,
+  },
+  pillInactive: {
+    backgroundColor: Colors.surfaceRaised,
+    borderColor: Colors.border,
+  },
+  pillText: {
+    fontSize: Typography.xs,
+  },
+  searchBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    backgroundColor: Colors.surfaceRaised,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    paddingHorizontal: Spacing.md,
+    height: 44,
+  },
+  searchInput: {
+    flex: 1,
+    color: Colors.textPrimary,
+    fontSize: Typography.sm,
+    paddingVertical: 0,
+  },
+  filterTab: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: Radius.lg,
+  },
+  filterTabActive: {
+    backgroundColor: Colors.surfaceRaised,
+  },
+  filterTabInactive: {
+    backgroundColor: "transparent",
+  },
+  filterTabText: {
+    fontSize: Typography.xs,
+    fontWeight: "500",
+  },
+  emojiIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: Colors.surfaceRaised,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 2,
+  },
+  itemTitle: {
+    color: Colors.textPrimary,
+    fontSize: Typography.sm,
+    fontWeight: "700",
+  },
+  itemBody: {
+    color: Colors.textSecondary,
+    fontSize: Typography.xs,
+    marginTop: 2,
+    lineHeight: 18,
+  },
+  itemMeta: {
+    color: Colors.textMuted,
+    fontSize: 10,
+    marginTop: 4,
+  },
+  badge: {
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: Radius.full,
+  },
+  badgeText: {
+    fontSize: 10,
+    fontWeight: "600",
+  },
+  badgeGray: {
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: Radius.full,
+    backgroundColor: Colors.surfaceRaised,
+  },
+  badgeGrayText: {
+    fontSize: 10,
+    color: Colors.textMuted,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: Spacing.sm,
+  },
+  modalTitle: {
+    color: Colors.textPrimary,
+    fontSize: Typography.xl,
+    fontWeight: "700",
+  },
+  fieldLabel: {
+    color: Colors.textMuted,
+    fontSize: Typography.xs,
+    fontWeight: "500",
+    marginBottom: 8,
+  },
+});

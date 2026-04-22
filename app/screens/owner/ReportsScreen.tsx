@@ -1007,7 +1007,7 @@ export default function OwnerReportsScreen() {
       <View
         style={{ paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm }}
       >
-        <Header title="Reports" subtitle="Analytics & performance" back />
+        <Header title="Reports" subtitle="Analytics & performance" menu />
       </View>
       <PlanGate
         allowed={hasFullReports}
