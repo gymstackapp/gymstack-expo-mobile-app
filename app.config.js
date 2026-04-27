@@ -42,6 +42,14 @@ export default {
     plugins: [
       "expo-router",
       [
+        "@react-native-google-signin/google-signin",
+        {
+          iosUrlScheme:
+            process.env.GOOGLE_IOS_URL_SCHEME ||
+            "com.googleusercontent.apps.1014056970620-psqmnsc3k1mnnrh91srda3cl5ogucjop",
+        },
+      ],
+      [
         "expo-splash-screen",
         {
           image: "./assets/images/logo_bg2.png",
@@ -73,6 +81,7 @@ export default {
         projectId: "42e35fe7-f005-4ac0-80e3-3d326198c5d2",
       },
       apiUrl: "http://192.168.1.10:3000",
+      googleWebClientId: process.env.GOOGLE_WEB_CLIENT_ID,
     },
   },
 };

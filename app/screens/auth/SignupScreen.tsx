@@ -361,6 +361,7 @@ export function SignupScreen() {
     if (form.mobileNumber.replace(/\D/g, "").length < 10)
       return "Enter a valid 10-digit mobile number";
     if (!form.city.trim()) return "City is required";
+    if (!form.gender.trim()) return "Gender is required";
     return null;
   };
 
@@ -587,30 +588,9 @@ export function SignupScreen() {
             <Input
               label="Full Name *"
               value={form.fullName}
-              onChangeText={setF("fullName")}
+              onChangeText={(v) => setF("fullName")(v.replace(/[0-9]/g, ""))}
               placeholder="Rahul Singh"
               autoCapitalize="words"
-            />
-            <Input
-              label="Email *"
-              value={form.email}
-              onChangeText={(v) => {
-                setF("email")(v);
-                checkEmailUnique(v);
-              }}
-              placeholder="you@example.com"
-              keyboardType="email-address"
-              autoCapitalize="none"
-              error={emailError}
-              success={emailOk && !emailError ? "Available" : undefined}
-              checking={emailChecking}
-            />
-            <Input
-              label="Password *"
-              value={form.password}
-              onChangeText={setF("password")}
-              placeholder="Min 8 characters"
-              password
             />
             <Input
               label="Mobile Number *"
@@ -628,11 +608,24 @@ export function SignupScreen() {
             <Input
               label="City *"
               value={form.city}
-              onChangeText={setF("city")}
+              onChangeText={(v) => setF("city")(v.replace(/[0-9]/g, ""))}
               placeholder="Mumbai"
               autoCapitalize="words"
             />
-
+            <Input
+              label="Email *"
+              value={form.email}
+              onChangeText={(v) => {
+                setF("email")(v);
+                checkEmailUnique(v);
+              }}
+              placeholder="you@example.com"
+              keyboardType="email-address"
+              autoCapitalize="none"
+              error={emailError}
+              success={emailOk && !emailError ? "Available" : undefined}
+              checking={emailChecking}
+            />
             <View>
               {/* <Text style={s.fieldLabel}>Gender (optional)</Text>
               <View style={s.genderRow}>
@@ -665,6 +658,14 @@ export function SignupScreen() {
                 leftIcon="gender-male-female"
               />
             </View>
+
+            <Input
+              label="Password *"
+              value={form.password}
+              onChangeText={setF("password")}
+              placeholder="Min 8 characters"
+              password
+            />
 
             {/* <Input
               label="Referral Code (optional)"

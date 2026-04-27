@@ -54,6 +54,7 @@ interface AuthState {
 
   hydrate: () => Promise<void>;
   login: (email: string, password: string) => Promise<{ error?: string }>;
+  googleSignIn: (idToken: string) => Promise<{ error?: string }>;
   logout: () => Promise<void>;
   refresh: () => Promise<boolean>;
   updateProfile: (partial: Partial<AuthProfile>) => void;
@@ -62,6 +63,10 @@ interface AuthState {
   loginAndSetRole: (
     email: string,
     password: string,
+    role: "owner" | "trainer" | "member",
+  ) => Promise<{ error?: string }>;
+  googleSignInAndSetRole: (
+    idToken: string,
     role: "owner" | "trainer" | "member",
   ) => Promise<{ error?: string }>;
 }
@@ -297,6 +302,171 @@ export const useAuthStore = create<AuthState>()(
 
         // For owners (non-invited): check subscription in background
         if (data.profile?.role === "owner" && !isInvited) {
+          fetchOwnerHasActivePlan(tokens.accessToken).then((active) => {
+            set((s) => {
+              s.hasActivePlan = active;
+              s.hasFetchedPlan = true;
+            });
+          });
+        } else {
+          set((s) => {
+            s.hasFetchedPlan = true;
+          });
+        }
+
+        return {};
+      } catch {
+        set((s) => {
+          s.isLoading = false;
+          s.isAuthenticating = false;
+        });
+        return { error: "Network error. Please check your connection." };
+      }
+    },
+
+    // ── Google Sign-In ───────────────────────────────────────────────────────
+    googleSignIn: async (idToken) => {
+      set((s) => {
+        s.isLoading = true;
+        s.isAuthenticating = true;
+      });
+      try {
+        const res = await apiPost("/api/auth/mobile-google", { idToken });
+        const data = await res.json();
+
+        if (!res.ok) {
+          set((s) => {
+            s.isLoading = false;
+            s.isAuthenticating = false;
+          });
+          return { error: data.error ?? "Google sign-in failed" };
+        }
+
+        const tokens: StoredTokens = {
+          accessToken: data.accessToken,
+          refreshToken: data.refreshToken,
+          accessExpiresAt: Date.now() + data.expiresIn * 1000,
+        };
+
+        const isInvited = data.profile?.status === "INVITED";
+
+        await saveTokens(tokens);
+        await saveProfile(data.profile);
+        set((s) => {
+          s.tokens = tokens;
+          s.profile = data.profile;
+          s.invitedProfile = isInvited;
+          s.isLoading = false;
+          s.isAuthenticating = false;
+        });
+
+        if (data.profile?.role === "owner" && !isInvited) {
+          fetchOwnerHasActivePlan(tokens.accessToken).then((active) => {
+            set((s) => {
+              s.hasActivePlan = active;
+              s.hasFetchedPlan = true;
+            });
+          });
+        } else {
+          set((s) => {
+            s.hasFetchedPlan = true;
+          });
+        }
+
+        return {};
+      } catch {
+        set((s) => {
+          s.isLoading = false;
+          s.isAuthenticating = false;
+        });
+        return { error: "Network error. Please check your connection." };
+      }
+    },
+
+    // ── Google Sign-In + set role (atomic) ────────────────────────────────────
+    googleSignInAndSetRole: async (idToken, role) => {
+      set((s) => {
+        s.isLoading = true;
+        s.isAuthenticating = true;
+      });
+      try {
+        // Step 1: Google auth → get tokens
+        const res = await apiPost("/api/auth/mobile-google", { idToken });
+        const data = await res.json();
+        if (!res.ok) {
+          set((s) => {
+            s.isLoading = false;
+            s.isAuthenticating = false;
+          });
+          return { error: data.error ?? "Google sign-in failed" };
+        }
+
+        const tokens: StoredTokens = {
+          accessToken: data.accessToken,
+          refreshToken: data.refreshToken,
+          accessExpiresAt: Date.now() + data.expiresIn * 1000,
+        };
+        await saveTokens(tokens);
+
+        // Step 2: Set role
+        const roleRes = await fetch(`${API_BASE}/api/profile/set-role`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${tokens.accessToken}`,
+          },
+          body: JSON.stringify({ role }),
+        });
+        if (!roleRes.ok) {
+          const roleData = await roleRes.json().catch(() => ({}));
+          const fallbackProfile = await fetchProfile(tokens.accessToken);
+          if (fallbackProfile) await saveProfile(fallbackProfile);
+          set((s) => {
+            s.tokens = tokens;
+            s.profile = fallbackProfile;
+            s.invitedProfile = fallbackProfile?.status === "INVITED";
+            s.isLoading = false;
+            s.isAuthenticating = false;
+            s.hasFetchedPlan = true;
+          });
+          return {
+            error:
+              (roleData as any).error ??
+              "Failed to set role. Please pick your role manually.",
+          };
+        }
+
+        // Step 3: Fetch fresh profile
+        const freshProfile = await fetchProfile(tokens.accessToken);
+        if (!freshProfile) {
+          const minProfile: AuthProfile = {
+            ...data.profile,
+            role,
+            status: "ACTIVE",
+          };
+          await saveProfile(minProfile);
+          set((s) => {
+            s.tokens = tokens;
+            s.profile = minProfile;
+            s.invitedProfile = false;
+            s.isLoading = false;
+            s.isAuthenticating = false;
+            s.hasFetchedPlan = true;
+          });
+          return {};
+        }
+
+        const isInvited = freshProfile.status === "INVITED";
+        await saveProfile(freshProfile);
+        set((s) => {
+          s.tokens = tokens;
+          s.profile = freshProfile;
+          s.invitedProfile = isInvited;
+          s.isLoading = false;
+          s.isAuthenticating = false;
+        });
+
+        if (freshProfile.role === "owner" && !isInvited) {
           fetchOwnerHasActivePlan(tokens.accessToken).then((active) => {
             set((s) => {
               s.hasActivePlan = active;
