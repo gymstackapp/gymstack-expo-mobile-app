@@ -9,10 +9,12 @@ import {
   EmptyState,
   Header,
   Input,
+  PlanGate,
   SkeletonGroup,
   StatCard,
 } from "@/components";
 import { showAlert } from "@/components/AppAlert";
+import { useSubscription } from "@/hooks/useSubsciption";
 import { Colors, Radius, Spacing, Typography } from "@/theme";
 import type { Gym, GymMemberListItem } from "@/types/api";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -392,6 +394,7 @@ function LockerCard({
 
 export default function OwnerLockersScreen() {
   const qc = useQueryClient();
+  const { hasLockers } = useSubscription();
 
   // ── State ──────────────────────────────────────────────────────────────────
   const [gymId, setGymId] = useState("");
@@ -426,7 +429,13 @@ export default function OwnerLockersScreen() {
   const [assignForm, setAssignForm] = useState(emptyAssign);
 
   // Bulk add modal
-  const emptyBulk = { prefix: "", from: "1", to: "10", floor: "", monthlyFee: "" };
+  const emptyBulk = {
+    prefix: "",
+    from: "1",
+    to: "10",
+    floor: "",
+    monthlyFee: "",
+  };
   const [showBulk, setShowBulk] = useState(false);
   const [bulkForm, setBulkForm] = useState(emptyBulk);
 
@@ -551,7 +560,9 @@ export default function OwnerLockersScreen() {
         from: parseInt(bulkForm.from) || 1,
         to: parseInt(bulkForm.to) || 10,
         floor: bulkForm.floor || null,
-        monthlyFee: bulkForm.monthlyFee ? parseFloat(bulkForm.monthlyFee) : null,
+        monthlyFee: bulkForm.monthlyFee
+          ? parseFloat(bulkForm.monthlyFee)
+          : null,
       }),
     onSuccess: (d: any) => {
       invalidate();
@@ -752,7 +763,11 @@ export default function OwnerLockersScreen() {
                 style={s.bulkBtn}
                 onPress={() => setShowBulk(true)}
               >
-                <Icon name="layers-plus" size={15} color={Colors.textSecondary} />
+                <Icon
+                  name="layers-plus"
+                  size={15}
+                  color={Colors.textSecondary}
+                />
                 <Text style={s.bulkBtnText}>Bulk Add</Text>
               </TouchableOpacity>
             )}
@@ -801,229 +816,143 @@ export default function OwnerLockersScreen() {
         </ScrollView>
       </View>
 
-      {/* ── Content ──────────────────────────────────────────────────────── */}
-      {!gymId ? (
-        <EmptyState
-          icon="lock-outline"
-          title="No gym selected"
-          subtitle="Select a gym above to manage lockers"
-        />
-      ) : isLoading ? (
-        <View style={{ padding: Spacing.lg }}>
-          <SkeletonGroup
-            variant="statGrid"
-            count={6}
-            itemHeight={110}
-            gap={Spacing.sm}
+      <PlanGate allowed={hasLockers} featureLabel="Locker Management">
+        {/* ── Content ──────────────────────────────────────────────────────── */}
+        {!gymId ? (
+          <EmptyState
+            icon="lock-outline"
+            title="No gym selected"
+            subtitle="Select a gym above to manage lockers"
           />
-        </View>
-      ) : (
-        <FlatList<Locker>
-          data={filtered}
-          keyExtractor={(l) => l.id}
-          numColumns={2}
-          contentContainerStyle={s.grid}
-          columnWrapperStyle={s.columnWrapper}
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl
-              refreshing={isRefetching}
-              onRefresh={refetch}
-              tintColor={Colors.primary}
-              colors={[Colors.primary]}
+        ) : isLoading ? (
+          <View style={{ padding: Spacing.lg }}>
+            <SkeletonGroup
+              variant="statGrid"
+              count={6}
+              itemHeight={110}
+              gap={Spacing.sm}
             />
-          }
-          ListHeaderComponent={
-            <>
-              {/* Search */}
-              <Input
-                value={search}
-                onChangeText={setSearch}
-                placeholder="Search locker or member…"
-                leftIcon="magnify"
+          </View>
+        ) : (
+          <FlatList<Locker>
+            data={filtered}
+            keyExtractor={(l) => l.id}
+            numColumns={2}
+            contentContainerStyle={s.grid}
+            columnWrapperStyle={s.columnWrapper}
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl
+                refreshing={isRefetching}
+                onRefresh={refetch}
+                tintColor={Colors.primary}
+                colors={[Colors.primary]}
               />
+            }
+            ListHeaderComponent={
+              <>
+                {/* Search */}
+                <Input
+                  value={search}
+                  onChangeText={setSearch}
+                  placeholder="Search locker or member…"
+                  leftIcon="magnify"
+                />
 
-              {/* Stats row */}
-              {lockers.length > 0 && (
-                <View style={s.statsGrid}>
-                  <StatCard
-                    icon="lock-outline"
-                    label="Total"
-                    value={stats.total}
-                    color={Colors.textPrimary}
-                    bg={Colors.surfaceRaised}
-                    style={{ flex: 1 }}
-                  />
-                  <StatCard
-                    icon="check-circle-outline"
-                    label="Available"
-                    value={stats.available}
-                    color={Colors.success}
-                    bg={Colors.successFaded}
-                    style={{ flex: 1 }}
-                  />
-                  <StatCard
-                    icon="key-outline"
-                    label="Assigned"
-                    value={stats.assigned}
-                    color={Colors.info}
-                    bg={Colors.infoFaded}
-                    style={{ flex: 1 }}
-                  />
-                  <StatCard
-                    icon="wrench-outline"
-                    label="Maint."
-                    value={stats.maintenance}
-                    color={Colors.warning}
-                    bg={Colors.warningFaded}
-                    style={{ flex: 1 }}
-                  />
-                  <StatCard
-                    icon="clock-outline"
-                    label="Reserved"
-                    value={stats.reserved}
-                    color={Colors.purple}
-                    bg={Colors.purpleFaded}
-                    style={{ flex: 1 }}
-                  />
-                </View>
-              )}
-            </>
-          }
-          ListEmptyComponent={
-            <EmptyState
-              icon="lock-outline"
-              title="No lockers found"
-              subtitle={
-                search
-                  ? "No lockers match your search"
-                  : statusFilter
-                    ? `No ${statusFilter.toLowerCase()} lockers`
-                    : "Add lockers to manage them here"
-              }
-              action={
-                !search && !statusFilter ? (
-                  <TouchableOpacity
-                    style={s.emptyAction}
-                    onPress={() => setShowAdd(true)}
-                  >
-                    <Icon name="plus" size={16} color="#fff" />
-                    <Text style={s.emptyActionText}>Add First Locker</Text>
-                  </TouchableOpacity>
-                ) : undefined
-              }
-            />
-          }
-          renderItem={({ item }) => (
-            <LockerCard
-              locker={item}
-              onEdit={setEditLocker}
-              onAssign={(l) => {
-                setAssignLocker(l);
-                setAssignForm(emptyAssign);
-                setMemberSearch("");
-              }}
-              onUnassign={handleUnassign}
-              onUpdateAssignment={handleOpenUpdateAssignment}
-              releasingId={releasingId}
-            />
-          )}
-        />
-      )}
+                {/* Stats row */}
+                {lockers.length > 0 && (
+                  <View style={s.statsGrid}>
+                    <StatCard
+                      icon="lock-outline"
+                      label="Total"
+                      value={stats.total}
+                      color={Colors.textPrimary}
+                      bg={Colors.surfaceRaised}
+                      style={{ flex: 1 }}
+                    />
+                    <StatCard
+                      icon="check-circle-outline"
+                      label="Available"
+                      value={stats.available}
+                      color={Colors.success}
+                      bg={Colors.successFaded}
+                      style={{ flex: 1 }}
+                    />
+                    <StatCard
+                      icon="key-outline"
+                      label="Assigned"
+                      value={stats.assigned}
+                      color={Colors.info}
+                      bg={Colors.infoFaded}
+                      style={{ flex: 1 }}
+                    />
+                    <StatCard
+                      icon="wrench-outline"
+                      label="Maint."
+                      value={stats.maintenance}
+                      color={Colors.warning}
+                      bg={Colors.warningFaded}
+                      style={{ flex: 1 }}
+                    />
+                    <StatCard
+                      icon="clock-outline"
+                      label="Reserved"
+                      value={stats.reserved}
+                      color={Colors.purple}
+                      bg={Colors.purpleFaded}
+                      style={{ flex: 1 }}
+                    />
+                  </View>
+                )}
+              </>
+            }
+            ListEmptyComponent={
+              <EmptyState
+                icon="lock-outline"
+                title="No lockers found"
+                subtitle={
+                  search
+                    ? "No lockers match your search"
+                    : statusFilter
+                      ? `No ${statusFilter.toLowerCase()} lockers`
+                      : "Add lockers to manage them here"
+                }
+                action={
+                  !search && !statusFilter ? (
+                    <TouchableOpacity
+                      style={s.emptyAction}
+                      onPress={() => setShowAdd(true)}
+                    >
+                      <Icon name="plus" size={16} color="#fff" />
+                      <Text style={s.emptyActionText}>Add First Locker</Text>
+                    </TouchableOpacity>
+                  ) : undefined
+                }
+              />
+            }
+            renderItem={({ item }) => (
+              <LockerCard
+                locker={item}
+                onEdit={setEditLocker}
+                onAssign={(l) => {
+                  setAssignLocker(l);
+                  setAssignForm(emptyAssign);
+                  setMemberSearch("");
+                }}
+                onUnassign={handleUnassign}
+                onUpdateAssignment={handleOpenUpdateAssignment}
+                releasingId={releasingId}
+              />
+            )}
+          />
+        )}
 
-      {/* ── Add Locker Modal ──────────────────────────────────────────────── */}
-      <Modal
-        visible={showAdd}
-        animationType="slide"
-        presentationStyle="pageSheet"
-        onRequestClose={() => setShowAdd(false)}
-      >
-        <SafeAreaView style={{ flex: 1, backgroundColor: Colors.bg }}>
-          <ScrollView
-            contentContainerStyle={s.modalScroll}
-            keyboardShouldPersistTaps="handled"
-          >
-            <ModalHeader
-              title="Add Locker"
-              onClose={() => {
-                setShowAdd(false);
-                setAddForm(emptyAdd);
-              }}
-            />
-
-            <Input
-              label="Locker Number *"
-              value={addForm.lockerNumber}
-              onChangeText={(v) =>
-                setAddForm((f) => ({ ...f, lockerNumber: v }))
-              }
-              placeholder="e.g. A-01"
-              leftIcon="lock-outline"
-            />
-
-            <Input
-              label="Floor / Zone"
-              value={addForm.floor}
-              onChangeText={(v) => setAddForm((f) => ({ ...f, floor: v }))}
-              placeholder="e.g. Ground Floor"
-              leftIcon="layers-outline"
-            />
-
-            <Dropdown
-              label="Size"
-              value={addForm.size}
-              onChange={(v) => setAddForm((f) => ({ ...f, size: v }))}
-              options={[
-                { label: "Any", value: "" },
-                ...SIZES.map((s) => ({ label: s, value: s })),
-              ]}
-            />
-
-            <Input
-              label="Monthly Fee (₹)"
-              value={addForm.monthlyFee}
-              onChangeText={(v) => setAddForm((f) => ({ ...f, monthlyFee: v }))}
-              keyboardType="numeric"
-              placeholder="0"
-              leftIcon="currency-inr"
-            />
-
-            <Dropdown
-              label="Initial Status"
-              value={addForm.status}
-              onChange={(v) => setAddForm((f) => ({ ...f, status: v }))}
-              options={[
-                { label: "Available", value: "AVAILABLE" },
-                { label: "Maintenance", value: "MAINTENANCE" },
-                { label: "Reserved", value: "RESERVED" },
-              ]}
-            />
-
-            <Input
-              label="Notes"
-              value={addForm.notes}
-              onChangeText={(v) => setAddForm((f) => ({ ...f, notes: v }))}
-              placeholder="Optional"
-              multiline
-              numberOfLines={2}
-            />
-
-            <Button
-              label="Add Locker"
-              onPress={handleCreate}
-              loading={createMutation.isPending}
-            />
-          </ScrollView>
-        </SafeAreaView>
-      </Modal>
-
-      {/* ── Edit Locker Modal ─────────────────────────────────────────────── */}
-      {editLocker && (
+        {/* ── Add Locker Modal ──────────────────────────────────────────────── */}
         <Modal
-          visible
+          visible={showAdd}
           animationType="slide"
           presentationStyle="pageSheet"
-          onRequestClose={() => setEditLocker(null)}
+          onRequestClose={() => setShowAdd(false)}
         >
           <SafeAreaView style={{ flex: 1, backgroundColor: Colors.bg }}>
             <ScrollView
@@ -1031,15 +960,18 @@ export default function OwnerLockersScreen() {
               keyboardShouldPersistTaps="handled"
             >
               <ModalHeader
-                title={`Edit Locker #${editLocker.lockerNumber}`}
-                onClose={() => setEditLocker(null)}
+                title="Add Locker"
+                onClose={() => {
+                  setShowAdd(false);
+                  setAddForm(emptyAdd);
+                }}
               />
 
               <Input
                 label="Locker Number *"
-                value={editLocker.lockerNumber}
+                value={addForm.lockerNumber}
                 onChangeText={(v) =>
-                  setEditLocker((l) => (l ? { ...l, lockerNumber: v } : l))
+                  setAddForm((f) => ({ ...f, lockerNumber: v }))
                 }
                 placeholder="e.g. A-01"
                 leftIcon="lock-outline"
@@ -1047,336 +979,333 @@ export default function OwnerLockersScreen() {
 
               <Input
                 label="Floor / Zone"
-                value={editLocker.floor ?? ""}
-                onChangeText={(v) =>
-                  setEditLocker((l) => (l ? { ...l, floor: v || null } : l))
-                }
+                value={addForm.floor}
+                onChangeText={(v) => setAddForm((f) => ({ ...f, floor: v }))}
                 placeholder="e.g. Ground Floor"
                 leftIcon="layers-outline"
               />
 
               <Dropdown
                 label="Size"
-                value={editLocker.size ?? ""}
-                onChange={(v) =>
-                  setEditLocker((l) => (l ? { ...l, size: v || null } : l))
-                }
+                value={addForm.size}
+                onChange={(v) => setAddForm((f) => ({ ...f, size: v }))}
                 options={[
                   { label: "Any", value: "" },
-                  ...SIZES.map((sz) => ({ label: sz, value: sz })),
+                  ...SIZES.map((s) => ({ label: s, value: s })),
                 ]}
               />
 
               <Input
                 label="Monthly Fee (₹)"
-                value={
-                  editLocker.monthlyFee != null
-                    ? String(editLocker.monthlyFee)
-                    : ""
-                }
+                value={addForm.monthlyFee}
                 onChangeText={(v) =>
-                  setEditLocker((l) =>
-                    l ? { ...l, monthlyFee: v ? parseFloat(v) : null } : l,
-                  )
+                  setAddForm((f) => ({ ...f, monthlyFee: v }))
                 }
                 keyboardType="numeric"
                 placeholder="0"
                 leftIcon="currency-inr"
               />
 
-              {editLocker.status !== "ASSIGNED" && (
-                <Dropdown
-                  label="Status"
-                  value={editLocker.status}
-                  onChange={(v) =>
-                    setEditLocker((l) =>
-                      l ? { ...l, status: v as LockerStatus } : l,
-                    )
-                  }
-                  options={[
-                    { label: "Available", value: "AVAILABLE" },
-                    { label: "Maintenance", value: "MAINTENANCE" },
-                    { label: "Reserved", value: "RESERVED" },
-                  ]}
-                />
-              )}
+              <Dropdown
+                label="Initial Status"
+                value={addForm.status}
+                onChange={(v) => setAddForm((f) => ({ ...f, status: v }))}
+                options={[
+                  { label: "Available", value: "AVAILABLE" },
+                  { label: "Maintenance", value: "MAINTENANCE" },
+                  { label: "Reserved", value: "RESERVED" },
+                ]}
+              />
 
               <Input
                 label="Notes"
-                value={editLocker.notes ?? ""}
-                onChangeText={(v) =>
-                  setEditLocker((l) => (l ? { ...l, notes: v || null } : l))
-                }
+                value={addForm.notes}
+                onChangeText={(v) => setAddForm((f) => ({ ...f, notes: v }))}
                 placeholder="Optional"
                 multiline
                 numberOfLines={2}
               />
 
               <Button
-                label="Save Changes"
-                onPress={handleEditSave}
-                loading={updateMutation.isPending}
+                label="Add Locker"
+                onPress={handleCreate}
+                loading={createMutation.isPending}
               />
-
-              {/* Delete button */}
-              <TouchableOpacity
-                style={s.deleteBtn}
-                onPress={() => handleDeleteLocker(editLocker)}
-                disabled={deleteMutation.isPending}
-              >
-                <Icon name="trash-can-outline" size={16} color={Colors.error} />
-                <Text style={s.deleteBtnText}>Delete Locker</Text>
-              </TouchableOpacity>
             </ScrollView>
           </SafeAreaView>
         </Modal>
-      )}
 
-      {/* ── Assign Locker Modal ───────────────────────────────────────────── */}
-      {assignLocker && (
-        <Modal
-          visible
-          animationType="slide"
-          presentationStyle="pageSheet"
-          onRequestClose={() => setAssignLocker(null)}
-        >
-          <SafeAreaView style={{ flex: 1, backgroundColor: Colors.bg }}>
-            <ScrollView
-              contentContainerStyle={s.modalScroll}
-              keyboardShouldPersistTaps="handled"
-            >
-              <ModalHeader
-                title={`Assign Locker #${assignLocker.lockerNumber}`}
-                onClose={() => {
-                  setAssignLocker(null);
-                  setAssignForm(emptyAssign);
-                }}
-              />
+        {/* ── Edit Locker Modal ─────────────────────────────────────────────── */}
+        {editLocker && (
+          <Modal
+            visible
+            animationType="slide"
+            presentationStyle="pageSheet"
+            onRequestClose={() => setEditLocker(null)}
+          >
+            <SafeAreaView style={{ flex: 1, backgroundColor: Colors.bg }}>
+              <ScrollView
+                contentContainerStyle={s.modalScroll}
+                keyboardShouldPersistTaps="handled"
+              >
+                <ModalHeader
+                  title={`Edit Locker #${editLocker.lockerNumber}`}
+                  onClose={() => setEditLocker(null)}
+                />
 
-              {/* Monthly fee hint */}
-              {assignLocker.monthlyFee != null &&
-                assignLocker.monthlyFee > 0 && (
-                  <View style={s.feeHint}>
-                    <Icon
-                      name="currency-inr"
-                      size={14}
-                      color={Colors.primary}
-                    />
-                    <Text style={s.feeHintText}>
-                      Monthly fee: ₹
-                      {Number(assignLocker.monthlyFee).toLocaleString("en-IN")}
-                    </Text>
+                <Input
+                  label="Locker Number *"
+                  value={editLocker.lockerNumber}
+                  onChangeText={(v) =>
+                    setEditLocker((l) => (l ? { ...l, lockerNumber: v } : l))
+                  }
+                  placeholder="e.g. A-01"
+                  leftIcon="lock-outline"
+                />
+
+                <Input
+                  label="Floor / Zone"
+                  value={editLocker.floor ?? ""}
+                  onChangeText={(v) =>
+                    setEditLocker((l) => (l ? { ...l, floor: v || null } : l))
+                  }
+                  placeholder="e.g. Ground Floor"
+                  leftIcon="layers-outline"
+                />
+
+                <Dropdown
+                  label="Size"
+                  value={editLocker.size ?? ""}
+                  onChange={(v) =>
+                    setEditLocker((l) => (l ? { ...l, size: v || null } : l))
+                  }
+                  options={[
+                    { label: "Any", value: "" },
+                    ...SIZES.map((sz) => ({ label: sz, value: sz })),
+                  ]}
+                />
+
+                <Input
+                  label="Monthly Fee (₹)"
+                  value={
+                    editLocker.monthlyFee != null
+                      ? String(editLocker.monthlyFee)
+                      : ""
+                  }
+                  onChangeText={(v) =>
+                    setEditLocker((l) =>
+                      l ? { ...l, monthlyFee: v ? parseFloat(v) : null } : l,
+                    )
+                  }
+                  keyboardType="numeric"
+                  placeholder="0"
+                  leftIcon="currency-inr"
+                />
+
+                {editLocker.status !== "ASSIGNED" && (
+                  <Dropdown
+                    label="Status"
+                    value={editLocker.status}
+                    onChange={(v) =>
+                      setEditLocker((l) =>
+                        l ? { ...l, status: v as LockerStatus } : l,
+                      )
+                    }
+                    options={[
+                      { label: "Available", value: "AVAILABLE" },
+                      { label: "Maintenance", value: "MAINTENANCE" },
+                      { label: "Reserved", value: "RESERVED" },
+                    ]}
+                  />
+                )}
+
+                <Input
+                  label="Notes"
+                  value={editLocker.notes ?? ""}
+                  onChangeText={(v) =>
+                    setEditLocker((l) => (l ? { ...l, notes: v || null } : l))
+                  }
+                  placeholder="Optional"
+                  multiline
+                  numberOfLines={2}
+                />
+
+                <Button
+                  label="Save Changes"
+                  onPress={handleEditSave}
+                  loading={updateMutation.isPending}
+                />
+
+                {/* Delete button */}
+                <TouchableOpacity
+                  style={s.deleteBtn}
+                  onPress={() => handleDeleteLocker(editLocker)}
+                  disabled={deleteMutation.isPending}
+                >
+                  <Icon
+                    name="trash-can-outline"
+                    size={16}
+                    color={Colors.error}
+                  />
+                  <Text style={s.deleteBtnText}>Delete Locker</Text>
+                </TouchableOpacity>
+              </ScrollView>
+            </SafeAreaView>
+          </Modal>
+        )}
+
+        {/* ── Assign Locker Modal ───────────────────────────────────────────── */}
+        {assignLocker && (
+          <Modal
+            visible
+            animationType="slide"
+            presentationStyle="pageSheet"
+            onRequestClose={() => setAssignLocker(null)}
+          >
+            <SafeAreaView style={{ flex: 1, backgroundColor: Colors.bg }}>
+              <ScrollView
+                contentContainerStyle={s.modalScroll}
+                keyboardShouldPersistTaps="handled"
+              >
+                <ModalHeader
+                  title={`Assign Locker #${assignLocker.lockerNumber}`}
+                  onClose={() => {
+                    setAssignLocker(null);
+                    setAssignForm(emptyAssign);
+                  }}
+                />
+
+                {/* Monthly fee hint */}
+                {assignLocker.monthlyFee != null &&
+                  assignLocker.monthlyFee > 0 && (
+                    <View style={s.feeHint}>
+                      <Icon
+                        name="currency-inr"
+                        size={14}
+                        color={Colors.primary}
+                      />
+                      <Text style={s.feeHintText}>
+                        Monthly fee: ₹
+                        {Number(assignLocker.monthlyFee).toLocaleString(
+                          "en-IN",
+                        )}
+                      </Text>
+                    </View>
+                  )}
+
+                {/* Member search */}
+                <Input
+                  label="Search Member"
+                  value={memberSearch}
+                  onChangeText={setMemberSearch}
+                  placeholder="Type member name…"
+                  leftIcon="magnify"
+                />
+
+                {/* Member list */}
+                {members.length > 0 && (
+                  <View style={s.memberList}>
+                    {members.slice(0, 8).map((m) => {
+                      const isSelected = assignForm.memberId === m.id;
+                      return (
+                        <TouchableOpacity
+                          key={m.id}
+                          onPress={() =>
+                            setAssignForm((f) => ({ ...f, memberId: m.id }))
+                          }
+                          style={[s.memberRow, isSelected && s.memberRowActive]}
+                        >
+                          <Avatar
+                            name={m.profile.fullName}
+                            url={m.profile.avatarUrl ?? undefined}
+                            size={34}
+                          />
+                          <View style={{ flex: 1 }}>
+                            <Text style={s.memberNameList}>
+                              {m.profile.fullName}
+                            </Text>
+                            {m.profile.mobileNumber ? (
+                              <Text style={s.memberSubList}>
+                                {m.profile.mobileNumber}
+                              </Text>
+                            ) : null}
+                          </View>
+                          {isSelected && (
+                            <Icon
+                              name="check-circle"
+                              size={18}
+                              color={Colors.primary}
+                            />
+                          )}
+                        </TouchableOpacity>
+                      );
+                    })}
                   </View>
                 )}
 
-              {/* Member search */}
-              <Input
-                label="Search Member"
-                value={memberSearch}
-                onChangeText={setMemberSearch}
-                placeholder="Type member name…"
-                leftIcon="magnify"
-              />
-
-              {/* Member list */}
-              {members.length > 0 && (
-                <View style={s.memberList}>
-                  {members.slice(0, 8).map((m) => {
-                    const isSelected = assignForm.memberId === m.id;
-                    return (
-                      <TouchableOpacity
-                        key={m.id}
-                        onPress={() =>
-                          setAssignForm((f) => ({ ...f, memberId: m.id }))
-                        }
-                        style={[s.memberRow, isSelected && s.memberRowActive]}
-                      >
-                        <Avatar
-                          name={m.profile.fullName}
-                          url={m.profile.avatarUrl ?? undefined}
-                          size={34}
-                        />
-                        <View style={{ flex: 1 }}>
-                          <Text style={s.memberNameList}>
-                            {m.profile.fullName}
-                          </Text>
-                          {m.profile.mobileNumber ? (
-                            <Text style={s.memberSubList}>
-                              {m.profile.mobileNumber}
-                            </Text>
-                          ) : null}
-                        </View>
-                        {isSelected && (
-                          <Icon
-                            name="check-circle"
-                            size={18}
-                            color={Colors.primary}
-                          />
-                        )}
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              )}
-
-              <Input
-                label="Expiry Date (YYYY-MM-DD)"
-                value={assignForm.expiresAt}
-                onChangeText={(v) =>
-                  setAssignForm((f) => ({ ...f, expiresAt: v }))
-                }
-                placeholder="2025-12-31"
-                leftIcon="calendar-outline"
-              />
-
-              <Input
-                label="Notes"
-                value={assignForm.notes}
-                onChangeText={(v) => setAssignForm((f) => ({ ...f, notes: v }))}
-                placeholder="Optional notes…"
-                multiline
-                numberOfLines={2}
-              />
-
-              {/* Fee collected toggle */}
-              <View style={s.switchRow}>
-                <View style={{ flex: 1 }}>
-                  <Text style={s.switchLabel}>Fee Collected</Text>
-                  {assignLocker.monthlyFee != null &&
-                    assignLocker.monthlyFee > 0 &&
-                    assignForm.feeCollected && (
-                      <Text style={s.switchSub}>
-                        ₹
-                        {Number(assignLocker.monthlyFee).toLocaleString(
-                          "en-IN",
-                        )}{" "}
-                        added to revenue
-                      </Text>
-                    )}
-                </View>
-                <Switch
-                  value={assignForm.feeCollected}
-                  onValueChange={(v) =>
-                    setAssignForm((f) => ({ ...f, feeCollected: v }))
+                <Input
+                  label="Expiry Date (YYYY-MM-DD)"
+                  value={assignForm.expiresAt}
+                  onChangeText={(v) =>
+                    setAssignForm((f) => ({ ...f, expiresAt: v }))
                   }
-                  trackColor={{ true: Colors.primary }}
-                  thumbColor="#fff"
+                  placeholder="2025-12-31"
+                  leftIcon="calendar-outline"
                 />
-              </View>
 
-              <Button
-                label="Assign Locker"
-                onPress={handleAssign}
-                loading={assignMutation.isPending}
-              />
-            </ScrollView>
-          </SafeAreaView>
-        </Modal>
-      )}
-
-      {/* ── Bulk Add Modal ───────────────────────────────────────────────── */}
-      <Modal
-        visible={showBulk}
-        animationType="slide"
-        presentationStyle="pageSheet"
-        onRequestClose={() => setShowBulk(false)}
-      >
-        <SafeAreaView style={{ flex: 1, backgroundColor: Colors.bg }}>
-          <ScrollView
-            contentContainerStyle={s.modalScroll}
-            keyboardShouldPersistTaps="handled"
-          >
-            <ModalHeader
-              title="Bulk Add Lockers"
-              onClose={() => {
-                setShowBulk(false);
-                setBulkForm(emptyBulk);
-              }}
-            />
-
-            <View style={s.bulkHint}>
-              <Icon name="information-outline" size={13} color={Colors.textMuted} />
-              <Text style={s.bulkHintText}>
-                Creates lockers like A01, A02 … A10 (prefix + zero-padded number)
-              </Text>
-            </View>
-
-            <Input
-              label="Prefix (optional)"
-              value={bulkForm.prefix}
-              onChangeText={(v) => setBulkForm((f) => ({ ...f, prefix: v }))}
-              placeholder="e.g. A, B, L-"
-              leftIcon="text"
-            />
-
-            <View style={s.bulkRangeRow}>
-              <View style={{ flex: 1 }}>
                 <Input
-                  label="From"
-                  value={bulkForm.from}
-                  onChangeText={(v) => setBulkForm((f) => ({ ...f, from: v }))}
-                  keyboardType="numeric"
-                  placeholder="1"
+                  label="Notes"
+                  value={assignForm.notes}
+                  onChangeText={(v) =>
+                    setAssignForm((f) => ({ ...f, notes: v }))
+                  }
+                  placeholder="Optional notes…"
+                  multiline
+                  numberOfLines={2}
                 />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Input
-                  label="To"
-                  value={bulkForm.to}
-                  onChangeText={(v) => setBulkForm((f) => ({ ...f, to: v }))}
-                  keyboardType="numeric"
-                  placeholder="10"
+
+                {/* Fee collected toggle */}
+                <View style={s.switchRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={s.switchLabel}>Fee Collected</Text>
+                    {assignLocker.monthlyFee != null &&
+                      assignLocker.monthlyFee > 0 &&
+                      assignForm.feeCollected && (
+                        <Text style={s.switchSub}>
+                          ₹
+                          {Number(assignLocker.monthlyFee).toLocaleString(
+                            "en-IN",
+                          )}{" "}
+                          added to revenue
+                        </Text>
+                      )}
+                  </View>
+                  <Switch
+                    value={assignForm.feeCollected}
+                    onValueChange={(v) =>
+                      setAssignForm((f) => ({ ...f, feeCollected: v }))
+                    }
+                    trackColor={{ true: Colors.primary }}
+                    thumbColor="#fff"
+                  />
+                </View>
+
+                <Button
+                  label="Assign Locker"
+                  onPress={handleAssign}
+                  loading={assignMutation.isPending}
                 />
-              </View>
-            </View>
+              </ScrollView>
+            </SafeAreaView>
+          </Modal>
+        )}
 
-            {/* Preview count */}
-            {bulkForm.from && bulkForm.to && (
-              <Text style={s.bulkCountText}>
-                Will create{" "}
-                {Math.max(
-                  0,
-                  (parseInt(bulkForm.to) || 0) -
-                    (parseInt(bulkForm.from) || 0) +
-                    1,
-                )}{" "}
-                lockers
-              </Text>
-            )}
-
-            <Input
-              label="Floor / Zone"
-              value={bulkForm.floor}
-              onChangeText={(v) => setBulkForm((f) => ({ ...f, floor: v }))}
-              placeholder="e.g. Ground Floor"
-              leftIcon="layers-outline"
-            />
-
-            <Input
-              label="Monthly Fee (₹)"
-              value={bulkForm.monthlyFee}
-              onChangeText={(v) => setBulkForm((f) => ({ ...f, monthlyFee: v }))}
-              keyboardType="numeric"
-              placeholder="0"
-              leftIcon="currency-inr"
-            />
-
-            <Button
-              label="Create Lockers"
-              onPress={handleBulkCreate}
-              loading={bulkCreateMutation.isPending}
-            />
-          </ScrollView>
-        </SafeAreaView>
-      </Modal>
-
-      {/* ── Update Assignment Modal ───────────────────────────────────────── */}
-      {updateLocker && (
+        {/* ── Bulk Add Modal ───────────────────────────────────────────────── */}
         <Modal
-          visible
+          visible={showBulk}
           animationType="slide"
           presentationStyle="pageSheet"
-          onRequestClose={() => setUpdateLocker(null)}
+          onRequestClose={() => setShowBulk(false)}
         >
           <SafeAreaView style={{ flex: 1, backgroundColor: Colors.bg }}>
             <ScrollView
@@ -1384,65 +1313,174 @@ export default function OwnerLockersScreen() {
               keyboardShouldPersistTaps="handled"
             >
               <ModalHeader
-                title={`Update Assignment — #${updateLocker.lockerNumber}`}
-                onClose={() => setUpdateLocker(null)}
+                title="Bulk Add Lockers"
+                onClose={() => {
+                  setShowBulk(false);
+                  setBulkForm(emptyBulk);
+                }}
               />
 
-              <Input
-                label="New Expiry Date (YYYY-MM-DD)"
-                value={updateForm.expiresAt}
-                onChangeText={(v) =>
-                  setUpdateForm((f) => ({ ...f, expiresAt: v }))
-                }
-                placeholder="2025-12-31"
-                leftIcon="calendar-outline"
-              />
-
-              <Input
-                label="Notes"
-                value={updateForm.notes}
-                onChangeText={(v) => setUpdateForm((f) => ({ ...f, notes: v }))}
-                placeholder="Optional notes…"
-                multiline
-                numberOfLines={2}
-              />
-
-              <View style={s.switchRow}>
-                <View style={{ flex: 1 }}>
-                  <Text style={s.switchLabel}>Fee Collected</Text>
-                  {!updateLocker.assignments?.find((a) => a.isActive)
-                    ?.feeCollected &&
-                    updateForm.feeCollected &&
-                    updateLocker.monthlyFee != null &&
-                    updateLocker.monthlyFee > 0 && (
-                      <Text style={s.switchSub}>
-                        ₹
-                        {Number(updateLocker.monthlyFee).toLocaleString(
-                          "en-IN",
-                        )}{" "}
-                        added to revenue
-                      </Text>
-                    )}
-                </View>
-                <Switch
-                  value={updateForm.feeCollected}
-                  onValueChange={(v) =>
-                    setUpdateForm((f) => ({ ...f, feeCollected: v }))
-                  }
-                  trackColor={{ true: Colors.primary }}
-                  thumbColor="#fff"
+              <View style={s.bulkHint}>
+                <Icon
+                  name="information-outline"
+                  size={13}
+                  color={Colors.textMuted}
                 />
+                <Text style={s.bulkHintText}>
+                  Creates lockers like A01, A02 … A10 (prefix + zero-padded
+                  number)
+                </Text>
               </View>
 
+              <Input
+                label="Prefix (optional)"
+                value={bulkForm.prefix}
+                onChangeText={(v) => setBulkForm((f) => ({ ...f, prefix: v }))}
+                placeholder="e.g. A, B, L-"
+                leftIcon="text"
+              />
+
+              <View style={s.bulkRangeRow}>
+                <View style={{ flex: 1 }}>
+                  <Input
+                    label="From"
+                    value={bulkForm.from}
+                    onChangeText={(v) =>
+                      setBulkForm((f) => ({ ...f, from: v }))
+                    }
+                    keyboardType="numeric"
+                    placeholder="1"
+                  />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Input
+                    label="To"
+                    value={bulkForm.to}
+                    onChangeText={(v) => setBulkForm((f) => ({ ...f, to: v }))}
+                    keyboardType="numeric"
+                    placeholder="10"
+                  />
+                </View>
+              </View>
+
+              {/* Preview count */}
+              {bulkForm.from && bulkForm.to && (
+                <Text style={s.bulkCountText}>
+                  Will create{" "}
+                  {Math.max(
+                    0,
+                    (parseInt(bulkForm.to) || 0) -
+                      (parseInt(bulkForm.from) || 0) +
+                      1,
+                  )}{" "}
+                  lockers
+                </Text>
+              )}
+
+              <Input
+                label="Floor / Zone"
+                value={bulkForm.floor}
+                onChangeText={(v) => setBulkForm((f) => ({ ...f, floor: v }))}
+                placeholder="e.g. Ground Floor"
+                leftIcon="layers-outline"
+              />
+
+              <Input
+                label="Monthly Fee (₹)"
+                value={bulkForm.monthlyFee}
+                onChangeText={(v) =>
+                  setBulkForm((f) => ({ ...f, monthlyFee: v }))
+                }
+                keyboardType="numeric"
+                placeholder="0"
+                leftIcon="currency-inr"
+              />
+
               <Button
-                label="Update Assignment"
-                onPress={() => updateAssignmentMutation.mutate()}
-                loading={updateAssignmentMutation.isPending}
+                label="Create Lockers"
+                onPress={handleBulkCreate}
+                loading={bulkCreateMutation.isPending}
               />
             </ScrollView>
           </SafeAreaView>
         </Modal>
-      )}
+
+        {/* ── Update Assignment Modal ───────────────────────────────────────── */}
+        {updateLocker && (
+          <Modal
+            visible
+            animationType="slide"
+            presentationStyle="pageSheet"
+            onRequestClose={() => setUpdateLocker(null)}
+          >
+            <SafeAreaView style={{ flex: 1, backgroundColor: Colors.bg }}>
+              <ScrollView
+                contentContainerStyle={s.modalScroll}
+                keyboardShouldPersistTaps="handled"
+              >
+                <ModalHeader
+                  title={`Update Assignment — #${updateLocker.lockerNumber}`}
+                  onClose={() => setUpdateLocker(null)}
+                />
+
+                <Input
+                  label="New Expiry Date (YYYY-MM-DD)"
+                  value={updateForm.expiresAt}
+                  onChangeText={(v) =>
+                    setUpdateForm((f) => ({ ...f, expiresAt: v }))
+                  }
+                  placeholder="2025-12-31"
+                  leftIcon="calendar-outline"
+                />
+
+                <Input
+                  label="Notes"
+                  value={updateForm.notes}
+                  onChangeText={(v) =>
+                    setUpdateForm((f) => ({ ...f, notes: v }))
+                  }
+                  placeholder="Optional notes…"
+                  multiline
+                  numberOfLines={2}
+                />
+
+                <View style={s.switchRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={s.switchLabel}>Fee Collected</Text>
+                    {!updateLocker.assignments?.find((a) => a.isActive)
+                      ?.feeCollected &&
+                      updateForm.feeCollected &&
+                      updateLocker.monthlyFee != null &&
+                      updateLocker.monthlyFee > 0 && (
+                        <Text style={s.switchSub}>
+                          ₹
+                          {Number(updateLocker.monthlyFee).toLocaleString(
+                            "en-IN",
+                          )}{" "}
+                          added to revenue
+                        </Text>
+                      )}
+                  </View>
+                  <Switch
+                    value={updateForm.feeCollected}
+                    onValueChange={(v) =>
+                      setUpdateForm((f) => ({ ...f, feeCollected: v }))
+                    }
+                    trackColor={{ true: Colors.primary }}
+                    thumbColor="#fff"
+                  />
+                </View>
+
+                <Button
+                  label="Update Assignment"
+                  onPress={() => updateAssignmentMutation.mutate()}
+                  loading={updateAssignmentMutation.isPending}
+                />
+              </ScrollView>
+            </SafeAreaView>
+          </Modal>
+        )}
+      </PlanGate>
     </SafeAreaView>
   );
 }

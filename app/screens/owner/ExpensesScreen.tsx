@@ -9,13 +9,15 @@ import {
   EmptyState,
   Header,
   Input,
+  PlanGate,
   SkeletonGroup,
 } from "@/components";
 import { showAlert } from "@/components/AppAlert";
+import { useSubscription } from "@/hooks/useSubsciption";
 import { Colors, Radius, Spacing, Typography } from "@/theme";
 import type { Gym } from "@/types/api";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   FlatList,
   Modal,
@@ -194,6 +196,7 @@ const BLANK_FORM = {
 
 export default function OwnerExpensesScreen() {
   const qc = useQueryClient();
+  const { hasExpenses } = useSubscription();
 
   // Filters
   const [gymId, setGymId] = useState("");
@@ -201,6 +204,12 @@ export default function OwnerExpensesScreen() {
   const [category, setCategory] = useState("");
   const [customStart, setCustomStart] = useState("");
   const [customEnd, setCustomEnd] = useState("");
+  const [page, setPage] = useState(1);
+
+  // Reset page when filters change
+  useEffect(() => {
+    setPage(1);
+  }, [gymId, range, category, customStart, customEnd]);
 
   // Modal state
   const [showModal, setShowModal] = useState(false);
@@ -221,9 +230,17 @@ export default function OwnerExpensesScreen() {
     refetch,
     isRefetching,
   } = useQuery({
-    queryKey: ["ownerExpenses", gymId, range, category, customStart, customEnd],
+    queryKey: [
+      "ownerExpenses",
+      gymId,
+      range,
+      category,
+      customStart,
+      customEnd,
+      page,
+    ],
     queryFn: () => {
-      const params: any = { range: range || "last_30_days" };
+      const params: any = { range: range || "last_30_days", page };
       if (gymId) params.gymId = gymId;
       if (category) params.category = category;
       if (range === "custom" && customStart && customEnd) {
@@ -234,16 +251,17 @@ export default function OwnerExpensesScreen() {
         expenses: Expense[];
         totalAmount: number;
         byCategory: { category: string; total: number; count: number }[];
+        total: number;
+        pages: number;
       }>;
     },
     staleTime: 60_000,
   });
 
-  console.log("data", expensesData?.expenses[0].gym.name);
-
   const expenses = expensesData?.expenses || [];
   const totalAmount = expensesData?.totalAmount || 0;
   const byCategory = expensesData?.byCategory || [];
+  const totalPages = expensesData?.pages ?? 1;
 
   // ── Mutations ───────────────────────────────────────────────────────────────
   const createMutation = useMutation({
@@ -479,249 +497,298 @@ export default function OwnerExpensesScreen() {
       </View>
 
       {/* ── Content ───────────────────────────────────────────────────────────── */}
-      <ScrollView style={s.content} showsVerticalScrollIndicator={false}>
-        {/* Category breakdown */}
-        {byCategory.length > 0 && (
-          <View style={s.breakdownCard}>
-            <Text style={s.breakdownTitle}>By Category</Text>
-            <View style={s.breakdownList}>
-              {byCategory.map((b) => (
-                <View key={b.category} style={s.breakdownItem}>
-                  <View style={s.breakdownLeft}>
-                    <Text
-                      style={[
-                        s.breakdownBadge,
-                        {
-                          backgroundColor: CATEGORY_COLORS[b.category] + "20",
-                          borderColor: CATEGORY_COLORS[b.category] + "40",
-                          color: CATEGORY_COLORS[b.category],
-                        },
-                      ]}
-                    >
-                      {CATEGORY_LABELS[b.category]}
-                    </Text>
-                    <Text style={s.breakdownAmount}>{fmt(b.total)}</Text>
-                  </View>
-                  <View style={s.progressBar}>
-                    <View
-                      style={[
-                        s.progressFill,
-                        {
-                          width: `${(b.total / maxCategory) * 100}%`,
-                          backgroundColor: CATEGORY_COLORS[b.category] + "60",
-                        },
-                      ]}
-                    />
-                  </View>
-                </View>
-              ))}
-            </View>
-          </View>
-        )}
-
-        {/* Expense list */}
-        <View style={s.listSection}>
-          <Text style={s.listTitle}>Transactions</Text>
-          {isLoading ? (
-            <View style={s.loading}>
-              <SkeletonGroup
-                variant="card"
-                count={4}
-                itemHeight={88}
-                gap={Spacing.md}
-              />
-            </View>
-          ) : expenses.length === 0 ? (
-            <EmptyState
-              icon="receipt-outline"
-              title="No expenses"
-              subtitle="Track your gym expenses to manage finances better"
-              action={
-                <TouchableOpacity style={s.emptyAction} onPress={openAdd}>
-                  <Icon name="plus" size={16} color="#fff" />
-                  <Text style={s.emptyActionText}>Add Expense</Text>
-                </TouchableOpacity>
-              }
-            />
-          ) : (
-            <FlatList<Expense>
-              data={expenses}
-              keyExtractor={(e) => e.id}
-              contentContainerStyle={s.list}
-              showsVerticalScrollIndicator={false}
-              refreshControl={
-                <RefreshControl
-                  refreshing={isRefetching}
-                  onRefresh={refetch}
-                  tintColor={Colors.primary}
-                  colors={[Colors.primary]}
-                />
-              }
-              ItemSeparatorComponent={() => (
-                <View style={{ height: Spacing.md }} />
-              )}
-              renderItem={({ item: expense }) => (
-                <TouchableOpacity
-                  activeOpacity={0.82}
-                  onPress={() => openEdit(expense)}
-                >
-                  <Card>
-                    <View style={s.expenseRow}>
-                      {/* Left: icon */}
-                      <View style={s.expenseIconWrap}>
-                        <Icon name="cash-multiple" size={20} color="#EF4444" />
-                      </View>
-
-                      {/* Middle: title + meta */}
-                      <View style={s.expenseInfo}>
-                        <Text style={s.expenseTitle} numberOfLines={1}>
-                          {expense.title}
-                        </Text>
-                        <View style={s.expenseMeta}>
-                          <CategoryBadge category={expense.category} />
-                          <Text style={s.expenseDate}>
-                            {new Date(expense.expenseDate).toLocaleDateString(
-                              "en-IN",
-                              {
-                                day: "numeric",
-                                month: "short",
-                                year: "numeric",
-                              },
-                            )}
-                          </Text>
-                        </View>
-                        {expense.gym?.name && multiGym && (
-                          <Text style={s.expenseGym}>{expense.gym.name}</Text>
-                        )}
-                        {expense.description && (
-                          <Text style={s.expenseDesc} numberOfLines={1}>
-                            {expense.description}
-                          </Text>
-                        )}
-                      </View>
-
-                      {/* Right: amount + edit */}
-                      <View style={s.expenseRight}>
-                        <Text style={s.expenseAmount}>
-                          −{fmt(Number(expense.amount))}
-                        </Text>
-                        <View style={{ flexDirection: "row", gap: 5 }}>
-                          <TouchableOpacity
-                            style={s.editBtn}
-                            onPress={() => openEdit(expense)}
-                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                          >
-                            <Icon
-                              name="pencil"
-                              size={20}
-                              color={Colors.textMuted}
-                            />
-                          </TouchableOpacity>
-                          <TouchableOpacity
-                            style={s.deleteBtn}
-                            onPress={() => confirmDelete(expense)}
-                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                          >
-                            <Icon
-                              name="trash-can-outline"
-                              size={20}
-                              color="#EF4444"
-                            />
-                          </TouchableOpacity>
-                        </View>
-                      </View>
+      <PlanGate allowed={hasExpenses} featureLabel="Expense Management">
+        <ScrollView style={s.content} showsVerticalScrollIndicator={false}>
+          {/* Category breakdown */}
+          {byCategory.length > 0 && (
+            <View style={s.breakdownCard}>
+              <Text style={s.breakdownTitle}>By Category</Text>
+              <View style={s.breakdownList}>
+                {byCategory.map((b) => (
+                  <View key={b.category} style={s.breakdownItem}>
+                    <View style={s.breakdownLeft}>
+                      <Text
+                        style={[
+                          s.breakdownBadge,
+                          {
+                            backgroundColor: CATEGORY_COLORS[b.category] + "20",
+                            borderColor: CATEGORY_COLORS[b.category] + "40",
+                            color: CATEGORY_COLORS[b.category],
+                          },
+                        ]}
+                      >
+                        {CATEGORY_LABELS[b.category]}
+                      </Text>
+                      <Text style={s.breakdownAmount}>{fmt(b.total)}</Text>
                     </View>
-                  </Card>
-                </TouchableOpacity>
-              )}
-            />
-          )}
-        </View>
-      </ScrollView>
-
-      {/* ── Add / Edit Modal ────────────────────────────────────────────────── */}
-      <Modal
-        visible={showModal}
-        animationType="slide"
-        presentationStyle="pageSheet"
-        onRequestClose={closeModal}
-      >
-        <SafeAreaView style={{ flex: 1, backgroundColor: Colors.bg }}>
-          <ScrollView
-            contentContainerStyle={s.modalScroll}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
-          >
-            {/* Modal header */}
-            <View style={s.modalHeader}>
-              <Text style={s.modalTitle}>
-                {editingId ? "Edit Expense" : "New Expense"}
-              </Text>
-              <TouchableOpacity onPress={closeModal}>
-                <Icon name="close" size={22} color={Colors.textMuted} />
-              </TouchableOpacity>
+                    <View style={s.progressBar}>
+                      <View
+                        style={[
+                          s.progressFill,
+                          {
+                            width: `${(b.total / maxCategory) * 100}%`,
+                            backgroundColor: CATEGORY_COLORS[b.category] + "60",
+                          },
+                        ]}
+                      />
+                    </View>
+                  </View>
+                ))}
+              </View>
             </View>
+          )}
 
-            {/* Gym selector — only if multiple gyms */}
-            {multiGym && (
-              <Dropdown
-                label="Gym *"
-                value={form.gymId}
-                onChange={(v) => set("gymId", v)}
-                options={(gyms as Gym[]).map((g) => ({
-                  label: g.name,
-                  value: g.id,
-                }))}
-                placeholder="Select gym"
-                leftIcon="domain"
+          {/* Expense list */}
+          <View style={s.listSection}>
+            <Text style={s.listTitle}>Transactions</Text>
+            {isLoading ? (
+              <View style={s.loading}>
+                <SkeletonGroup
+                  variant="card"
+                  count={4}
+                  itemHeight={88}
+                  gap={Spacing.md}
+                />
+              </View>
+            ) : expenses.length === 0 ? (
+              <EmptyState
+                icon="receipt-outline"
+                title="No expenses"
+                subtitle="Track your gym expenses to manage finances better"
+                action={
+                  <TouchableOpacity style={s.emptyAction} onPress={openAdd}>
+                    <Icon name="plus" size={16} color="#fff" />
+                    <Text style={s.emptyActionText}>Add Expense</Text>
+                  </TouchableOpacity>
+                }
+              />
+            ) : (
+              <FlatList<Expense>
+                data={expenses}
+                keyExtractor={(e) => e.id}
+                contentContainerStyle={s.list}
+                showsVerticalScrollIndicator={false}
+                refreshControl={
+                  <RefreshControl
+                    refreshing={isRefetching}
+                    onRefresh={refetch}
+                    tintColor={Colors.primary}
+                    colors={[Colors.primary]}
+                  />
+                }
+                ItemSeparatorComponent={() => (
+                  <View style={{ height: Spacing.md }} />
+                )}
+                renderItem={({ item: expense }) => (
+                  <TouchableOpacity
+                    activeOpacity={0.82}
+                    onPress={() => openEdit(expense)}
+                  >
+                    <Card>
+                      <View style={s.expenseRow}>
+                        {/* Left: icon */}
+                        <View style={s.expenseIconWrap}>
+                          <Icon
+                            name="cash-multiple"
+                            size={20}
+                            color="#EF4444"
+                          />
+                        </View>
+
+                        {/* Middle: title + meta */}
+                        <View style={s.expenseInfo}>
+                          <Text style={s.expenseTitle} numberOfLines={1}>
+                            {expense.title}
+                          </Text>
+                          <View style={s.expenseMeta}>
+                            <CategoryBadge category={expense.category} />
+                            <Text style={s.expenseDate}>
+                              {new Date(expense.expenseDate).toLocaleDateString(
+                                "en-IN",
+                                {
+                                  day: "numeric",
+                                  month: "short",
+                                  year: "numeric",
+                                },
+                              )}
+                            </Text>
+                          </View>
+                          {expense.gym?.name && multiGym && (
+                            <Text style={s.expenseGym}>{expense.gym.name}</Text>
+                          )}
+                          {expense.description && (
+                            <Text style={s.expenseDesc} numberOfLines={1}>
+                              {expense.description}
+                            </Text>
+                          )}
+                        </View>
+
+                        {/* Right: amount + edit */}
+                        <View style={s.expenseRight}>
+                          <Text style={s.expenseAmount}>
+                            −{fmt(Number(expense.amount))}
+                          </Text>
+                          <View style={{ flexDirection: "row", gap: 5 }}>
+                            <TouchableOpacity
+                              style={s.editBtn}
+                              onPress={() => openEdit(expense)}
+                              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                            >
+                              <Icon
+                                name="pencil"
+                                size={20}
+                                color={Colors.textMuted}
+                              />
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              style={s.deleteBtn}
+                              onPress={() => confirmDelete(expense)}
+                              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                            >
+                              <Icon
+                                name="trash-can-outline"
+                                size={20}
+                                color="#EF4444"
+                              />
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+                      </View>
+                    </Card>
+                  </TouchableOpacity>
+                )}
               />
             )}
+            {totalPages > 1 && (
+              <View style={s.pagination}>
+                <TouchableOpacity
+                  style={[s.pageBtn, page === 1 && s.pageBtnDisabled]}
+                  onPress={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={page === 1}
+                >
+                  <Icon
+                    name="chevron-left"
+                    size={16}
+                    color={page === 1 ? Colors.textMuted : Colors.primary}
+                  />
+                  <Text
+                    style={[s.pageBtnText, page === 1 && s.pageBtnTextDisabled]}
+                  >
+                    Prev
+                  </Text>
+                </TouchableOpacity>
+                <Text style={s.pageInfo}>
+                  Page {page} / {totalPages}
+                </Text>
+                <TouchableOpacity
+                  style={[s.pageBtn, page === totalPages && s.pageBtnDisabled]}
+                  onPress={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={page === totalPages}
+                >
+                  <Text
+                    style={[
+                      s.pageBtnText,
+                      page === totalPages && s.pageBtnTextDisabled,
+                    ]}
+                  >
+                    Next
+                  </Text>
+                  <Icon
+                    name="chevron-right"
+                    size={16}
+                    color={
+                      page === totalPages ? Colors.textMuted : Colors.primary
+                    }
+                  />
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        </ScrollView>
 
-            <Input
-              label="Title *"
-              value={form.title}
-              onChangeText={(v) => set("title", v)}
-              placeholder="e.g. Monthly Rent"
-            />
+        {/* ── Add / Edit Modal ────────────────────────────────────────────────── */}
+        <Modal
+          visible={showModal}
+          animationType="slide"
+          presentationStyle="pageSheet"
+          onRequestClose={closeModal}
+        >
+          <SafeAreaView style={{ flex: 1, backgroundColor: Colors.bg }}>
+            <ScrollView
+              contentContainerStyle={s.modalScroll}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
+              {/* Modal header */}
+              <View style={s.modalHeader}>
+                <Text style={s.modalTitle}>
+                  {editingId ? "Edit Expense" : "New Expense"}
+                </Text>
+                <TouchableOpacity onPress={closeModal}>
+                  <Icon name="close" size={22} color={Colors.textMuted} />
+                </TouchableOpacity>
+              </View>
 
-            <Input
-              label="Amount *"
-              value={form.amount}
-              onChangeText={(v) => set("amount", v)}
-              keyboardType="numeric"
-              placeholder="0"
-            />
+              {/* Gym selector — only if multiple gyms */}
+              {multiGym && (
+                <Dropdown
+                  label="Gym *"
+                  value={form.gymId}
+                  onChange={(v) => set("gymId", v)}
+                  options={(gyms as Gym[]).map((g) => ({
+                    label: g.name,
+                    value: g.id,
+                  }))}
+                  placeholder="Select gym"
+                  leftIcon="domain"
+                />
+              )}
 
-            <Dropdown
-              label="Category"
-              value={form.category}
-              onChange={(v) => set("category", v)}
-              options={CATEGORIES.map((c) => ({
-                value: c,
-                label: CATEGORY_LABELS[c],
-              }))}
-              placeholder="Select category"
-              leftIcon="tag-outline"
-            />
+              <Input
+                label="Title *"
+                value={form.title}
+                onChangeText={(v) => set("title", v)}
+                placeholder="e.g. Monthly Rent"
+              />
 
-            <Input
-              label="Expense Date *"
-              value={form.expenseDate}
-              onChangeText={(v) => set("expenseDate", v)}
-              placeholder="YYYY-MM-DD"
-              leftIcon="calendar"
-            />
+              <Input
+                label="Amount *"
+                value={form.amount}
+                onChangeText={(v) => set("amount", v)}
+                keyboardType="numeric"
+                placeholder="0"
+              />
 
-            <Input
-              label="Description"
-              value={form.description}
-              onChangeText={(v) => set("description", v)}
-              placeholder="Optional notes..."
-              multiline
-              numberOfLines={3}
-            />
+              <Dropdown
+                label="Category"
+                value={form.category}
+                onChange={(v) => set("category", v)}
+                options={CATEGORIES.map((c) => ({
+                  value: c,
+                  label: CATEGORY_LABELS[c],
+                }))}
+                placeholder="Select category"
+                leftIcon="tag-outline"
+              />
 
-            {/* <Input
+              <Input
+                label="Expense Date *"
+                value={form.expenseDate}
+                onChangeText={(v) => set("expenseDate", v)}
+                placeholder="YYYY-MM-DD"
+                leftIcon="calendar"
+              />
+
+              <Input
+                label="Description"
+                value={form.description}
+                onChangeText={(v) => set("description", v)}
+                placeholder="Optional notes..."
+                multiline
+                numberOfLines={3}
+              />
+
+              {/* <Input
               label="Receipt URL"
               value={form.receiptUrl}
               onChangeText={(v) => set("receiptUrl", v)}
@@ -730,14 +797,15 @@ export default function OwnerExpensesScreen() {
               autoCapitalize="none"
             /> */}
 
-            <Button
-              label={editingId ? "Save Changes" : "Add Expense"}
-              onPress={handleSubmit}
-              loading={isMutating}
-            />
-          </ScrollView>
-        </SafeAreaView>
-      </Modal>
+              <Button
+                label={editingId ? "Save Changes" : "Add Expense"}
+                onPress={handleSubmit}
+                loading={isMutating}
+              />
+            </ScrollView>
+          </SafeAreaView>
+        </Modal>
+      </PlanGate>
     </SafeAreaView>
   );
 }
@@ -961,6 +1029,42 @@ const s = StyleSheet.create({
     color: "#fff",
     fontWeight: "700",
     fontSize: Typography.sm,
+  },
+
+  // Pagination
+  pagination: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.md,
+    marginTop: Spacing.sm,
+  },
+  pageBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: Colors.primaryFaded,
+    borderRadius: Radius.lg,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: Colors.primary + "40",
+  },
+  pageBtnDisabled: {
+    backgroundColor: Colors.surfaceRaised,
+    borderColor: Colors.border,
+  },
+  pageBtnText: {
+    color: Colors.primary,
+    fontSize: Typography.sm,
+    fontWeight: "600",
+  },
+  pageBtnTextDisabled: { color: Colors.textMuted },
+  pageInfo: {
+    color: Colors.textSecondary,
+    fontSize: Typography.sm,
+    fontWeight: "600",
   },
 
   // Modal

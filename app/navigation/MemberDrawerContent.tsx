@@ -171,7 +171,12 @@ interface NavItem {
 // Discover is in the drawer (not the bottom tab).
 // Store and Profile also accessible from drawer.
 const NAV_ITEMS: NavItem[] = [
-  { icon: "home-outline", label: "Home", screen: "MemberTabs", tab: "Dashboard" },
+  {
+    icon: "home-outline",
+    label: "Home",
+    screen: "MemberTabs",
+    tab: "Dashboard",
+  },
   {
     icon: "office-building-outline",
     label: "MY Gyms",
@@ -209,7 +214,12 @@ const NAV_ITEMS: NavItem[] = [
     screen: "MemberNotifications",
   },
   { icon: "shopping-outline", label: "Store", screen: "MemberStore" },
-  // { icon: "gift-outline", label: "Refer & Earn", screen: "MemberReferral" },
+  { icon: "gift-outline", label: "Refer & Earn", screen: "MemberReferral" },
+  {
+    icon: "human-male-height",
+    label: "Body Metrics",
+    screen: "MemberBodyMetrics",
+  },
   { icon: "account-circle-outline", label: "Profile", screen: "MemberProfile" },
 ];
 

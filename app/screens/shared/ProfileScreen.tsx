@@ -54,15 +54,20 @@ export function ProfileScreen() {
 
   const updateMutation = useMutation({
     mutationFn: (data: object) => profileApi.update(data as any),
-    onSuccess: (updated: any) => {
-      updateProfile(updated);
-      setEditing(false);
-      setForm({
-        fullName: updated.fullName ?? "",
-        mobileNumber: updated.mobileNumber ?? "",
-        city: updated.city ?? "",
-        gender: updated.gender ?? "",
-      });
+    onSuccess: async () => {
+      try {
+        const fresh: any = await profileApi.me();
+        updateProfile(fresh);
+        setEditing(false);
+        setForm({
+          fullName: fresh.fullName ?? "",
+          mobileNumber: fresh.mobileNumber ?? "",
+          city: fresh.city ?? "",
+          gender: fresh.gender ?? "",
+        });
+      } catch {
+        setEditing(false);
+      }
       Toast.show({ type: "success", text1: "Profile updated!" });
     },
     onError: (err: any) => Toast.show({ type: "error", text1: err.message }),

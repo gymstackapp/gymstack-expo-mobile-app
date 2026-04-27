@@ -51,6 +51,11 @@ export default function OwnerPaymentsScreen() {
   const { hasPayments } = useSubscription();
   const qc = useQueryClient();
   const [gymId, setGymId] = useState("");
+  const [page, setPage] = useState(1);
+
+  useEffect(() => {
+    setPage(1);
+  }, [gymId]);
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState({
     gymId: "",
@@ -72,10 +77,11 @@ export default function OwnerPaymentsScreen() {
 
   const { data, isLoading, refetch, isRefetching } =
     useQuery<PaymentsListResponse>({
-      queryKey: ["ownerPayments", gymId],
+      queryKey: ["ownerPayments", gymId, page],
       queryFn: () =>
         paymentsApi.list({
           gymId: gymId || undefined,
+          page,
         }) as Promise<PaymentsListResponse>,
       enabled: hasPayments,
       staleTime: 60_000,
@@ -83,6 +89,7 @@ export default function OwnerPaymentsScreen() {
 
   const payments: OwnerPayment[] = data?.payments ?? [];
   const monthTotal: number = data?.monthTotal ?? 0;
+  const totalPages: number = data?.pages ?? 1;
 
   useEffect(() => {
     if (form.gymId) {
@@ -222,6 +229,58 @@ export default function OwnerPaymentsScreen() {
                 </View>
               </Card>
             )}
+            ListFooterComponent={
+              totalPages > 1 ? (
+                <View style={ps.pagination}>
+                  <TouchableOpacity
+                    style={[ps.pageBtn, page === 1 && ps.pageBtnDisabled]}
+                    onPress={() => setPage((p) => Math.max(1, p - 1))}
+                    disabled={page === 1}
+                  >
+                    <Icon
+                      name="chevron-left"
+                      size={16}
+                      color={page === 1 ? Colors.textMuted : Colors.primary}
+                    />
+                    <Text
+                      style={[
+                        ps.pageBtnText,
+                        page === 1 && ps.pageBtnTextDisabled,
+                      ]}
+                    >
+                      Prev
+                    </Text>
+                  </TouchableOpacity>
+                  <Text style={ps.pageInfo}>
+                    Page {page} / {totalPages}
+                  </Text>
+                  <TouchableOpacity
+                    style={[
+                      ps.pageBtn,
+                      page === totalPages && ps.pageBtnDisabled,
+                    ]}
+                    onPress={() => setPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={page === totalPages}
+                  >
+                    <Text
+                      style={[
+                        ps.pageBtnText,
+                        page === totalPages && ps.pageBtnTextDisabled,
+                      ]}
+                    >
+                      Next
+                    </Text>
+                    <Icon
+                      name="chevron-right"
+                      size={16}
+                      color={
+                        page === totalPages ? Colors.textMuted : Colors.primary
+                      }
+                    />
+                  </TouchableOpacity>
+                </View>
+              ) : null
+            }
           />
         )}
       </PlanGate>
@@ -464,5 +523,39 @@ const ps = StyleSheet.create({
     color: "#fff",
     fontWeight: "700",
     fontSize: Typography.sm,
+  },
+  pagination: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.md,
+    marginTop: Spacing.sm,
+  },
+  pageBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: Colors.primaryFaded,
+    borderRadius: Radius.lg,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: Colors.primary + "40",
+  },
+  pageBtnDisabled: {
+    backgroundColor: Colors.surfaceRaised,
+    borderColor: Colors.border,
+  },
+  pageBtnText: {
+    color: Colors.primary,
+    fontSize: Typography.sm,
+    fontWeight: "600",
+  },
+  pageBtnTextDisabled: { color: Colors.textMuted },
+  pageInfo: {
+    color: Colors.textSecondary,
+    fontSize: Typography.sm,
+    fontWeight: "600",
   },
 });

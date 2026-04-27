@@ -12,7 +12,7 @@ import { Colors, Radius, Spacing, Typography } from "@/theme";
 import type { Gym, GymMemberListItem, MembersListResponse } from "@/types/api";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { useQuery } from "@tanstack/react-query";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   FlatList,
   RefreshControl,
@@ -106,6 +106,11 @@ const OwnerMembersScreen = () => {
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("All");
   const [gymId, setGymId] = useState(initialGymId);
+  const [page, setPage] = useState(1);
+
+  useEffect(() => {
+    setPage(1);
+  }, [gymId, status, search]);
 
   const { data: gyms = [] } = useQuery<Gym[]>({
     queryKey: ["ownerGyms"],
@@ -115,18 +120,20 @@ const OwnerMembersScreen = () => {
 
   const { data, isLoading, refetch, isRefetching } =
     useQuery<MembersListResponse>({
-      queryKey: ["ownerMembers", gymId, status, search],
+      queryKey: ["ownerMembers", gymId, status, search, page],
       queryFn: () =>
         membersApi.list({
           gymId: gymId || undefined,
           status: status === "All" ? undefined : status,
           search: search || undefined,
+          page,
         }) as Promise<MembersListResponse>,
       staleTime: 60_000,
     });
 
   const members: GymMemberListItem[] = data?.members ?? [];
   const total = data?.total ?? 0;
+  const totalPages = data?.pages ?? 1;
   const atLimit = !canAddMember && limits?.maxMembers !== null;
   return (
     <SafeAreaView style={styles.safe}>
@@ -255,6 +262,58 @@ const OwnerMembersScreen = () => {
             />
           )}
           ItemSeparatorComponent={() => <View style={styles.separator} />}
+          ListFooterComponent={
+            totalPages > 1 ? (
+              <View style={styles.pagination}>
+                <TouchableOpacity
+                  style={[styles.pageBtn, page === 1 && styles.pageBtnDisabled]}
+                  onPress={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={page === 1}
+                >
+                  <Icon
+                    name="chevron-left"
+                    size={16}
+                    color={page === 1 ? Colors.textMuted : Colors.primary}
+                  />
+                  <Text
+                    style={[
+                      styles.pageBtnText,
+                      page === 1 && styles.pageBtnTextDisabled,
+                    ]}
+                  >
+                    Prev
+                  </Text>
+                </TouchableOpacity>
+                <Text style={styles.pageInfo}>
+                  Page {page} / {totalPages}
+                </Text>
+                <TouchableOpacity
+                  style={[
+                    styles.pageBtn,
+                    page === totalPages && styles.pageBtnDisabled,
+                  ]}
+                  onPress={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={page === totalPages}
+                >
+                  <Text
+                    style={[
+                      styles.pageBtnText,
+                      page === totalPages && styles.pageBtnTextDisabled,
+                    ]}
+                  >
+                    Next
+                  </Text>
+                  <Icon
+                    name="chevron-right"
+                    size={16}
+                    color={
+                      page === totalPages ? Colors.textMuted : Colors.primary
+                    }
+                  />
+                </TouchableOpacity>
+              </View>
+            ) : null
+          }
         />
       )}
     </SafeAreaView>
@@ -369,5 +428,39 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontWeight: "700",
     fontSize: Typography.sm,
+  },
+  pagination: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.md,
+    marginTop: Spacing.sm,
+  },
+  pageBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: Colors.primaryFaded,
+    borderRadius: Radius.lg,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: Colors.primary + "40",
+  },
+  pageBtnDisabled: {
+    backgroundColor: Colors.surfaceRaised,
+    borderColor: Colors.border,
+  },
+  pageBtnText: {
+    color: Colors.primary,
+    fontSize: Typography.sm,
+    fontWeight: "600",
+  },
+  pageBtnTextDisabled: { color: Colors.textMuted },
+  pageInfo: {
+    color: Colors.textSecondary,
+    fontSize: Typography.sm,
+    fontWeight: "600",
   },
 });

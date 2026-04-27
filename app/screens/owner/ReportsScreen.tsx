@@ -347,6 +347,10 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import {
+  BarChart as GiftedBar,
+  LineChart as GiftedLine,
+} from "react-native-gifted-charts";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 
@@ -379,6 +383,7 @@ interface GymReport {
   attendance: number;
   membershipRev: number;
   supplementRev: number;
+  lockerRev: number;
   totalRevenue: number;
   expenses: number;
   netRevenue: number;
@@ -422,139 +427,114 @@ function fmt(n: number) {
   return `₹${n?.toLocaleString("en-IN")}`;
 }
 
-// ── Stacked bar chart (membership + supplement) ───────────────────────────────
-// Bars are stacked vertically: supplement on top, membership below.
-// Both values use the same scale so relative heights are meaningful.
+// ── Shared chart config ───────────────────────────────────────────────────────
+const CHART_W = SW - Spacing.lg * 4; // card + scroll padding
+const Y_AXIS_W = 52;
+const BAR_AREA = CHART_W - Y_AXIS_W;
+
+function getBarMetrics(count: number) {
+  const perSlot = BAR_AREA / Math.max(count, 1);
+  const barWidth = Math.max(6, Math.floor(perSlot * 0.65));
+  const spacing = Math.max(2, Math.floor(perSlot * 0.35));
+  return { barWidth, spacing };
+}
+
+const LABEL_STYLE = { color: Colors.textMuted, fontSize: 8 };
+
+const CHART_THEME = {
+  backgroundColor: "transparent" as const,
+  rulesColor: Colors.border,
+  yAxisTextStyle: { color: Colors.textMuted, fontSize: 9 },
+  yAxisThickness: 0,
+  xAxisThickness: 0,
+  noOfSections: 4,
+};
+
+function fmtY(v: string): string {
+  const n = Number(v);
+  if (n >= 100_000) return `₹${(n / 100_000).toFixed(1)}L`;
+  if (n >= 1_000) return `₹${(n / 1_000).toFixed(0)}K`;
+  return `₹${n}`;
+}
+
+// ── Stacked bar chart (membership + supplement + lockers) ─────────────────────
 function StackedBarChart({ data }: { data: RevenueBucket[] }) {
-  console.log("barc data", data);
   if (!data?.length) return null;
 
-  const max = Math.max(...data.map((d) => d.total), 1);
-  const BAR_H = 80;
-  const showEvery = data.length > 12 ? Math.ceil(data.length / 6) : 1;
+  const { barWidth, spacing } = getBarMetrics(data.length);
+
+  const stackData = data.map((d) => ({
+    stacks: [
+      { value: d.membershipRev || 0, color: MEM_COLOR },
+      { value: d.supplementRev || 0, color: SUPP_COLOR, marginBottom: 1 },
+      { value: d.lockerRev || 0, color: LOCKER_COLOR, marginBottom: 1 },
+    ],
+    label: d.label,
+    labelTextStyle: LABEL_STYLE,
+  }));
+
+  const totalMem = data.reduce((s, d) => s + d.membershipRev, 0);
+  const totalSupp = data.reduce((s, d) => s + d.supplementRev, 0);
+  const totalLock = data.reduce((s, d) => s + d.lockerRev, 0);
 
   return (
     <View>
       {/* Legend */}
       <View style={ch.legend}>
-        <View style={ch.legendItem}>
-          <View style={[ch.legendDot, { backgroundColor: MEM_COLOR }]} />
-          <Text style={ch.legendTxt}>Membership</Text>
-        </View>
-        <View style={ch.legendItem}>
-          <View style={[ch.legendDot, { backgroundColor: SUPP_COLOR }]} />
-          <Text style={ch.legendTxt}>Supplements</Text>
-        </View>
-        <View style={ch.legendItem}>
-          <View style={[ch.legendDot, { backgroundColor: LOCKER_COLOR }]} />
-          <Text style={ch.legendTxt}>Lockers</Text>
-        </View>
+        {(
+          [
+            [MEM_COLOR, "Membership"],
+            [SUPP_COLOR, "Supplements"],
+            [LOCKER_COLOR, "Lockers"],
+          ] as const
+        ).map(([color, label]) => (
+          <View key={label} style={ch.legendItem}>
+            <View style={[ch.legendDot, { backgroundColor: color }]} />
+            <Text style={ch.legendTxt}>{label}</Text>
+          </View>
+        ))}
       </View>
 
-      {/* Bars */}
-      <View style={[ch.barsRow, { height: BAR_H }]}>
-        {data.map((d, i) => {
-          // Heights as px, stacked: supp on top, membership below
-          const memH =
-            d.total > 0
-              ? Math.max(
-                  (d.membershipRev / max) * (BAR_H - 16),
-                  d.membershipRev > 0 ? 2 : 0,
-                )
-              : 0;
-          const suppH =
-            d.total > 0
-              ? Math.max(
-                  (d.supplementRev / max) * (BAR_H - 16),
-                  d.supplementRev > 0 ? 2 : 0,
-                )
-              : 0;
-          const lockerH =
-            d.total > 0
-              ? Math.max(
-                  (d.lockerRev / max) * (BAR_H - 16),
-                  d.lockerRev > 0 ? 2 : 0,
-                )
-              : 0;
-          const isEmpty = d.total === 0;
+      <GiftedBar
+        stackData={stackData}
+        width={BAR_AREA}
+        height={140}
+        barWidth={barWidth}
+        spacing={spacing}
+        initialSpacing={spacing / 2}
+        formatYLabel={fmtY}
+        {...CHART_THEME}
+      />
 
-          return (
-            <View key={i} style={ch.barCol}>
-              {/* Stacked bar (bottom-up: membership then supplement) */}
-              <View style={[ch.stackWrap, { height: BAR_H - 16 }]}>
-                {isEmpty ? (
-                  <View style={[ch.emptyBar]} />
-                ) : (
-                  <View style={ch.stackInner}>
-                    {/* Supplement — top */}
-                    {suppH > 0 && (
-                      <View
-                        style={[
-                          ch.bar,
-                          { height: suppH, backgroundColor: SUPP_COLOR },
-                        ]}
-                      />
-                    )}
-                    {/* Membership — bottom */}
-                    {memH > 0 && (
-                      <View
-                        style={[
-                          ch.bar,
-                          { height: memH, backgroundColor: MEM_COLOR },
-                        ]}
-                      />
-                    )}
-                    {/* Lockers — top */}
-                    {lockerH > 0 && (
-                      <View
-                        style={[
-                          ch.bar,
-                          { height: lockerH, backgroundColor: LOCKER_COLOR },
-                        ]}
-                      />
-                    )}
-                  </View>
-                )}
-              </View>
-              {/* Date label */}
-              <Text style={ch.barLabel} numberOfLines={1}>
-                {i % showEvery === 0 ? d.label : ""}
-              </Text>
-            </View>
-          );
-        })}
-      </View>
-
-      {/* Summary below chart */}
+      {/* Summary */}
       <View style={ch.chartSummary}>
         <Text style={ch.chartSummaryTxt}>
           Membership:{" "}
           <Text style={{ color: MEM_COLOR, fontWeight: "700" }}>
-            {fmt(data.reduce((s, d) => s + d.membershipRev, 0))}
+            {fmt(totalMem)}
           </Text>
         </Text>
         <Text style={ch.chartSummaryTxt}>
           Supplements:{" "}
           <Text style={{ color: SUPP_COLOR, fontWeight: "700" }}>
-            {fmt(data.reduce((s, d) => s + d.supplementRev, 0))}
+            {fmt(totalSupp)}
           </Text>
         </Text>
-        <Text style={ch.chartSummaryTxt}>
-          Lockers:{" "}
-          <Text style={{ color: LOCKER_COLOR, fontWeight: "700" }}>
-            {fmt(data.reduce((s, d) => s + d.lockerRev, 0))}
+        {totalLock > 0 && (
+          <Text style={ch.chartSummaryTxt}>
+            Lockers:{" "}
+            <Text style={{ color: LOCKER_COLOR, fontWeight: "700" }}>
+              {fmt(totalLock)}
+            </Text>
           </Text>
-        </Text>
+        )}
       </View>
     </View>
   );
 }
 
 // ── Line chart (member growth) ────────────────────────────────────────────────
-// Draws an SVG-free line chart using positioned Views.
-// Points are connected by absolute-positioned lines (rotated thin Views).
 function LineChart({ data }: { data: GrowthBucket[] }) {
-  console.log("linec data", data);
   if (!data?.length || data.every((d) => d.count === 0)) {
     return (
       <View style={lc.empty}>
@@ -563,95 +543,30 @@ function LineChart({ data }: { data: GrowthBucket[] }) {
     );
   }
 
-  const max = Math.max(...data.map((d) => d.count), 1);
-  const H = 72;
-  const W = SW - Spacing.lg * 2 - Spacing.md * 2 - 32; // card width
-  const showEvery = data.length > 12 ? Math.ceil(data.length / 6) : 1;
-
-  // Compute point positions as percentages
-  const pts = data.map((d, i) => ({
-    x: data.length > 1 ? (i / (data.length - 1)) * 100 : 50,
-    y: H - Math.max((d.count / max) * (H - 8), d.count > 0 ? 4 : 0),
-    members: d.count,
+  const chartData = data.map((d) => ({
+    value: d.count,
     label: d.label,
+    labelTextStyle: LABEL_STYLE,
   }));
 
   return (
-    <View style={{ position: "relative" }}>
-      {/* Y-axis labels */}
-      <View style={lc.yAxisLabels}>
-        <Text style={lc.yAxisLabel}>{max}</Text>
-        <Text style={lc.yAxisLabel}>{Math.round(max / 2)}</Text>
-        <Text style={lc.yAxisLabel}>0</Text>
-      </View>
-
-      {/* Chart area */}
-      <View style={[lc.area, { height: H }]}>
-        {/* Horizontal gridlines at 0%, 50%, 100% */}
-        {[0, 50, 100].map((pct) => (
-          <View key={pct} style={[lc.gridLine, { bottom: `${pct}%` as any }]} />
-        ))}
-
-        {/* Filled area below line (gradient approximation using opacity) */}
-        {pts.length >= 2 &&
-          pts.map((pt, i) => {
-            if (i === 0) return null;
-            const prev = pts[i - 1];
-            const dx = ((pt.x - prev.x) / 100) * W;
-            const dy = pt.y - prev.y;
-            const len = Math.sqrt(dx * dx + dy * dy);
-            const angle = Math.atan2(dy, dx) * (180 / Math.PI);
-            const midX = ((prev.x + pt.x) / 2 / 100) * W;
-            const midY = (prev.y + pt.y) / 2;
-            return (
-              <View
-                key={i}
-                style={[
-                  lc.segment,
-                  {
-                    width: len,
-                    left: (prev.x / 100) * W,
-                    top: prev.y,
-                    transform: [{ rotate: `${angle}deg` }],
-                    transformOrigin: "0 50%",
-                    backgroundColor: LINE_COLOR,
-                  },
-                ]}
-              />
-            );
-          })}
-
-        {/* Dots at each data point */}
-        {pts.map((pt, i) => (
-          <View
-            key={i}
-            style={[
-              lc.dot,
-              {
-                left: `${pt.x}%` as any,
-                top: pt.y - 4,
-                backgroundColor: pt.members > 0 ? LINE_COLOR : Colors.border,
-              },
-            ]}
-          />
-        ))}
-      </View>
-
-      {/* X-axis labels */}
-      <View style={lc.labels}>
-        {pts.map((pt, i) => (
-          <Text
-            key={i}
-            style={[lc.label, { left: `${pt.x}%` as any }]}
-            numberOfLines={1}
-          >
-            {i % showEvery === 0 ? pt.label : ""}
-          </Text>
-        ))}
-      </View>
-
-      {}
-    </View>
+    <GiftedLine
+      data={chartData}
+      areaChart
+      curved
+      width={BAR_AREA}
+      height={130}
+      color={LINE_COLOR}
+      thickness={2}
+      startFillColor={LINE_COLOR}
+      endFillColor={LINE_COLOR}
+      startOpacity={0.3}
+      endOpacity={0.02}
+      dataPointsColor={LINE_COLOR}
+      dataPointsRadius={4}
+      formatYLabel={(v) => String(Math.round(Number(v)))}
+      {...CHART_THEME}
+    />
   );
 }
 
@@ -738,6 +653,20 @@ function GymCard({ g }: { g: GymReport }) {
         </View>
       </View>
 
+      {/* Row 2b: locker revenue (only show if non-zero) */}
+      {(g.lockerRev ?? 0) > 0 && (
+        <View style={[gc.row, { marginTop: Spacing.xs }]}>
+          <View style={gc.cell}>
+            <Text style={[gc.cellVal, { color: LOCKER_COLOR }]}>
+              {fmt(g.lockerRev ?? 0)}
+            </Text>
+            <Text style={gc.cellLbl}>Lockers</Text>
+          </View>
+          <View style={gc.cell} />
+          <View style={gc.cell} />
+        </View>
+      )}
+
       {/* Row 3: expenses + net */}
       {(g.expenses > 0 || net !== g.totalRevenue) && (
         <View style={[gc.row, { marginTop: Spacing.xs }]}>
@@ -767,7 +696,7 @@ function GymCard({ g }: { g: GymReport }) {
 
 // ── Main content ──────────────────────────────────────────────────────────────
 function ReportsContent() {
-  const [range, setRange] = useState("this_months");
+  const [range, setRange] = useState("this_month");
   const [gymId, setGymId] = useState("");
 
   const { data: gyms = [] } = useQuery<any[]>({
@@ -1022,30 +951,19 @@ export default function OwnerReportsScreen() {
 // ── Styles ────────────────────────────────────────────────────────────────────
 
 const ch = StyleSheet.create({
-  legend: { flexDirection: "row", gap: Spacing.lg, marginBottom: Spacing.sm },
+  legend: {
+    flexDirection: "row",
+    gap: Spacing.lg,
+    marginBottom: Spacing.sm,
+    flexWrap: "wrap",
+  },
   legendItem: { flexDirection: "row", alignItems: "center", gap: 5 },
   legendDot: { width: 8, height: 8, borderRadius: 2 },
   legendTxt: { color: Colors.textMuted, fontSize: 10 },
-  barsRow: { flexDirection: "row", alignItems: "flex-end", gap: 2 },
-  barCol: { flex: 1, alignItems: "center", gap: 3 },
-  stackWrap: { width: "100%", justifyContent: "flex-end" },
-  stackInner: { width: "100%", justifyContent: "flex-end", gap: 0 },
-  bar: { width: "100%", borderRadius: 1, minHeight: 2 },
-  emptyBar: {
-    width: "100%",
-    height: 2,
-    backgroundColor: Colors.border,
-    opacity: 0.4,
-  },
-  barLabel: {
-    color: Colors.textMuted,
-    fontSize: 7,
-    textAlign: "center",
-    width: "100%",
-  },
   chartSummary: {
     flexDirection: "row",
-    gap: Spacing.lg,
+    flexWrap: "wrap",
+    gap: Spacing.sm,
     marginTop: Spacing.sm,
     paddingTop: Spacing.sm,
     borderTopWidth: 1,
@@ -1055,44 +973,6 @@ const ch = StyleSheet.create({
 });
 
 const lc = StyleSheet.create({
-  area: { position: "relative", marginBottom: 18 },
-  gridLine: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    height: 1,
-    backgroundColor: Colors.border,
-    opacity: 0.3,
-  },
-  segment: { position: "absolute", height: 2, borderRadius: 1, opacity: 0.9 },
-  dot: {
-    position: "absolute",
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginLeft: -4,
-  },
-  labels: { position: "relative", height: 14 },
-  label: {
-    position: "absolute",
-    color: Colors.textMuted,
-    fontSize: 8,
-    transform: [{ translateX: -12 }],
-  },
-  yAxisLabels: {
-    position: "absolute",
-    left: -30,
-    top: 0,
-    height: 72,
-    justifyContent: "space-between",
-    alignItems: "flex-end",
-  },
-  yAxisLabel: {
-    color: Colors.textMuted,
-    fontSize: 8,
-    textAlign: "right",
-    width: 25,
-  },
   empty: { paddingVertical: Spacing.lg, alignItems: "center" },
   emptyTxt: { color: Colors.textMuted, fontSize: Typography.xs },
 });

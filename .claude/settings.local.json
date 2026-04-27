@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(npx tsc *)",
-      "Bash(xargs -I {} basename {} .tsx)"
+      "Bash(xargs -I {} basename {} .tsx)",
+      "Bash(node -e \"const p=require\\('./node_modules/react-native-razorpay/package.json'\\); console.log\\('version:', p.version\\)\")"
     ]
   }
 }

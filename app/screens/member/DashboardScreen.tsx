@@ -478,63 +478,82 @@ export default function MemberDashboardScreen() {
           )}
 
           {/* ── Expiry Alert ────────────────────────────────── */}
-          {!isLoading && !gymLoading && data?.memberships && data.memberships
-            .filter((m) => {
-              if (!m.endDate) return false;
-              const days = Math.ceil(
-                (new Date(m.endDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
-              );
-              return days <= 7;
-            })
-            .map((m) => {
-              const days = Math.ceil(
-                (new Date(m.endDate!).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
-              );
-              const expired = days <= 0;
-              return (
-                <View
-                  key={m.id}
-                  style={[
-                    s.expiryAlert,
-                    expired ? s.expiryAlertExpired : s.expiryAlertWarn,
-                  ]}
-                >
-                  <Icon
-                    name={expired ? "alert-circle" : "clock-alert-outline"}
-                    size={20}
-                    color={expired ? Colors.error : Colors.warning}
-                  />
-                  <View style={{ flex: 1 }}>
-                    <Text style={[s.expiryAlertTitle, expired ? { color: Colors.error } : { color: Colors.warning }]}>
-                      {expired
-                        ? `Membership Expired — ${m.gym?.name ?? "Your Gym"}`
-                        : `Expiring Soon — ${m.gym?.name ?? "Your Gym"}`}
-                    </Text>
-                    <Text style={s.expiryAlertSub}>
-                      {expired
-                        ? "Your membership has expired. Renew to keep access."
-                        : `${days} day${days === 1 ? "" : "s"} left on your membership.`}
-                    </Text>
-                  </View>
-                  {m.gym?.id && (
-                    <TouchableOpacity
-                      onPress={() =>
-                        navigation.navigate("GymDetail", { gymId: m.gym!.id })
-                      }
-                      style={[
-                        s.renewBtn,
-                        expired ? s.renewBtnExpired : s.renewBtnWarn,
-                      ]}
-                      activeOpacity={0.8}
-                    >
-                      <Text style={[s.renewBtnText, expired ? { color: Colors.error } : { color: Colors.warning }]}>
-                        Renew Now
+          {!isLoading &&
+            !gymLoading &&
+            data?.memberships &&
+            data.memberships
+              .filter((m) => {
+                if (!m.endDate) return false;
+                const days = Math.ceil(
+                  (new Date(m.endDate).getTime() - Date.now()) /
+                    (1000 * 60 * 60 * 24),
+                );
+                return days <= 7;
+              })
+              .map((m) => {
+                const days = Math.ceil(
+                  (new Date(m.endDate!).getTime() - Date.now()) /
+                    (1000 * 60 * 60 * 24),
+                );
+                const expired = days <= 0;
+                return (
+                  <View
+                    key={m.id}
+                    style={[
+                      s.expiryAlert,
+                      expired ? s.expiryAlertExpired : s.expiryAlertWarn,
+                    ]}
+                  >
+                    <Icon
+                      name={expired ? "alert-circle" : "clock-alert-outline"}
+                      size={20}
+                      color={expired ? Colors.error : Colors.warning}
+                    />
+                    <View style={{ flex: 1 }}>
+                      <Text
+                        style={[
+                          s.expiryAlertTitle,
+                          expired
+                            ? { color: Colors.error }
+                            : { color: Colors.warning },
+                        ]}
+                      >
+                        {expired
+                          ? `Membership Expired — ${m.gym?.name ?? "Your Gym"}`
+                          : `Expiring Soon — ${m.gym?.name ?? "Your Gym"}`}
                       </Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
-              );
-            })}
+                      <Text style={s.expiryAlertSub}>
+                        {expired
+                          ? "Your membership has expired. Renew to keep access."
+                          : `${days} day${days === 1 ? "" : "s"} left on your membership.`}
+                      </Text>
+                    </View>
+                    {m.gym?.id && (
+                      <TouchableOpacity
+                        onPress={() =>
+                          navigation.navigate("GymDetail", { gymId: m.gym!.id })
+                        }
+                        style={[
+                          s.renewBtn,
+                          expired ? s.renewBtnExpired : s.renewBtnWarn,
+                        ]}
+                        activeOpacity={0.8}
+                      >
+                        <Text
+                          style={[
+                            s.renewBtnText,
+                            expired
+                              ? { color: Colors.error }
+                              : { color: Colors.warning },
+                          ]}
+                        >
+                          Renew Now
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                );
+              })}
 
           {/* ── Stats pills ─────────────────────────────────── */}
           {isLoading || gymLoading ? (
@@ -652,7 +671,7 @@ export default function MemberDashboardScreen() {
             ) : todayWorkout ? (
               <TouchableOpacity
                 style={s.workoutCta}
-                onPress={() => navigation.navigate("MemberWorkouts")}
+                onPress={() => navigation.navigate("Workouts")}
                 activeOpacity={0.8}
               >
                 <Icon name="dumbbell" size={20} color={Colors.primary} />
@@ -749,12 +768,12 @@ export default function MemberDashboardScreen() {
                 screen: "MemberStore",
                 color: Colors.primary,
               },
-              // {
-              //   icon: "gift-outline",
-              //   label: "Refer & Earn",
-              //   screen: "MemberReferral",
-              //   color: Colors.warning,
-              // },
+              {
+                icon: "gift-outline",
+                label: "Refer & Earn",
+                screen: "MemberReferral",
+                color: Colors.warning,
+              },
             ].map((q) => (
               <TouchableOpacity
                 key={q.screen}

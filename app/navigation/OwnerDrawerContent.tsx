@@ -3,6 +3,7 @@
 
 import { Avatar } from "@/components";
 import { showAlert } from "@/components/AppAlert";
+import type { SubscriptionState } from "@/hooks/useSubsciption";
 import { useSubscription } from "@/hooks/useSubsciption";
 import { useAuthStore } from "@/store/authStore";
 import { Colors, Radius, Spacing, Typography } from "@/theme";
@@ -10,6 +11,7 @@ import { DrawerContentComponentProps } from "@react-navigation/drawer";
 import { DrawerActions } from "@react-navigation/native";
 import React from "react";
 import {
+  Image,
   ScrollView,
   StyleSheet,
   Text,
@@ -23,7 +25,8 @@ interface NavItem {
   icon: string;
   label: string;
   screen: string;
-  tab?: string; // if set, navigate into the tab
+  tab?: string;
+  featureKey?: keyof SubscriptionState;
 }
 
 const NAV_ITEMS: NavItem[] = [
@@ -50,8 +53,14 @@ const NAV_ITEMS: NavItem[] = [
     icon: "calendar-check-outline",
     label: "Attendance",
     screen: "OwnerAttendance",
+    featureKey: "hasAttendance",
   },
-  { icon: "credit-card-outline", label: "Payments", screen: "OwnerPayments" },
+  {
+    icon: "credit-card-outline",
+    label: "Payments",
+    screen: "OwnerPayments",
+    featureKey: "hasPayments",
+  },
   {
     icon: "tag-outline",
     label: "Membership Plans",
@@ -61,26 +70,44 @@ const NAV_ITEMS: NavItem[] = [
     icon: "currency-rupee",
     label: "Expenses",
     screen: "OwnerExpenses",
+    featureKey: "hasExpenses",
   },
-  { icon: "lock-outline", label: "Lockers", screen: "OwnerLockers" },
+  {
+    icon: "lock-outline",
+    label: "Lockers",
+    screen: "OwnerLockers",
+    featureKey: "hasLockers",
+  },
   {
     icon: "shopping-outline",
     label: "Supplements",
     screen: "OwnerSupplements",
+    featureKey: "hasSupplements",
   },
   {
     icon: "clipboard-list-outline",
     label: "Workout Plans",
     screen: "OwnerWorkouts",
+    featureKey: "hasWorkoutPlans",
   },
-  { icon: "food-apple-outline", label: "Diet Plans", screen: "OwnerDiets" },
-  // { icon: "gift-outline", label: "Refer & Earn", screen: "OwnerReferral" },
+  {
+    icon: "food-apple-outline",
+    label: "Diet Plans",
+    screen: "OwnerDiets",
+    featureKey: "hasDietPlans",
+  },
+  { icon: "gift-outline", label: "Refer & Earn", screen: "OwnerReferral" },
   {
     icon: "bell-outline",
     label: "Notifications",
     screen: "OwnerNotifications",
   },
-  { icon: "chart-bar", label: "Reports", screen: "OwnerReports" },
+  {
+    icon: "chart-bar",
+    label: "Reports",
+    screen: "OwnerReports",
+    featureKey: "hasFullReports",
+  },
   {
     icon: "lightning-bolt-outline",
     label: "Subscriptions",
@@ -97,8 +124,11 @@ const NAV_ITEMS: NavItem[] = [
 export function OwnerDrawerContent(props: DrawerContentComponentProps) {
   const { navigation } = props;
   const { profile, logout } = useAuthStore();
-  const { subscription, usage, limits } = useSubscription();
+  const sub = useSubscription();
+  const { subscription, usage, limits } = sub;
   const insets = useSafeAreaInsets();
+
+  console.log("sub", sub);
 
   const activeRouteName = props.state.routes[props.state.index].name;
 
@@ -149,10 +179,14 @@ export function OwnerDrawerContent(props: DrawerContentComponentProps) {
     >
       {/* ── Brand header ─────────────────────────────────────── */}
       <View style={styles.brand}>
-        <View style={styles.logoWrap}>
+        {/* <View style={styles.logoWrap}>
           <Icon name="dumbbell" size={20} color="#fff" />
         </View>
-        <Text style={styles.brandName}>GymStack</Text>
+        <Text style={styles.brandName}>GymStack</Text> */}
+        <Image
+          source={require("@/assets/images/logo.png")}
+          style={{ width: 60, height: 60 }}
+        />
       </View>
 
       {/* ── Nav items ─────────────────────────────────────────── */}
@@ -161,9 +195,17 @@ export function OwnerDrawerContent(props: DrawerContentComponentProps) {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
-        <Text style={styles.menuLabel}>MENU</Text>
+        {/* <Text style={styles.menuLabel}>MENU</Text> */}
         {NAV_ITEMS.map((item) => {
           const active = isActive(item);
+          const isLocked = item.featureKey
+            ? !(sub as any)[item.featureKey]
+            : false;
+          const iconColor = active
+            ? Colors.primary
+            : isLocked
+              ? Colors.textMuted
+              : Colors.textSecondary;
           return (
             <TouchableOpacity
               key={item.label}
@@ -171,14 +213,19 @@ export function OwnerDrawerContent(props: DrawerContentComponentProps) {
               onPress={() => onPress(item)}
               activeOpacity={0.7}
             >
-              <Icon
-                name={item.icon}
-                size={18}
-                color={active ? Colors.primary : Colors.textSecondary}
-              />
-              <Text style={[styles.navLabel, active && styles.navLabelActive]}>
+              <Icon name={item.icon} size={18} color={iconColor} />
+              <Text
+                style={[
+                  styles.navLabel,
+                  active && styles.navLabelActive,
+                  isLocked && !active && styles.navLabelLocked,
+                ]}
+              >
                 {item.label}
               </Text>
+              {isLocked && !active && (
+                <Icon name="lock-outline" size={12} color={Colors.textMuted} />
+              )}
             </TouchableOpacity>
           );
         })}
@@ -259,6 +306,7 @@ const styles = StyleSheet.create({
   brand: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
     gap: Spacing.md,
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.xl,
@@ -308,6 +356,7 @@ const styles = StyleSheet.create({
     fontWeight: Typography.medium,
   },
   navLabelActive: { color: Colors.primary, fontWeight: Typography.semibold },
+  navLabelLocked: { color: Colors.textMuted },
 
   // Subscription box
   subBox: {

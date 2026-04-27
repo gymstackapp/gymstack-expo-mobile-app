@@ -1,5 +1,6 @@
 import {
   gymsApi,
+  memberGymReviewsApi,
   membersApi,
   membershipPlansApi,
   paymentsApi,
@@ -87,6 +88,7 @@ const TABS = [
   { key: "services", label: "Services" },
   { key: "plans", label: "Plans" },
   { key: "photos", label: "Photos" },
+  { key: "reviews", label: "Reviews" },
 ] as const;
 
 type TabKey = (typeof TABS)[number]["key"];
@@ -239,6 +241,13 @@ const OwnerGymDetailScreen = () => {
   const [tab, setTab] = useState<TabKey>("details");
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState<Partial<Gym>>({});
+
+  const { data: gymReviews, isLoading: reviewsLoading } = useQuery<any>({
+    queryKey: ["ownerGymReviews", gymId],
+    queryFn: () => memberGymReviewsApi.list(gymId),
+    enabled: !!gymId && tab === "reviews",
+    staleTime: 60_000,
+  });
 
   // Custom service / facility input state
   const [serviceInput, setServiceInput] = useState("");
@@ -1329,6 +1338,147 @@ const OwnerGymDetailScreen = () => {
               ))
             )}
           </View>
+        )}
+
+        {/* ── Reviews ────────────────────────────────────────────── */}
+        {tab === "reviews" && (
+          <Card>
+            <View style={s.cardHeaderRow}>
+              <Text style={s.cardTitle}>Member &amp; Trainer Reviews</Text>
+              {(gymReviews?.total ?? 0) > 0 && (
+                <Text
+                  style={{ color: Colors.textMuted, fontSize: Typography.xs }}
+                >
+                  {gymReviews.total} review{gymReviews.total !== 1 ? "s" : ""}
+                </Text>
+              )}
+            </View>
+            {reviewsLoading ? (
+              <View style={s.emptyTab}>
+                <ActivityIndicator size="small" color={Colors.primary} />
+              </View>
+            ) : (gymReviews?.reviews ?? []).length === 0 ? (
+              <View style={s.emptyTab}>
+                <Icon name="star-outline" size={36} color={Colors.textMuted} />
+                <Text style={s.emptyTabText}>No reviews yet</Text>
+              </View>
+            ) : (
+              <View>
+                {(gymReviews?.reviews ?? []).map((r: any) => {
+                  const date = new Date(r.createdAt).toLocaleDateString(
+                    "en-IN",
+                    { day: "numeric", month: "short", year: "numeric" },
+                  );
+                  return (
+                    <View
+                      key={r.id}
+                      style={{
+                        borderBottomWidth: 1,
+                        borderBottomColor: Colors.border,
+                        paddingVertical: Spacing.md,
+                        gap: Spacing.sm,
+                      }}
+                    >
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "flex-start",
+                          gap: Spacing.sm,
+                        }}
+                      >
+                        <Avatar
+                          name={r.profile.fullName}
+                          url={r.profile.avatarUrl}
+                          size={36}
+                        />
+                        <View style={{ flex: 1 }}>
+                          <View
+                            style={{
+                              flexDirection: "row",
+                              alignItems: "center",
+                              justifyContent: "space-between",
+                            }}
+                          >
+                            <Text
+                              style={{
+                                color: Colors.textPrimary,
+                                fontSize: Typography.sm,
+                                fontWeight: "600",
+                              }}
+                            >
+                              {r.profile.fullName}
+                            </Text>
+                            <Text
+                              style={{
+                                color: Colors.textMuted,
+                                fontSize: Typography.xs,
+                              }}
+                            >
+                              {date}
+                            </Text>
+                          </View>
+                          <View
+                            style={{
+                              flexDirection: "row",
+                              alignItems: "center",
+                              gap: Spacing.xs,
+                              marginTop: 3,
+                            }}
+                          >
+                            {[1, 2, 3, 4, 5].map((s) => (
+                              <Icon
+                                key={s}
+                                name={s <= r.rating ? "star" : "star-outline"}
+                                size={12}
+                                color={
+                                  s <= r.rating ? "#F59E0B" : Colors.border
+                                }
+                              />
+                            ))}
+                            <View
+                              style={{
+                                backgroundColor:
+                                  r.role === "trainer"
+                                    ? "#1e3a5f"
+                                    : Colors.primaryFaded,
+                                borderRadius: Radius.full,
+                                paddingHorizontal: 6,
+                                paddingVertical: 2,
+                              }}
+                            >
+                              <Text
+                                style={{
+                                  color:
+                                    r.role === "trainer"
+                                      ? "#60a5fa"
+                                      : Colors.primary,
+                                  fontSize: 10,
+                                  fontWeight: "600",
+                                }}
+                              >
+                                {r.role === "trainer" ? "Trainer" : "Member"}
+                              </Text>
+                            </View>
+                          </View>
+                        </View>
+                      </View>
+                      {r.comment ? (
+                        <Text
+                          style={{
+                            color: Colors.textSecondary,
+                            fontSize: Typography.sm,
+                            lineHeight: 20,
+                          }}
+                        >
+                          {r.comment}
+                        </Text>
+                      ) : null}
+                    </View>
+                  );
+                })}
+              </View>
+            )}
+          </Card>
         )}
 
         {/* ── Photos ─────────────────────────────────────────────── */}

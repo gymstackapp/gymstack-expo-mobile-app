@@ -245,7 +245,7 @@ export function LoginScreen() {
         {/* Form */}
         <View style={styles.form}>
           <Text style={styles.heading}>Welcome back</Text>
-          <Text style={styles.subheading}>Sign in to continue</Text>
+          <Text style={styles.subheading}>Sign in to continue to GymStack</Text>
 
           {error ? (
             <View style={styles.errorBox}>
@@ -254,10 +254,9 @@ export function LoginScreen() {
           ) : null}
 
           <Input
-            label="Email"
+            label="Email or Mobile Number"
             value={email}
             onChangeText={setEmail}
-            keyboardType="email-address"
             placeholder="you@example.com"
           />
           <Input
@@ -293,7 +292,7 @@ export function LoginScreen() {
                   fontWeight: Typography.semibold,
                 }}
               >
-                Sign up
+                Create One
               </Text>
             </TouchableOpacity>
           </View>

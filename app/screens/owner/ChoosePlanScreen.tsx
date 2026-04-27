@@ -2,8 +2,7 @@
 // Fullscreen standalone screen — NO drawer/tab navigation.
 // Shown when an owner has no active SaaS subscription (hasActivePlan=false).
 // Plans: Free (trial) | Basic | Pro | Enterprise
-// Free plan is activatable directly from the app.
-// Paid plans show a "Subscribe on web app" note (Razorpay is web-only on mobile).
+// Free plan activates directly; paid plans open native Razorpay checkout.
 
 import { subscriptionApi } from "@/api/endpoints";
 import { useAuthStore } from "@/store/authStore";
@@ -12,24 +11,23 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
-  Linking,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
+import RazorpayCheckout from "react-native-razorpay";
 import { SafeAreaView } from "react-native-safe-area-context";
-import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 import Toast from "react-native-toast-message";
+import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 
 // ── Plan definitions ───────────────────────────────────────────────────────────
 
 type Interval = "3mo" | "6mo" | "12mo";
 
 interface PlanDef {
-  key: string;     // matches name contains "free"/"basic"/"pro"/"enterprise"
+  key: string; // matches name contains "free"/"basic"/"pro"/"enterprise"
   label: string;
   color: string;
   bg: string;
@@ -39,7 +37,6 @@ interface PlanDef {
   trialLabel?: string;
   intervals?: { interval: Interval; label: string; price: number }[];
   cta: string;
-  webOnly: boolean;
 }
 
 const PLANS: PlanDef[] = [
@@ -52,7 +49,6 @@ const PLANS: PlanDef[] = [
     trial: true,
     trialLabel: "1 month trial",
     cta: "Start Free Trial",
-    webOnly: false,
   },
   {
     key: "basic",
@@ -61,12 +57,11 @@ const PLANS: PlanDef[] = [
     bg: Colors.infoFaded,
     icon: "star-outline",
     intervals: [
-      { interval: "3mo",  label: "3 months",  price: 999 },
-      { interval: "6mo",  label: "6 months",  price: 1799 },
+      { interval: "3mo", label: "3 months", price: 999 },
+      { interval: "6mo", label: "6 months", price: 1799 },
       { interval: "12mo", label: "12 months", price: 2999 },
     ],
-    cta: "Subscribe on Web",
-    webOnly: true,
+    cta: "Subscribe",
   },
   {
     key: "pro",
@@ -76,12 +71,11 @@ const PLANS: PlanDef[] = [
     icon: "rocket-launch-outline",
     popular: true,
     intervals: [
-      { interval: "3mo",  label: "3 months",  price: 1999 },
-      { interval: "6mo",  label: "6 months",  price: 3499 },
+      { interval: "3mo", label: "3 months", price: 1999 },
+      { interval: "6mo", label: "6 months", price: 3499 },
       { interval: "12mo", label: "12 months", price: 5999 },
     ],
-    cta: "Subscribe on Web",
-    webOnly: true,
+    cta: "Subscribe",
   },
   {
     key: "enterprise",
@@ -90,43 +84,43 @@ const PLANS: PlanDef[] = [
     bg: Colors.purpleFaded,
     icon: "domain",
     intervals: [
-      { interval: "3mo",  label: "3 months",  price: 3999 },
-      { interval: "6mo",  label: "6 months",  price: 6999 },
+      { interval: "3mo", label: "3 months", price: 3999 },
+      { interval: "6mo", label: "6 months", price: 6999 },
       { interval: "12mo", label: "12 months", price: 11999 },
     ],
-    cta: "Subscribe on Web",
-    webOnly: true,
+    cta: "Subscribe",
   },
 ];
 
-// ── Helper ─────────────────────────────────────────────────────────────────────
+// ── Helpers ────────────────────────────────────────────────────────────────────
 
 function fmt(n: number) {
   return `₹${n.toLocaleString("en-IN")}`;
 }
 
-function matchPlanId(
+const INTERVAL_DB_MAP: Record<Interval, string> = {
+  "3mo": "QUARTERLY",
+  "6mo": "HALF_YEARLY",
+  "12mo": "YEARLY",
+};
+
+function matchPlanId(plans: any[], key: string): string | undefined {
+  return plans.find((p: any) =>
+    (p.name ?? "").toLowerCase().includes(key.toLowerCase()),
+  )?.id;
+}
+
+function matchPaidPlanId(
   plans: any[],
   key: string,
-  interval?: Interval,
+  interval: Interval,
 ): string | undefined {
   const lower = key.toLowerCase();
-  const matches = plans.filter((p: any) =>
-    (p.name ?? "").toLowerCase().includes(lower),
-  );
-  if (!interval) return matches[0]?.id;
-  const intMap: Record<Interval, string> = {
-    "3mo":  "3",
-    "6mo":  "6",
-    "12mo": "12",
-  };
-  const n = intMap[interval];
-  return (
-    matches.find(
-      (p: any) =>
-        String(p.intervalMonths ?? p.durationMonths ?? p.months ?? "").startsWith(n),
-    )?.id ?? matches[0]?.id
-  );
+  const dbInterval = INTERVAL_DB_MAP[interval];
+  return plans.find(
+    (p: any) =>
+      (p.name ?? "").toLowerCase().includes(lower) && p.interval === dbInterval,
+  )?.id;
 }
 
 // ── Plan card ──────────────────────────────────────────────────────────────────
@@ -135,18 +129,22 @@ function PlanCard({
   plan,
   apiPlans,
   onActivateFree,
+  onPurchasePaid,
   isActivating,
 }: {
   plan: PlanDef;
   apiPlans: any[];
   onActivateFree: (saasPlanId: string) => void;
+  onPurchasePaid: (saasPlanId: string, amount: number, label: string) => void;
   isActivating: boolean;
 }) {
   const [selInterval, setSelInterval] = useState<Interval>(
     plan.intervals?.[0]?.interval ?? "3mo",
   );
 
-  const currentInterval = plan.intervals?.find((i) => i.interval === selInterval);
+  const currentInterval = plan.intervals?.find(
+    (i) => i.interval === selInterval,
+  );
 
   return (
     <View
@@ -199,7 +197,10 @@ function PlanCard({
                 <Text
                   style={[
                     pc.intervalTxt,
-                    selInterval === iv.interval && { color: plan.color, fontWeight: "700" },
+                    selInterval === iv.interval && {
+                      color: plan.color,
+                      fontWeight: "700",
+                    },
                   ]}
                 >
                   {iv.label}
@@ -216,41 +217,51 @@ function PlanCard({
       )}
 
       {/* CTA */}
-      {plan.webOnly ? (
-        <View>
-          <View style={pc.webOnlyNote}>
-            <Icon name="web" size={14} color={Colors.textMuted} />
-            <Text style={pc.webOnlyTxt}>
-              Subscribe on the web app — mobile billing coming soon
-            </Text>
-          </View>
-          <TouchableOpacity
-            style={[pc.ctaBtn, { backgroundColor: plan.bg, borderColor: plan.color + "60" }]}
-            onPress={() =>
-              Alert.alert(
-                "Subscribe on Web",
-                "Visit app.gymstack.in to subscribe to this plan.",
-                [
-                  { text: "Cancel", style: "cancel" },
-                  {
-                    text: "Open Web App",
-                    onPress: () => Linking.openURL("https://app.gymstack.in/billing"),
-                  },
-                ],
-              )
+      {plan.intervals ? (
+        <TouchableOpacity
+          style={[
+            pc.ctaBtn,
+            { backgroundColor: plan.color, borderColor: plan.color },
+          ]}
+          onPress={() => {
+            const id = matchPaidPlanId(apiPlans, plan.key, selInterval);
+            if (!id || !currentInterval) {
+              Toast.show({
+                type: "error",
+                text1: "Plan not available. Try again.",
+              });
+              return;
             }
-          >
-            <Icon name="open-in-new" size={15} color={plan.color} />
-            <Text style={[pc.ctaTxt, { color: plan.color }]}>{plan.cta}</Text>
-          </TouchableOpacity>
-        </View>
+            onPurchasePaid(
+              id,
+              currentInterval.price,
+              `${plan.label} ${selInterval}`,
+            );
+          }}
+          disabled={isActivating}
+        >
+          {isActivating ? (
+            <ActivityIndicator size="small" color="#fff" />
+          ) : (
+            <>
+              <Icon name="credit-card-outline" size={15} color="#fff" />
+              <Text style={[pc.ctaTxt, { color: "#fff" }]}>{plan.cta}</Text>
+            </>
+          )}
+        </TouchableOpacity>
       ) : (
         <TouchableOpacity
-          style={[pc.ctaBtn, { backgroundColor: plan.color, borderColor: plan.color }]}
+          style={[
+            pc.ctaBtn,
+            { backgroundColor: plan.color, borderColor: plan.color },
+          ]}
           onPress={() => {
             const id = matchPlanId(apiPlans, plan.key);
             if (!id) {
-              Toast.show({ type: "error", text1: "Plan not available. Try again." });
+              Toast.show({
+                type: "error",
+                text1: "Plan not available. Try again.",
+              });
               return;
             }
             onActivateFree(id);
@@ -298,7 +309,11 @@ const pc = StyleSheet.create({
     justifyContent: "center",
     flexShrink: 0,
   },
-  label: { color: Colors.textPrimary, fontSize: Typography.lg, fontWeight: "800" },
+  label: {
+    color: Colors.textPrimary,
+    fontSize: Typography.lg,
+    fontWeight: "800",
+  },
   trialBadge: { fontSize: Typography.xs, fontWeight: "600", marginTop: 2 },
   price: { fontSize: Typography.xxl, fontWeight: "800", marginTop: 4 },
   intervalRow: { flexDirection: "row", gap: Spacing.xs, flexWrap: "wrap" },
@@ -311,16 +326,6 @@ const pc = StyleSheet.create({
     backgroundColor: Colors.surfaceRaised,
   },
   intervalTxt: { color: Colors.textMuted, fontSize: Typography.xs },
-  webOnlyNote: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: Spacing.xs,
-    backgroundColor: Colors.surfaceRaised,
-    borderRadius: Radius.md,
-    padding: Spacing.sm,
-    marginBottom: Spacing.sm,
-  },
-  webOnlyTxt: { flex: 1, color: Colors.textMuted, fontSize: Typography.xs, lineHeight: 16 },
   ctaBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -337,6 +342,7 @@ const pc = StyleSheet.create({
 
 export function ChoosePlanScreen() {
   const { logout, setHasActivePlan } = useAuthStore();
+  const [purchasingPaid, setPurchasingPaid] = useState(false);
 
   const { data: apiPlans = [], isLoading: plansLoading } = useQuery<any[]>({
     queryKey: ["saasPlansList"],
@@ -346,14 +352,65 @@ export function ChoosePlanScreen() {
 
   const activateFreeMutation = useMutation({
     mutationFn: (saasPlanId: string) =>
-      subscriptionApi.subscribe({ saasPlanId, amount: 0 }),
+      subscriptionApi.subscribe({ saasPlanId }),
     onSuccess: () => {
       setHasActivePlan(true);
-      Toast.show({ type: "success", text1: "Free trial activated! Welcome 🎉" });
+      Toast.show({
+        type: "success",
+        text1: "Free trial activated! Welcome 🎉",
+      });
     },
     onError: (err: any) =>
       Toast.show({ type: "error", text1: err.message ?? "Activation failed" }),
   });
+
+  const purchasePaidPlan = async (
+    saasPlanId: string,
+    _amount: number,
+    planLabel: string,
+  ) => {
+    setPurchasingPaid(true);
+    try {
+      const subData = (await subscriptionApi.createSubscription({
+        saasPlanId,
+      })) as any;
+
+      if (!subData.subscriptionId)
+        throw new Error(subData.error ?? "Could not create subscription");
+
+      const paymentData = await (RazorpayCheckout.open as any)({
+        subscription_id: subData.subscriptionId,
+        key: process.env.EXPO_PUBLIC_RAZORPAY_KEY_ID ?? "",
+        name: "GymStack",
+        description: `${planLabel} — Auto-renews`,
+        theme: { color: "#f97316" },
+      });
+
+      await subscriptionApi.subscribe({
+        saasPlanId,
+        razorpayPaymentId: paymentData.razorpay_payment_id,
+        razorpaySubscriptionId: paymentData.razorpay_subscription_id,
+        razorpaySignature: paymentData.razorpay_signature,
+      });
+
+      setHasActivePlan(true);
+      Toast.show({
+        type: "success",
+        text1: "Subscription activated! Welcome 🎉",
+      });
+    } catch (err: any) {
+      if (err?.code !== 0) {
+        Toast.show({
+          type: "error",
+          text1: err?.description ?? err?.message ?? "Payment failed. Please try again.",
+        });
+      }
+    } finally {
+      setPurchasingPaid(false);
+    }
+  };
+
+  const isAnyActivating = activateFreeMutation.isPending || purchasingPaid;
 
   return (
     <SafeAreaView style={s.safe}>
@@ -381,7 +438,8 @@ export function ChoosePlanScreen() {
               plan={plan}
               apiPlans={apiPlans}
               onActivateFree={(id) => activateFreeMutation.mutate(id)}
-              isActivating={activateFreeMutation.isPending}
+              onPurchasePaid={purchasePaidPlan}
+              isActivating={isAnyActivating}
             />
           ))
         )}
@@ -408,7 +466,11 @@ const s = StyleSheet.create({
     fontSize: Typography.xxxl,
     fontWeight: "800",
   },
-  subtitle: { color: Colors.textMuted, fontSize: Typography.sm, lineHeight: 20 },
+  subtitle: {
+    color: Colors.textMuted,
+    fontSize: Typography.sm,
+    lineHeight: 20,
+  },
   scroll: {
     paddingHorizontal: Spacing.lg,
     paddingBottom: 48,

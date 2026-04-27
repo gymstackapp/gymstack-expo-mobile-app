@@ -69,10 +69,10 @@ export default function MemberReferralScreen() {
     staleTime: 5 * 60_000,
   });
 
-  const code = data?.referralCode ?? "—";
-  const usableBalance = data?.usableBalance ?? 0;
+  const code = data?.code ?? "—";
+  const usableBalance = data?.stats?.walletBalance ?? 0;
   const stats = data?.stats ?? {
-    total: 0,
+    totalReferred: 0,
     converted: 0,
     pending: 0,
     totalEarned: 0,
@@ -176,7 +176,7 @@ export default function MemberReferralScreen() {
             {/* Stats */}
             <View style={s.statsRow}>
               <StatBox
-                value={stats.total}
+                value={stats.totalReferred ?? 0}
                 label="Total Referred"
                 color={Colors.primary}
                 icon="account-multiple-outline"

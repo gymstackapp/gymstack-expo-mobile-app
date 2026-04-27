@@ -13,7 +13,7 @@ import { useSubscription } from "@/hooks/useSubsciption";
 import { Colors, Radius, Spacing, Typography } from "@/theme";
 import { Gym } from "@/types/api";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   FlatList,
   Modal,
@@ -96,6 +96,7 @@ export default function OwnerNotificationsScreen() {
   const [showAdd, setShowAdd] = useState(false);
   const [search, setSearch] = useState("");
   const [activeFilter, setActiveFilter] = useState("All");
+  const [page, setPage] = useState(1);
 
   const [form, setForm] = useState({
     gymId: "",
@@ -106,6 +107,11 @@ export default function OwnerNotificationsScreen() {
     expiresAt: "",
   });
 
+  // Reset page when gym or filter changes
+  useEffect(() => {
+    setPage(1);
+  }, [gymId, activeFilter]);
+
   const { data: gyms = [] } = useQuery({
     queryKey: ["ownerGyms"],
     queryFn: () => gymsApi.list() as Promise<Gym[]>,
@@ -113,15 +119,23 @@ export default function OwnerNotificationsScreen() {
   });
 
   const {
-    data: announcements = [],
+    data: notifData,
     isLoading,
     refetch,
     isRefetching,
-  } = useQuery({
-    queryKey: ["ownerNotifications", gymId],
-    queryFn: () => notificationsApi.list({ gymId: gymId || undefined }),
+  } = useQuery<{ announcements: any[]; total: number; pages: number }>({
+    queryKey: ["ownerNotifications", gymId, page],
+    queryFn: () =>
+      notificationsApi.list({ gymId: gymId || undefined, page }) as Promise<{
+        announcements: any[];
+        total: number;
+        pages: number;
+      }>,
     staleTime: 60_000,
   });
+
+  const announcements = notifData?.announcements ?? [];
+  const totalPages = notifData?.pages ?? 1;
 
   const sendMutation = useMutation({
     mutationFn: () =>
@@ -449,6 +463,58 @@ export default function OwnerNotificationsScreen() {
               </Card>
             );
           }}
+          ListFooterComponent={
+            totalPages > 1 ? (
+              <View style={styles.pagination}>
+                <TouchableOpacity
+                  style={[styles.pageBtn, page === 1 && styles.pageBtnDisabled]}
+                  onPress={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={page === 1}
+                >
+                  <Icon
+                    name="chevron-left"
+                    size={16}
+                    color={page === 1 ? Colors.textMuted : Colors.primary}
+                  />
+                  <Text
+                    style={[
+                      styles.pageBtnText,
+                      page === 1 && styles.pageBtnTextDisabled,
+                    ]}
+                  >
+                    Prev
+                  </Text>
+                </TouchableOpacity>
+                <Text style={styles.pageInfo}>
+                  Page {page} / {totalPages}
+                </Text>
+                <TouchableOpacity
+                  style={[
+                    styles.pageBtn,
+                    page === totalPages && styles.pageBtnDisabled,
+                  ]}
+                  onPress={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={page === totalPages}
+                >
+                  <Text
+                    style={[
+                      styles.pageBtnText,
+                      page === totalPages && styles.pageBtnTextDisabled,
+                    ]}
+                  >
+                    Next
+                  </Text>
+                  <Icon
+                    name="chevron-right"
+                    size={16}
+                    color={
+                      page === totalPages ? Colors.textMuted : Colors.primary
+                    }
+                  />
+                </TouchableOpacity>
+              </View>
+            ) : null
+          }
         />
       )}
 
@@ -756,6 +822,40 @@ const styles = StyleSheet.create({
   badgeGrayText: {
     fontSize: 10,
     color: Colors.textMuted,
+  },
+  pagination: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.md,
+    marginTop: Spacing.sm,
+  },
+  pageBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: Colors.primaryFaded,
+    borderRadius: Radius.lg,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: Colors.primary + "40",
+  },
+  pageBtnDisabled: {
+    backgroundColor: Colors.surfaceRaised,
+    borderColor: Colors.border,
+  },
+  pageBtnText: {
+    color: Colors.primary,
+    fontSize: Typography.sm,
+    fontWeight: "600",
+  },
+  pageBtnTextDisabled: { color: Colors.textMuted },
+  pageInfo: {
+    color: Colors.textSecondary,
+    fontSize: Typography.sm,
+    fontWeight: "600",
   },
   modalHeader: {
     flexDirection: "row",

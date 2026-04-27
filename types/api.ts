@@ -517,6 +517,28 @@ export interface DashboardResponse {
   filteredGymId: string | null;
 }
 
+export interface GymReview {
+  id: string;
+  gymId: string;
+  profileId: string;
+  role: string;
+  rating: number;
+  comment: string | null;
+  createdAt: string;
+  updatedAt: string;
+  profile: {
+    fullName: string;
+    avatarUrl: string | null;
+  };
+}
+
+export interface GymReviewsResponse {
+  reviews: GymReview[];
+  total: number;
+  pages: number;
+  myReview: GymReview | null;
+}
+
 export interface DiscoverGym {
   id: string;
   name: string;
@@ -529,6 +551,10 @@ export interface DiscoverGym {
   isEnrolled: boolean;
   isActive: boolean;
   contactNumber: string | null;
+  averageRating: number;
+  totalReviews: number;
+  recentReviews: GymReview[];
+  myReview: GymReview | null;
   owner: {
     fullName: string;
     avatarUrl: string | null;

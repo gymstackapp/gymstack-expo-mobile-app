@@ -9,6 +9,7 @@ import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 
 import AnnouncementsScreen from "../screens/member/AnnouncementScreen";
 import AttendanceScreen from "../screens/member/AttendanceScreen";
+import MemberBodyMetricsScreen from "../screens/member/BodyMetricsScreen";
 import MemberDashboard from "../screens/member/DashboardScreen";
 import DietPlanDetailsScreen from "../screens/member/DietPlanDetailsScreen";
 import DietScreen from "../screens/member/DietScreen";
@@ -148,6 +149,17 @@ function ProfileStack() {
   );
 }
 
+function BodyMetricsStack() {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen
+        name="MemberBodyMetricsScreen"
+        component={MemberBodyMetricsScreen}
+      />
+    </Stack.Navigator>
+  );
+}
+
 // ── Bottom tab navigator ──────────────────────────────────────────────────────
 
 function MemberTabs() {
@@ -221,8 +233,9 @@ export function MemberNavigator() {
           name="MemberNotifications"
           component={NotificationsStack}
         />
-        {/* <Drawer.Screen name="MemberReferral" component={ReferralStack} /> */}
+        <Drawer.Screen name="MemberReferral" component={ReferralStack} />
         <Drawer.Screen name="MemberStore" component={StoreStack} />
+        <Drawer.Screen name="MemberBodyMetrics" component={BodyMetricsStack} />
         <Drawer.Screen name="MemberProfile" component={ProfileStack} />
       </Drawer.Navigator>
     </MemberGymProvider>

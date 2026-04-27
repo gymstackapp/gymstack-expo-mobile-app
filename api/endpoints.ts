@@ -52,15 +52,16 @@ export const authCompletionApi = {
 
 export const subscriptionApi = {
   get: () => api.get("/api/owner/subscription"),
-  // Load available SaaS plan definitions
   plans: () => api.get("/api/subscriptions/plans"),
-  // Legacy endpoint (keep for BillingScreen)
   billingPlans: () => api.get("/api/billing/plans"),
+  createOrder: (data: { saasPlanId: string }) =>
+    api.post("/api/subscriptions/create-order", data),
   subscribe: (data: {
     saasPlanId: string;
     amount: number;
     razorpayPaymentId?: string;
     razorpayOrderId?: string;
+    razorpaySignature?: string;
   }) => api.post("/api/subscriptions/subscribe", data),
 };
 
@@ -196,11 +197,8 @@ export const supplementsApi = {
     unitPrice?: number;
     notes?: string;
   }) => api.post("/api/owner/supplements/sell", data),
-  listSales: (params?: {
-    gymId?: string;
-    range?: string;
-    page?: number;
-  }) => api.get("/api/owner/supplements/sell", params),
+  listSales: (params?: { gymId?: string; range?: string; page?: number }) =>
+    api.get("/api/owner/supplements/sell", params),
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -226,7 +224,7 @@ export const dietsApi = {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const notificationsApi = {
-  list: (params?: { gymId?: string }) =>
+  list: (params?: { gymId?: string; page?: number }) =>
     api.get("/api/owner/notifications", params),
   send: (data: {
     gymId: string;
@@ -336,7 +334,8 @@ export const trainerMembersApi = {
 };
 
 export const trainerDietsApi = {
-  list: (params?: Record<string, string | number | boolean | undefined>) => api.get("/api/trainer/diets", params),
+  list: (params?: Record<string, string | number | boolean | undefined>) =>
+    api.get("/api/trainer/diets", params),
   create: (data: object) => api.post("/api/trainer/diets", data),
   update: (id: string, data: object) =>
     api.patch(`/api/trainer/diets/${id}`, data),
@@ -401,6 +400,24 @@ export const trainerDiscoverApi = {
   list: (params?: { search?: string; city?: string }) =>
     api.get("/api/trainer/discover", params),
   getGym: (id: string) => api.get(`/api/trainer/discover/${id}`),
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GYM REVIEWS  (members and trainers review a gym)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const memberGymReviewsApi = {
+  list: (gymId: string, params?: { page?: number }) =>
+    api.get(`/api/member/gyms/${gymId}/reviews`, params),
+  submit: (gymId: string, data: { rating: number; comment?: string }) =>
+    api.post(`/api/member/gyms/${gymId}/reviews`, data),
+};
+
+export const trainerGymReviewsApi = {
+  list: (gymId: string, params?: { page?: number }) =>
+    api.get(`/api/trainer/gyms/${gymId}/reviews`, params),
+  submit: (gymId: string, data: { rating: number; comment?: string }) =>
+    api.post(`/api/trainer/gyms/${gymId}/reviews`, data),
 };
 
 // ─────────────────────────────────────────────────────────────────────────────

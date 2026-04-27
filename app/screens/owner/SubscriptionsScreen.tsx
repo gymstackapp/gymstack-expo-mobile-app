@@ -2,21 +2,21 @@
 // Mobile version of the web subscriptions page.
 // Matches the web implementation with mobile-specific adaptations.
 
+import { subscriptionApi } from "@/api/endpoints";
 import { Header } from "@/components";
 import { useSubscription } from "@/hooks/useSubsciption";
 import { Colors, Radius, Spacing, Typography } from "@/theme";
-import { useQueryClient } from "@tanstack/react-query";
-import React, { useEffect, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import React, { useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
-  Linking,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
+import RazorpayCheckout from "react-native-razorpay";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
@@ -138,6 +138,7 @@ interface DbSubscription {
   status: string;
   saasPlan: DbPlan;
   currentPeriodEnd: string | null;
+  planName: string | null;
 }
 
 // ── Savings badge helper ──────────────────────────────────────────────────────
@@ -158,33 +159,36 @@ const SubscriptionsScreen = () => {
   const sub = useSubscription();
   const qc = useQueryClient();
 
-  const [dbPlans, setDbPlans] = useState<DbPlan[]>([]);
-  const [dbSub, setDbSub] = useState<DbSubscription | null>(null);
-  const [loading, setLoading] = useState(true);
   const [purchasing, setPurchasing] = useState<string | null>(null);
 
-  // Per-tier duration selection (defaults to 6 months)
   const [durations, setDurations] = useState<Record<string, DurationInterval>>({
-    basic: "HALF_YEARLY",
-    pro: "HALF_YEARLY",
-    enterprise: "HALF_YEARLY",
+    basic: "YEARLY",
+    pro: "YEARLY",
+    enterprise: "YEARLY",
   });
 
-  useEffect(() => {
-    Promise.all([
-      fetch("https://api.gymstack.in/api/subscriptions/plans").then((r) =>
-        r.json(),
-      ),
-      fetch("https://api.gymstack.in/api/owner/subscription").then((r) =>
-        r.json(),
-      ),
-    ])
-      .then(([p, s]) => {
-        setDbPlans(Array.isArray(p) ? p : []);
-        setDbSub(s.subscription ?? null);
-      })
-      .finally(() => setLoading(false));
-  }, []);
+  const { data: dbPlansRaw = [], isLoading: plansLoading } = useQuery<DbPlan[]>(
+    {
+      queryKey: ["saasPlansList"],
+      queryFn: () => subscriptionApi.plans() as Promise<DbPlan[]>,
+      staleTime: 10 * 60_000,
+    },
+  );
+
+  const { data: subData, isLoading: subLoading } = useQuery<{
+    subscription: DbSubscription | null;
+  }>({
+    queryKey: ["ownerSubscription"],
+    queryFn: () =>
+      subscriptionApi.get() as Promise<{ subscription: DbSubscription | null }>,
+    staleTime: 5 * 60_000,
+  });
+
+  const dbPlans: DbPlan[] = Array.isArray(dbPlansRaw) ? dbPlansRaw : [];
+  const dbSub: DbSubscription | null = subData?.subscription ?? null;
+  const loading = plansLoading || subLoading;
+
+  console.log("db", dbSub);
 
   const findDbPlan = (
     tierKey: string,
@@ -194,29 +198,62 @@ const SubscriptionsScreen = () => {
       (p) => p.name.toLowerCase().includes(tierKey) && p.interval === interval,
     );
 
-  const activePlanKey = dbSub?.saasPlan?.name?.toLowerCase().trim() ?? null;
-  const activeInterval = dbSub?.saasPlan?.interval ?? null;
+  const activePlanKey = dbSub?.planName?.toLowerCase().trim() ?? null;
   const isActiveSub =
     dbSub?.status === "ACTIVE" || dbSub?.status === "TRIALING";
 
   const isCurrent = (tier: PlanTier, interval: DurationInterval) =>
-    isActiveSub &&
-    activePlanKey?.includes(tier.key) &&
-    activeInterval === interval;
+    isActiveSub && activePlanKey?.includes(tier.key);
 
   const purchase = async (tier: PlanTier, interval: DurationInterval) => {
-    Alert.alert(
-      "Subscribe on Web",
-      "Visit the GymStack web app to complete your subscription with secure payment processing.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Open Web App",
-          onPress: () =>
-            Linking.openURL("https://app.gymstack.in/subscriptions"),
-        },
-      ],
-    );
+    const dbPlan = findDbPlan(tier.key, interval);
+    if (!dbPlan) {
+      Toast.show({ type: "error", text1: "Plan not found. Please try again." });
+      return;
+    }
+
+    const duration = DURATIONS.find((d) => d.interval === interval)!;
+    const purchaseKey = `${tier.key}-${interval}`;
+    setPurchasing(purchaseKey);
+
+    try {
+      const subData = (await subscriptionApi.createSubscription({
+        saasPlanId: dbPlan.id,
+      })) as any;
+
+      if (!subData.subscriptionId)
+        throw new Error(subData.error ?? "Could not create subscription");
+
+      const paymentData = await (RazorpayCheckout.open as any)({
+        subscription_id: subData.subscriptionId,
+        key: process.env.EXPO_PUBLIC_RAZORPAY_KEY_ID ?? "",
+        name: "GymStack",
+        description: `${tier.name} Plan — ${duration.months} months (Auto-renews)`,
+        theme: { color: "#f97316" },
+      });
+
+      await subscriptionApi.subscribe({
+        saasPlanId: dbPlan.id,
+        razorpayPaymentId: paymentData.razorpay_payment_id,
+        razorpaySubscriptionId: paymentData.razorpay_subscription_id,
+        razorpaySignature: paymentData.razorpay_signature,
+      });
+
+      Toast.show({
+        type: "success",
+        text1: `${tier.name} plan activated! Auto-pay enabled.`,
+      });
+      qc.invalidateQueries({ queryKey: ["ownerSubscription"] });
+    } catch (err: any) {
+      if (err?.code !== 0) {
+        Toast.show({
+          type: "error",
+          text1: err?.description ?? err?.message ?? "Payment failed. Please try again.",
+        });
+      }
+    } finally {
+      setPurchasing(null);
+    }
   };
 
   // ── Loading skeleton ─────────────────────────────────────────────────────────
@@ -287,452 +324,362 @@ const SubscriptionsScreen = () => {
             subtitle="Choose the right plan for your gym business"
           />
         </View>
+      </View>
 
-        <ScrollView
-          contentContainerStyle={styles.scroll}
-          showsVerticalScrollIndicator={false}
-        >
-          {/* ── Current subscription banner ───────────────────────────────── */}
-          {dbSub && (
-            <View
-              style={[
-                styles.banner,
-                sub.isExpired ? styles.bannerExpired : styles.bannerActive,
-              ]}
-            >
-              <View style={styles.bannerContent}>
-                <View style={styles.bannerLeft}>
-                  {sub.isExpired ? (
-                    <Icon
-                      name="alert-triangle"
-                      size={16}
-                      color={Colors.error}
-                    />
-                  ) : (
-                    <Icon name="crown" size={16} color={Colors.primary} />
-                  )}
-                  <View>
-                    <Text style={styles.bannerTitle}>
-                      Current Plan: {dbSub?.saasPlan?.name}
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={styles.scroll}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* ── Current subscription banner ───────────────────────────────── */}
+        {dbSub && (
+          <View
+            style={[
+              styles.banner,
+              sub.isExpired ? styles.bannerExpired : styles.bannerActive,
+            ]}
+          >
+            <View style={styles.bannerContent}>
+              <View style={styles.bannerLeft}>
+                {sub.isExpired ? (
+                  <Icon name="alert-triangle" size={16} color={Colors.error} />
+                ) : (
+                  <Icon name="crown" size={16} color={Colors.primary} />
+                )}
+                <View>
+                  <Text style={styles.bannerTitle}>
+                    Current Plan: {dbSub?.planName}
+                  </Text>
+                  <Text style={styles.bannerSubtitle}>
+                    <Text
+                      style={
+                        sub.isExpired
+                          ? styles.bannerStatusExpired
+                          : styles.bannerStatusActive
+                      }
+                    >
+                      {dbSub?.status?.toLowerCase()}
                     </Text>
-                    <Text style={styles.bannerSubtitle}>
-                      <Text
-                        style={
-                          sub.isExpired
-                            ? styles.bannerStatusExpired
-                            : styles.bannerStatusActive
-                        }
-                      >
-                        {dbSub?.status?.toLowerCase()}
-                      </Text>
-                      {dbSub.currentPeriodEnd && !sub.isExpired && (
-                        <>
-                          {" "}
-                          · Renews{" "}
-                          {new Date(dbSub.currentPeriodEnd).toLocaleDateString(
-                            "en-IN",
-                            { day: "numeric", month: "short", year: "numeric" },
-                          )}
-                        </>
-                      )}
-                      {dbSub.currentPeriodEnd && sub.isExpired && (
-                        <>
-                          {" "}
-                          · Expired{" "}
-                          {new Date(dbSub.currentPeriodEnd).toLocaleDateString(
-                            "en-IN",
-                            { day: "numeric", month: "short", year: "numeric" },
-                          )}
-                        </>
-                      )}
-                    </Text>
-                  </View>
-                </View>
-                <View
-                  style={[
-                    styles.statusBadge,
-                    sub.isExpired
-                      ? styles.statusBadgeExpired
-                      : styles.statusBadgeActive,
-                  ]}
-                >
-                  <Text style={styles.statusBadgeText}>
-                    {sub.isExpired ? "Expired" : "Active"}
+                    {dbSub.currentPeriodEnd && !sub.isExpired && (
+                      <>
+                        {" "}
+                        · Renews{" "}
+                        {new Date(dbSub.currentPeriodEnd).toLocaleDateString(
+                          "en-IN",
+                          { day: "numeric", month: "short", year: "numeric" },
+                        )}
+                      </>
+                    )}
+                    {dbSub.currentPeriodEnd && sub.isExpired && (
+                      <>
+                        {" "}
+                        · Expired{" "}
+                        {new Date(dbSub.currentPeriodEnd).toLocaleDateString(
+                          "en-IN",
+                          { day: "numeric", month: "short", year: "numeric" },
+                        )}
+                      </>
+                    )}
                   </Text>
                 </View>
               </View>
-            </View>
-          )}
-
-          {/* ── Usage summary ─────────────────────────────────────────────── */}
-          {!sub.isExpired && sub.usage && sub.limits && (
-            <View style={styles.usageGrid}>
-              {[
-                {
-                  label: "Gyms",
-                  used: sub.usage.gyms,
-                  max: sub.limits.maxGyms,
-                },
-                {
-                  label: "Members",
-                  used: sub.usage.members,
-                  max: sub.limits.maxMembers,
-                },
-                {
-                  label: "Trainers",
-                  used: sub.usage.trainers,
-                  max: sub.limits.maxTrainers,
-                },
-                {
-                  label: "Membership Plans",
-                  used: sub.usage.membershipPlans,
-                  max: sub.limits.maxMembershipPlans,
-                },
-              ].map(({ label, used, max }) => {
-                const pct =
-                  max !== null
-                    ? Math.min(100, Math.round((used / max) * 100))
-                    : null;
-                const isUnlimited = max === null;
-                const isHigh = pct !== null && pct >= 90;
-                return (
-                  <View key={label} style={styles.usageCard}>
-                    <View style={styles.usageHeader}>
-                      <Text style={styles.usageLabel}>{label}</Text>
-                      {isUnlimited ? (
-                        <Icon name="infinity" size={14} color="#eab308" />
-                      ) : (
-                        <Text
-                          style={[
-                            styles.usageCount,
-                            isHigh && styles.usageCountHigh,
-                          ]}
-                        >
-                          {used}/{max}
-                        </Text>
-                      )}
-                    </View>
-                    {!isUnlimited && (
-                      <View style={styles.progressBar}>
-                        <View
-                          style={[
-                            styles.progressFill,
-                            { width: `${pct!}%` },
-                            isHigh && styles.progressFillHigh,
-                          ]}
-                        />
-                      </View>
-                    )}
-                    {isUnlimited && (
-                      <Text style={styles.unlimitedText}>Unlimited</Text>
-                    )}
-                  </View>
-                );
-              })}
-            </View>
-          )}
-
-          {/* ── Free plan banner ──────────────────────────────────────────── */}
-          {(() => {
-            const freeIsActive = isActiveSub && activePlanKey?.includes("free");
-            const freeBuying = purchasing === "free";
-            const freeDbPlan = dbPlans.find((p) =>
-              p.name.toLowerCase().includes("free"),
-            );
-            return (
               <View
                 style={[
-                  styles.freeBanner,
-                  freeIsActive && styles.freeBannerActive,
+                  styles.statusBadge,
+                  sub.isExpired
+                    ? styles.statusBadgeExpired
+                    : styles.statusBadgeActive,
                 ]}
               >
-                <View style={styles.freeBannerContent}>
-                  <View style={styles.freeBannerLeft}>
-                    <View style={styles.freeIcon}>
-                      <Icon
-                        name="star-outline"
-                        size={20}
-                        color={Colors.textMuted}
+                <Text style={styles.statusBadgeText}>
+                  {sub.isExpired ? "Expired" : "Active"}
+                </Text>
+              </View>
+            </View>
+          </View>
+        )}
+
+        {/* ── Usage summary ─────────────────────────────────────────────── */}
+        {!sub.isExpired && sub.usage && sub.limits && (
+          <View style={styles.usageGrid}>
+            {[
+              {
+                label: "Gyms",
+                used: sub.usage.gyms,
+                max: sub.limits.maxGyms,
+              },
+              {
+                label: "Members",
+                used: sub.usage.members,
+                max: sub.limits.maxMembers,
+              },
+              {
+                label: "Trainers",
+                used: sub.usage.trainers,
+                max: sub.limits.maxTrainers,
+              },
+              {
+                label: "Membership Plans",
+                used: sub.usage.membershipPlans,
+                max: sub.limits.maxMembershipPlans,
+              },
+            ].map(({ label, used, max }) => {
+              const pct =
+                max !== null
+                  ? Math.min(100, Math.round((used / max) * 100))
+                  : null;
+              const isUnlimited = max === null;
+              const isHigh = pct !== null && pct >= 90;
+              return (
+                <View key={label} style={styles.usageCard}>
+                  <View style={styles.usageHeader}>
+                    <Text style={styles.usageLabel}>{label}</Text>
+                    {isUnlimited ? (
+                      <Icon name="infinity" size={14} color="#eab308" />
+                    ) : (
+                      <Text
+                        style={[
+                          styles.usageCount,
+                          isHigh && styles.usageCountHigh,
+                        ]}
+                      >
+                        {used}/{max}
+                      </Text>
+                    )}
+                  </View>
+                  {!isUnlimited && (
+                    <View style={styles.progressBar}>
+                      <View
+                        style={[
+                          styles.progressFill,
+                          { width: `${pct!}%` },
+                          isHigh && styles.progressFillHigh,
+                        ]}
                       />
                     </View>
-                    <View>
-                      <View style={styles.freeHeader}>
-                        <Text style={styles.freeTitle}>Free Plan</Text>
-                        <Text style={styles.freeTrialBadge}>1 month</Text>
-                        {freeIsActive && (
-                          <Text style={styles.freeActiveBadge}>✓ Active</Text>
-                        )}
+                  )}
+                  {isUnlimited && (
+                    <Text style={styles.unlimitedText}>Unlimited</Text>
+                  )}
+                </View>
+              );
+            })}
+          </View>
+        )}
+
+        {/* ── Free plan banner (disabled — autopay plans only) ──────────── */}
+
+        {/* ── Paid plan cards ───────────────────────────────────────────── */}
+        <View style={styles.plansGrid}>
+          {TIERS.map((tier) => {
+            const selectedInterval = durations[tier.key];
+            const price = tier.prices[selectedInterval];
+            const selectedDuration = DURATIONS.find(
+              (d) => d.interval === selectedInterval,
+            )!;
+            const current = isCurrent(tier, selectedInterval);
+            const anyTierCurrent =
+              isActiveSub && activePlanKey?.includes(tier.key);
+            const purchaseKey = `${tier.key}-${selectedInterval}`;
+            const isBuying = purchasing === purchaseKey;
+            const isPopular = tier.key === "pro";
+
+            return (
+              <View
+                key={tier.key}
+                style={[
+                  styles.planCard,
+                  current && styles.planCardCurrent,
+                  anyTierCurrent && !current && styles.planCardAnyCurrent,
+                ]}
+              >
+                {/* Top badge — centered */}
+                {(tier.badge || current) && (
+                  <View style={styles.planBadge}>
+                    {current ? (
+                      <Text style={styles.currentBadgeText}>
+                        ✓ Current Plan
+                      </Text>
+                    ) : (
+                      <Text
+                        style={[
+                          styles.badgeText,
+                          tier.key === "enterprise" && styles.badgeTextPurple,
+                        ]}
+                      >
+                        {tier.badge}
+                      </Text>
+                    )}
+                  </View>
+                )}
+
+                <View style={styles.planContent}>
+                  {/* Plan name + description */}
+                  <View style={styles.planHeader}>
+                    <Text style={styles.planName}>{tier.name}</Text>
+                    <Text style={styles.planDescription}>
+                      {tier.description}
+                    </Text>
+                  </View>
+
+                  {/* Duration picker */}
+                  <View style={styles.durationPicker}>
+                    {DURATIONS.map((d) => {
+                      const isSelected = d.interval === selectedInterval;
+                      const sav = savingsLabel(tier.prices, d.interval);
+                      return (
+                        <TouchableOpacity
+                          key={d.interval}
+                          onPress={() =>
+                            setDurations((prev) => ({
+                              ...prev,
+                              [tier.key]: d.interval,
+                            }))
+                          }
+                          style={[
+                            styles.durationButton,
+                            isSelected && styles.durationButtonSelected,
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.durationLabel,
+                              isSelected && styles.durationLabelSelected,
+                            ]}
+                          >
+                            {d.label}
+                          </Text>
+                          {sav && (
+                            <Text
+                              style={[
+                                styles.savingsBadge,
+                                isSelected && styles.savingsBadgeSelected,
+                              ]}
+                            >
+                              {sav}
+                            </Text>
+                          )}
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+
+                  {/* Price */}
+                  <View style={styles.priceSection}>
+                    <Text style={styles.priceText}>
+                      ₹{price.toLocaleString("en-IN")}
+                    </Text>
+                    <Text style={styles.pricePeriod}>
+                      / {selectedDuration.months} mo
+                    </Text>
+                  </View>
+
+                  {/* Per-month breakdown */}
+                  <Text style={styles.priceBreakdown}>
+                    ≈ ₹
+                    {Math.round(price / selectedDuration.months).toLocaleString(
+                      "en-IN",
+                    )}{" "}
+                    / month
+                  </Text>
+
+                  {/* Divider */}
+                  <View style={styles.divider} />
+
+                  {/* Features */}
+                  <View style={styles.featuresList}>
+                    {tier.features.map((f, fi) => (
+                      <View key={fi} style={styles.featureRow}>
+                        <Icon
+                          name={f.icon}
+                          size={14}
+                          color={
+                            tier.key === "basic"
+                              ? Colors.info
+                              : tier.key === "pro"
+                                ? Colors.primary
+                                : Colors.purple
+                          }
+                        />
+                        <Text style={styles.featureText}>{f.label}</Text>
                       </View>
-                      <Text style={styles.freeSubtitle}>
-                        1 gym · Unlimited members & trainers · Attendance ·
-                        Reports · Announcements
+                    ))}
+                  </View>
+
+                  {/* Autopay badge */}
+                  {!current && (
+                    <View style={styles.autoPayBadge}>
+                      <Icon name="flash" size={11} color="#10b981" />
+                      <Text style={styles.autoPayText}>
+                        Auto-renews via UPI AutoPay / e-Mandate
                       </Text>
                     </View>
-                  </View>
+                  )}
+
+                  {/* CTA */}
                   <TouchableOpacity
                     style={[
-                      styles.freeButton,
-                      freeIsActive && styles.freeButtonDisabled,
+                      styles.ctaButton,
+                      current && styles.ctaButtonCurrent,
+                      isPopular && styles.ctaButtonPopular,
+                      tier.key === "enterprise" && styles.ctaButtonEnterprise,
                     ]}
-                    onPress={() => {
-                      if (freeIsActive || freeBuying || !freeDbPlan) return;
-                      setPurchasing("free");
-                      fetch(
-                        "https://api.gymstack.in/api/subscriptions/subscribe",
-                        {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({
-                            saasPlanId: freeDbPlan.id,
-                            amount: 0,
-                          }),
-                        },
-                      )
-                        .then((r) => {
-                          if (r.ok) {
-                            Toast.show({
-                              type: "success",
-                              text1: "Free plan activated!",
-                            });
-                            qc.invalidateQueries({
-                              queryKey: ["ownerSubscription"],
-                            });
-                          } else {
-                            Toast.show({
-                              type: "error",
-                              text1: "Failed to activate free plan",
-                            });
-                          }
-                        })
-                        .finally(() => setPurchasing(null));
-                    }}
-                    disabled={freeIsActive || freeBuying || !freeDbPlan}
+                    onPress={() =>
+                      !current && !isBuying && purchase(tier, selectedInterval)
+                    }
+                    disabled={current || isBuying}
                   >
-                    {freeBuying ? (
+                    {isBuying ? (
                       <ActivityIndicator size="small" color="#fff" />
-                    ) : freeIsActive ? (
-                      <Text style={styles.freeButtonTextDisabled}>
+                    ) : current ? (
+                      <Text style={styles.ctaButtonTextCurrent}>
                         Current Plan
                       </Text>
                     ) : (
-                      <Text style={styles.freeButtonText}>
-                        Get Started Free
-                      </Text>
+                      <>
+                        <Icon name="flash" size={16} color="#fff" />
+                        <Text style={styles.ctaButtonText}>
+                          Subscribe — ₹{price.toLocaleString("en-IN")}
+                        </Text>
+                      </>
                     )}
                   </TouchableOpacity>
                 </View>
               </View>
             );
-          })()}
+          })}
+        </View>
 
-          {/* ── Paid plan cards ───────────────────────────────────────────── */}
-          <View style={styles.plansGrid}>
-            {TIERS.map((tier) => {
-              const selectedInterval = durations[tier.key];
-              const price = tier.prices[selectedInterval];
-              const selectedDuration = DURATIONS.find(
-                (d) => d.interval === selectedInterval,
-              )!;
-              const current = isCurrent(tier, selectedInterval);
-              const anyTierCurrent =
-                isActiveSub && activePlanKey?.includes(tier.key);
-              const purchaseKey = `${tier.key}-${selectedInterval}`;
-              const isBuying = purchasing === purchaseKey;
-              const isPopular = tier.key === "pro";
-
-              return (
-                <View
-                  key={tier.key}
-                  style={[
-                    styles.planCard,
-                    current && styles.planCardCurrent,
-                    anyTierCurrent && !current && styles.planCardAnyCurrent,
-                  ]}
-                >
-                  {/* Top badge — centered */}
-                  {(tier.badge || current) && (
-                    <View style={styles.planBadge}>
-                      {current ? (
-                        <Text style={styles.currentBadgeText}>
-                          ✓ Current Plan
-                        </Text>
-                      ) : (
-                        <Text
-                          style={[
-                            styles.badgeText,
-                            tier.key === "enterprise" && styles.badgeTextPurple,
-                          ]}
-                        >
-                          {tier.badge}
-                        </Text>
-                      )}
-                    </View>
-                  )}
-
-                  <View style={styles.planContent}>
-                    {/* Plan name + description */}
-                    <View style={styles.planHeader}>
-                      <Text style={styles.planName}>{tier.name}</Text>
-                      <Text style={styles.planDescription}>
-                        {tier.description}
-                      </Text>
-                    </View>
-
-                    {/* Duration picker */}
-                    <View style={styles.durationPicker}>
-                      {DURATIONS.map((d) => {
-                        const isSelected = d.interval === selectedInterval;
-                        const sav = savingsLabel(tier.prices, d.interval);
-                        return (
-                          <TouchableOpacity
-                            key={d.interval}
-                            onPress={() =>
-                              setDurations((prev) => ({
-                                ...prev,
-                                [tier.key]: d.interval,
-                              }))
-                            }
-                            style={[
-                              styles.durationButton,
-                              isSelected && styles.durationButtonSelected,
-                            ]}
-                          >
-                            <Text
-                              style={[
-                                styles.durationLabel,
-                                isSelected && styles.durationLabelSelected,
-                              ]}
-                            >
-                              {d.label}
-                            </Text>
-                            {sav && (
-                              <Text
-                                style={[
-                                  styles.savingsBadge,
-                                  isSelected && styles.savingsBadgeSelected,
-                                ]}
-                              >
-                                {sav}
-                              </Text>
-                            )}
-                          </TouchableOpacity>
-                        );
-                      })}
-                    </View>
-
-                    {/* Price */}
-                    <View style={styles.priceSection}>
-                      <Text style={styles.priceText}>
-                        ₹{price.toLocaleString("en-IN")}
-                      </Text>
-                      <Text style={styles.pricePeriod}>
-                        / {selectedDuration.months} mo
-                      </Text>
-                    </View>
-
-                    {/* Per-month breakdown */}
-                    <Text style={styles.priceBreakdown}>
-                      ≈ ₹
-                      {Math.round(
-                        price / selectedDuration.months,
-                      ).toLocaleString("en-IN")}{" "}
-                      / month
-                    </Text>
-
-                    {/* Divider */}
-                    <View style={styles.divider} />
-
-                    {/* Features */}
-                    <View style={styles.featuresList}>
-                      {tier.features.map((f, fi) => (
-                        <View key={fi} style={styles.featureRow}>
-                          <Icon
-                            name={f.icon}
-                            size={14}
-                            color={
-                              tier.key === "basic"
-                                ? Colors.info
-                                : tier.key === "pro"
-                                  ? Colors.primary
-                                  : Colors.purple
-                            }
-                          />
-                          <Text style={styles.featureText}>{f.label}</Text>
-                        </View>
-                      ))}
-                    </View>
-
-                    {/* CTA */}
-                    <TouchableOpacity
-                      style={[
-                        styles.ctaButton,
-                        current && styles.ctaButtonCurrent,
-                        isPopular && styles.ctaButtonPopular,
-                        tier.key === "enterprise" && styles.ctaButtonEnterprise,
-                      ]}
-                      onPress={() =>
-                        !current &&
-                        !isBuying &&
-                        purchase(tier, selectedInterval)
-                      }
-                      disabled={current || isBuying}
-                    >
-                      {isBuying ? (
-                        <ActivityIndicator size="small" color="#fff" />
-                      ) : current ? (
-                        <Text style={styles.ctaButtonTextCurrent}>
-                          Current Plan
-                        </Text>
-                      ) : (
-                        <>
-                          <Icon
-                            name="credit-card-outline"
-                            size={16}
-                            color="#fff"
-                          />
-                          <Text style={styles.ctaButtonText}>
-                            Subscribe — ₹{price.toLocaleString("en-IN")}
-                          </Text>
-                        </>
-                      )}
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              );
-            })}
-          </View>
-
-          {/* ── Trust badges ─────────────────────────────────────────────── */}
-          <View style={styles.trustGrid}>
-            {[
-              {
-                icon: "shield-check-outline",
-                text: "Secure Payments",
-                sub: "Powered by Razorpay",
-              },
-              {
-                icon: "clock-outline",
-                text: "Instant Activation",
-                sub: "No waiting period",
-              },
-              {
-                icon: "check-circle-outline",
-                text: "Easy Upgrade",
-                sub: "Switch anytime",
-              },
-              { icon: "infinity", text: "No Lock-in", sub: "Cancel any time" },
-            ].map((b) => (
-              <View key={b.text} style={styles.trustCard}>
-                <Icon name={b.icon} size={16} color={Colors.primary} />
-                <View>
-                  <Text style={styles.trustTitle}>{b.text}</Text>
-                  <Text style={styles.trustSub}>{b.sub}</Text>
-                </View>
+        {/* ── Trust badges ─────────────────────────────────────────────── */}
+        <View style={styles.trustGrid}>
+          {[
+            {
+              icon: "shield-check-outline",
+              text: "Secure Payments",
+              sub: "Powered by Razorpay",
+            },
+            {
+              icon: "clock-outline",
+              text: "Instant Activation",
+              sub: "No waiting period",
+            },
+            {
+              icon: "check-circle-outline",
+              text: "Easy Upgrade",
+              sub: "Switch anytime",
+            },
+            { icon: "infinity", text: "No Lock-in", sub: "Cancel any time" },
+          ].map((b) => (
+            <View key={b.text} style={styles.trustCard}>
+              <Icon name={b.icon} size={16} color={Colors.primary} />
+              <View>
+                <Text style={styles.trustTitle}>{b.text}</Text>
+                <Text style={styles.trustSub}>{b.sub}</Text>
               </View>
-            ))}
-          </View>
-        </ScrollView>
-      </View>
+            </View>
+          ))}
+        </View>
+      </ScrollView>
     </SafeAreaView>
   );
 };
@@ -1061,6 +1008,7 @@ const styles = StyleSheet.create({
     borderRadius: Radius.lg,
     paddingVertical: Spacing.md,
     marginTop: Spacing.sm,
+    backgroundColor: Colors.surfaceRaised,
   },
   ctaButtonCurrent: {
     backgroundColor: Colors.surfaceRaised,
@@ -1080,6 +1028,18 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
     fontSize: Typography.sm,
     fontWeight: "700",
+  },
+  autoPayBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+    marginBottom: -Spacing.xs,
+  },
+  autoPayText: {
+    color: Colors.textMuted,
+    fontSize: 10,
+    opacity: 0.7,
   },
 
   // Trust badges

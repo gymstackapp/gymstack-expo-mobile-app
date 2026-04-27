@@ -42,14 +42,14 @@ import GymMembershipPlansScreen from "../screens/owner/GymMembershipPlansScreen"
 import SupplementsScreen from "../screens/owner/SupplementsScreen";
 // Workouts & Diets
 import OwnerDietsScreen from "../screens/owner/DietsScreen";
-import OwnerWorkoutsScreen from "../screens/owner/WorkoutsScreen";
 import WorkoutPlanDetailScreen from "../screens/owner/WorkoutPlanDetailScreen";
+import OwnerWorkoutsScreen from "../screens/owner/WorkoutsScreen";
 // Reports
 import ReportsScreen from "../screens/owner/ReportsScreen";
 // Notifications
 import OwnerNotificationsScreen from "../screens/owner/NotificationsScreen";
 // Referral
-// import ReferralScreen from "../screens/owner/ReferralScreen";
+import ReferralScreen from "../screens/owner/ReferralScreen";
 // Subscriptions
 import SubscriptionsScreen from "../screens/owner/SubscriptionsScreen";
 // Profile
@@ -221,13 +221,13 @@ function NotificationsStack() {
   );
 }
 
-// function ReferralStack() {
-//   return (
-//     <Stack.Navigator screenOptions={{ headerShown: false }}>
-//       <Stack.Screen name="OwnerReferralScreen" component={ReferralScreen} />
-//     </Stack.Navigator>
-//   );
-// }
+function ReferralStack() {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="OwnerReferralScreen" component={ReferralScreen} />
+    </Stack.Navigator>
+  );
+}
 
 function SubscriptionsStack() {
   return (
@@ -341,7 +341,7 @@ export function OwnerNavigator() {
       <Drawer.Screen name="OwnerDiets" component={DietsStack} />
       <Drawer.Screen name="OwnerReports" component={ReportsStack} />
       <Drawer.Screen name="OwnerNotifications" component={NotificationsStack} />
-      {/* <Drawer.Screen name="OwnerReferral" component={ReferralStack} /> */}
+      <Drawer.Screen name="OwnerReferral" component={ReferralStack} />
       <Drawer.Screen name="OwnerSubscriptions" component={SubscriptionsStack} />
       <Drawer.Screen name="OwnerExpenses" component={ExpensesStack} />
       <Drawer.Screen name="OwnerLockers" component={LockersStack} />

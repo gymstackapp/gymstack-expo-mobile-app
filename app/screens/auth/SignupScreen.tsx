@@ -574,7 +574,7 @@ import { useAuthStore } from "@/store/authStore";
 import { useOnboardingStore } from "@/store/onboardingStore";
 import { Colors, Radius, Spacing, Typography } from "@/theme";
 import { useNavigation } from "@react-navigation/native";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Image,
@@ -772,6 +772,16 @@ export function SignupScreen() {
   const [otpCode, setOtpCode] = useState("");
   const [resendTimer, setResendTimer] = useState(0);
 
+  const [mobileError, setMobileError] = useState("");
+  const [mobileOk, setMobileOk] = useState(false);
+  const [mobileChecking, setMobileChecking] = useState(false);
+  const [emailError, setEmailError] = useState("");
+  const [emailOk, setEmailOk] = useState(false);
+  const [emailChecking, setEmailChecking] = useState(false);
+
+  const mobileDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const emailDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const [form, setForm] = useState({
     fullName: "",
     email: "",
@@ -791,6 +801,64 @@ export function SignupScreen() {
 
   const setF = (key: keyof typeof form) => (val: string) =>
     setForm((f) => ({ ...f, [key]: val }));
+
+  const checkMobileUnique = useCallback((raw: string) => {
+    setMobileError("");
+    setMobileOk(false);
+    const digits = raw.replace(/\D/g, "").slice(-10);
+    if (digits.length !== 10) {
+      setMobileChecking(false);
+      return;
+    }
+    if (mobileDebounce.current) clearTimeout(mobileDebounce.current);
+    setMobileChecking(true);
+    mobileDebounce.current = setTimeout(async () => {
+      try {
+        const res = await fetch(
+          `${API_BASE}/api/auth/check-mobile-status?mobile=${digits}`,
+        );
+        const data = await res.json();
+        if (data.status !== "NOT_FOUND") {
+          setMobileError("An account with this mobile number already exists");
+        } else {
+          setMobileOk(true);
+        }
+      } catch {
+        /* ignore network errors */
+      } finally {
+        setMobileChecking(false);
+      }
+    }, 500);
+  }, []);
+
+  const checkEmailUnique = useCallback((raw: string) => {
+    setEmailError("");
+    setEmailOk(false);
+    const email = raw.trim().toLowerCase();
+    if (!email || !email.includes("@") || !email.includes(".")) {
+      setEmailChecking(false);
+      return;
+    }
+    if (emailDebounce.current) clearTimeout(emailDebounce.current);
+    setEmailChecking(true);
+    emailDebounce.current = setTimeout(async () => {
+      try {
+        const res = await fetch(
+          `${API_BASE}/api/auth/check-email-status?email=${encodeURIComponent(email)}`,
+        );
+        const data = await res.json();
+        if (data.status === "FOUND") {
+          setEmailError("An account with this email already exists");
+        } else {
+          setEmailOk(true);
+        }
+      } catch {
+        /* ignore network errors */
+      } finally {
+        setEmailChecking(false);
+      }
+    }, 500);
+  }, []);
 
   // ── Validation ──────────────────────────────────────────────────────────────
   const validate = (): string | null => {
@@ -812,6 +880,11 @@ export function SignupScreen() {
     const err = validate();
     if (err) {
       setError(err);
+      return;
+    }
+    if (mobileError || emailError) return;
+    if (mobileChecking || emailChecking) {
+      setError("Please wait while we verify your details");
       return;
     }
     setLoading(true);
@@ -1009,10 +1082,16 @@ export function SignupScreen() {
             <Input
               label="Email *"
               value={form.email}
-              onChangeText={setF("email")}
+              onChangeText={(v) => {
+                setF("email")(v);
+                checkEmailUnique(v);
+              }}
               placeholder="you@example.com"
               keyboardType="email-address"
               autoCapitalize="none"
+              error={emailError}
+              success={emailOk && !emailError ? "Available" : undefined}
+              checking={emailChecking}
             />
             <Input
               label="Password *"
@@ -1024,9 +1103,15 @@ export function SignupScreen() {
             <Input
               label="Mobile Number *"
               value={form.mobileNumber}
-              onChangeText={setF("mobileNumber")}
+              onChangeText={(v) => {
+                setF("mobileNumber")(v);
+                checkMobileUnique(v);
+              }}
               placeholder="9876543210"
               keyboardType="phone-pad"
+              error={mobileError}
+              success={mobileOk && !mobileError ? "Available" : undefined}
+              checking={mobileChecking}
             />
             <Input
               label="City *"

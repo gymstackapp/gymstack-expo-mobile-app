@@ -2,20 +2,23 @@
 import { Colors, Radius, Spacing, Typography } from "@/theme";
 import React, { forwardRef, useState } from "react";
 import {
-    StyleSheet,
-    Text,
-    TextInput,
-    TextInputProps,
-    TouchableOpacity,
-    View,
-    ViewStyle,
+  ActivityIndicator,
+  StyleSheet,
+  Text,
+  TextInput,
+  TextInputProps,
+  TouchableOpacity,
+  View,
+  ViewStyle,
 } from "react-native";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 
 interface InputProps extends TextInputProps {
   label?: string;
   error?: string;
+  success?: string;
   hint?: string; // helper text below the field
+  checking?: boolean; // shows spinner on the right while async-validating
   password?: boolean; // auto-adds show/hide eye button
   leftIcon?: string; // MaterialCommunityIcons name
   rightIcon?: string;
@@ -27,7 +30,9 @@ export const Input = forwardRef<TextInput, InputProps>(function Input(
   {
     label,
     error,
+    success,
     hint,
+    checking,
     password,
     leftIcon,
     rightIcon,
@@ -40,12 +45,19 @@ export const Input = forwardRef<TextInput, InputProps>(function Input(
 ) {
   const [showPassword, setShowPassword] = useState(false);
   const hasError = !!error;
+  const hasSuccess = !!success && !hasError;
 
   return (
     <View style={[styles.wrap, containerStyle]}>
       {label ? <Text style={styles.label}>{label}</Text> : null}
 
-      <View style={[styles.box, hasError && styles.boxError]}>
+      <View
+        style={[
+          styles.box,
+          hasError && styles.boxError,
+          hasSuccess && styles.boxSuccess,
+        ]}
+      >
         {leftIcon ? (
           <Icon
             name={leftIcon}
@@ -65,8 +77,14 @@ export const Input = forwardRef<TextInput, InputProps>(function Input(
           {...props}
         />
 
-        {/* Password toggle */}
-        {password ? (
+        {/* Async checking spinner */}
+        {checking ? (
+          <ActivityIndicator
+            size="small"
+            color={Colors.textMuted}
+            style={styles.rightBtn}
+          />
+        ) : password ? (
           <TouchableOpacity
             onPress={() => setShowPassword((v) => !v)}
             style={styles.rightBtn}
@@ -90,7 +108,15 @@ export const Input = forwardRef<TextInput, InputProps>(function Input(
       </View>
 
       {error ? (
-        <Text style={styles.error}>{error}</Text>
+        <View style={styles.feedbackRow}>
+          <Icon name="alert-circle-outline" size={12} color={Colors.error} />
+          <Text style={styles.error}>{error}</Text>
+        </View>
+      ) : success ? (
+        <View style={styles.feedbackRow}>
+          <Icon name="check-circle-outline" size={12} color={Colors.success} />
+          <Text style={styles.success}>{success}</Text>
+        </View>
       ) : hint ? (
         <Text style={styles.hint}>{hint}</Text>
       ) : null}
@@ -121,6 +147,19 @@ const styles = StyleSheet.create({
   },
   boxError: {
     borderColor: Colors.error,
+  },
+  boxSuccess: {
+    borderColor: Colors.success,
+  },
+  feedbackRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: 5,
+  },
+  success: {
+    color: Colors.success,
+    fontSize: Typography.xs,
   },
   leftIcon: {
     marginRight: Spacing.sm,

@@ -22,6 +22,8 @@ export interface MobilePlanLimits {
   hasReferAndEarn: boolean;
   hasFullReports: boolean;
   hasDashboardAnalytics: boolean;
+  hasLockers: boolean;
+  hasExpenses: boolean;
 }
 
 export interface MobileSubscription {
@@ -45,7 +47,7 @@ export interface MobileUsage {
   notificationsThisMonth: number;
 }
 
-interface SubscriptionState {
+export interface SubscriptionState {
   subscription: MobileSubscription | null;
   usage: MobileUsage | null;
   isLoading: boolean;
@@ -71,6 +73,8 @@ interface SubscriptionState {
   hasPlanTemplates: boolean;
   hasReferAndEarn: boolean;
   hasFullReports: boolean;
+  hasLockers: boolean;
+  hasExpenses: boolean;
   canAddMembershipPlan: boolean;
 }
 
@@ -134,6 +138,8 @@ export function useSubscription(): SubscriptionState {
     hasPlanTemplates: limits?.hasPlanTemplates ?? false,
     hasReferAndEarn: limits?.hasReferAndEarn ?? false,
     hasFullReports: limits?.hasFullReports ?? false,
+    hasLockers: limits?.hasLockers ?? false,
+    hasExpenses: limits?.hasExpenses ?? false,
     canAddMembershipPlan:
       !sub?.isExpired &&
       within(usage?.membershipPlans, limits?.maxMembershipPlans),
