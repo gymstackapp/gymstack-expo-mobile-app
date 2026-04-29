@@ -14,7 +14,7 @@ import { Colors, Radius, Spacing, Typography } from "@/theme";
 import type { Gym, MembershipPlan } from "@/types/api";
 import { useRoute } from "@react-navigation/native";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   FlatList,
   Modal,
@@ -53,6 +53,14 @@ export default function GymMembershipPlansScreen() {
     queryFn: async () => gymsApi.list() as Promise<Gym[]>,
     staleTime: 5 * 60_000,
   });
+
+  // Default to first gym if none pre-selected
+  useEffect(() => {
+    if (!gymId && gyms.length > 0) {
+      setGymId(gyms[0].id);
+      setForm((f) => ({ ...f, gymId: gyms[0].id }));
+    }
+  }, [gyms]); // eslint-disable-line react-hooks/exhaustive-deps
   const {
     data: plans = [],
     isLoading,
@@ -100,6 +108,19 @@ export default function GymMembershipPlansScreen() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["ownerPlans", gymId] });
       Toast.show({ type: "success", text1: "Plan deleted" });
+    },
+    onError: (err: any) => Toast.show({ type: "error", text1: err.message }),
+  });
+
+  const toggleMutation = useMutation({
+    mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) =>
+      membershipPlansApi.update(id, { isActive }),
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ["ownerPlans", gymId] });
+      Toast.show({
+        type: "success",
+        text1: vars.isActive ? "Plan activated" : "Plan deactivated",
+      });
     },
     onError: (err: any) => Toast.show({ type: "error", text1: err.message }),
   });
@@ -224,7 +245,7 @@ export default function GymMembershipPlansScreen() {
           }
           ItemSeparatorComponent={() => <View style={{ height: Spacing.md }} />}
           renderItem={({ item: p }) => (
-            <Card>
+            <Card style={!p.isActive ? { opacity: 0.45 } : undefined}>
               <View
                 style={{
                   flexDirection: "row",
@@ -233,18 +254,46 @@ export default function GymMembershipPlansScreen() {
                 }}
               >
                 <View style={{ flex: 1 }}>
-                  <Text
+                  <View
                     style={{
-                      color: Colors.textPrimary,
-                      fontSize: Typography.base,
-                      fontWeight: "700",
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 6,
                     }}
                   >
-                    {p.name}
-                  </Text>
+                    <Text
+                      style={{
+                        color: Colors.textPrimary,
+                        fontSize: Typography.base,
+                        fontWeight: "700",
+                      }}
+                    >
+                      {p.name}
+                    </Text>
+                    {!p.isActive && (
+                      <View
+                        style={{
+                          backgroundColor: Colors.surfaceRaised,
+                          borderRadius: Radius.full,
+                          paddingHorizontal: 7,
+                          paddingVertical: 2,
+                        }}
+                      >
+                        <Text
+                          style={{
+                            color: Colors.textMuted,
+                            fontSize: 10,
+                            fontWeight: "500",
+                          }}
+                        >
+                          Inactive
+                        </Text>
+                      </View>
+                    )}
+                  </View>
                   <Text
                     style={{
-                      color: Colors.primary,
+                      color: p.isActive ? Colors.primary : Colors.textMuted,
                       fontSize: Typography.xl,
                       fontWeight: "800",
                       marginTop: 4,
@@ -273,25 +322,60 @@ export default function GymMembershipPlansScreen() {
                     </Text>
                   ) : null}
                 </View>
-                <TouchableOpacity
-                  onPress={() =>
-                    showAlert("Delete Plan", `Delete "${p.name}"?`, [
-                      { text: "Cancel", style: "cancel" },
-                      {
-                        text: "Delete",
-                        style: "destructive",
-                        onPress: () => deleteMutation.mutate(p.id),
-                      },
-                    ])
-                  }
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                <View
+                  style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
                 >
-                  <Icon
-                    name="trash-can-outline"
-                    size={18}
-                    color={Colors.error}
-                  />
-                </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() =>
+                      showAlert(
+                        p.isActive ? "Deactivate Plan" : "Activate Plan",
+                        `${p.isActive ? "Deactivate" : "Activate"} "${p.name}"?`,
+                        [
+                          { text: "Cancel", style: "cancel" },
+                          {
+                            text: p.isActive ? "Deactivate" : "Activate",
+                            style: p.isActive ? "destructive" : "default",
+                            onPress: () =>
+                              toggleMutation.mutate({
+                                id: p.id,
+                                isActive: !p.isActive,
+                              }),
+                          },
+                        ],
+                      )
+                    }
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <Icon
+                      name={p.isActive ? "toggle-switch" : "toggle-switch-off"}
+                      size={22}
+                      color={p.isActive ? Colors.success : Colors.textMuted}
+                    />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() =>
+                      showAlert(
+                        "Delete Plan",
+                        `Permanently delete "${p.name}"? This cannot be undone.`,
+                        [
+                          { text: "Cancel", style: "cancel" },
+                          {
+                            text: "Delete",
+                            style: "destructive",
+                            onPress: () => deleteMutation.mutate(p.id),
+                          },
+                        ],
+                      )
+                    }
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <Icon
+                      name="trash-can-outline"
+                      size={18}
+                      color={Colors.error}
+                    />
+                  </TouchableOpacity>
+                </View>
               </View>
               {p.features?.length > 0 && (
                 <View style={{ marginTop: Spacing.md, gap: 4 }}>

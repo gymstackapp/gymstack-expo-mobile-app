@@ -1,6 +1,12 @@
 // mobile/src/screens/member/DashboardScreen.tsx
 import { memberAttendanceApi, memberDashboardApi } from "@/api/endpoints";
-import { Avatar, Card, NoGymState, Skeleton } from "@/components";
+import {
+  Avatar,
+  Card,
+  NoGymState,
+  NotificationBell,
+  Skeleton,
+} from "@/components";
 import { useMemberGym } from "@/hooks/useMemberGym";
 import { useAuthStore } from "@/store/authStore";
 import { Colors, Radius, Spacing, Typography } from "@/theme";
@@ -370,6 +376,7 @@ export default function MemberDashboardScreen() {
                   <Text style={s.streakBadgeText}>🔥 {currentStreak}</Text>
                 </View>
               )}
+              <NotificationBell />
               <TouchableOpacity onPress={() => navigation.navigate("Profile")}>
                 <Avatar
                   name={profile?.fullName ?? "M"}

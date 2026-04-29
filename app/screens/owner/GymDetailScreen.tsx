@@ -84,8 +84,8 @@ const TABS = [
   { key: "details", label: "Details" },
   { key: "members", label: "Members" },
   { key: "trainers", label: "Trainers" },
-  { key: "facilities", label: "Facilities" },
   { key: "services", label: "Services" },
+  { key: "facilities", label: "Facilities" },
   { key: "plans", label: "Plans" },
   { key: "photos", label: "Photos" },
   { key: "reviews", label: "Reviews" },
@@ -292,11 +292,16 @@ const OwnerGymDetailScreen = () => {
     enabled: !!gymId,
   });
 
+  const [membersPage, setMembersPage] = useState(1);
+
   const { data: membersData, isLoading: membersLoading } =
     useQuery<MembersListResponse>({
-      queryKey: ["gymMembers", gymId],
+      queryKey: ["gymMembers", gymId, membersPage],
       queryFn: () =>
-        membersApi.list({ gymId, page: 1 }) as Promise<MembersListResponse>,
+        membersApi.list({
+          gymId,
+          page: membersPage,
+        }) as Promise<MembersListResponse>,
       enabled: !!gymId && tab === "members",
     });
 
@@ -323,7 +328,20 @@ const OwnerGymDetailScreen = () => {
     mutationFn: (planId: string) => membershipPlansApi.delete(planId),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["ownerPlans", gymId] });
-      Toast.show({ type: "success", text1: "Plan deactivated" });
+      Toast.show({ type: "success", text1: "Plan deleted" });
+    },
+    onError: (err: Error) => Toast.show({ type: "error", text1: err.message }),
+  });
+
+  const togglePlanMutation = useMutation({
+    mutationFn: ({ planId, isActive }: { planId: string; isActive: boolean }) =>
+      membershipPlansApi.update(planId, { isActive }),
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ["ownerPlans", gymId] });
+      Toast.show({
+        type: "success",
+        text1: vars.isActive ? "Plan activated" : "Plan deactivated",
+      });
     },
     onError: (err: Error) => Toast.show({ type: "error", text1: err.message }),
   });
@@ -469,12 +487,32 @@ const OwnerGymDetailScreen = () => {
   };
 
   const confirmDeletePlan = (planId: string, planName: string) => {
-    showAlert("Deactivate Plan", `Deactivate "${planName}"?`, [
+    showAlert(
+      "Delete Plan",
+      `Permanently delete "${planName}"? This cannot be undone.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => deletePlanMutation.mutate(planId),
+        },
+      ],
+    );
+  };
+
+  const confirmTogglePlan = (plan: MembershipPlan) => {
+    const action = plan.isActive ? "Deactivate" : "Activate";
+    showAlert(`${action} Plan`, `${action} "${plan.name}"?`, [
       { text: "Cancel", style: "cancel" },
       {
-        text: "Deactivate",
-        style: "destructive",
-        onPress: () => deletePlanMutation.mutate(planId),
+        text: action,
+        style: plan.isActive ? "destructive" : "default",
+        onPress: () =>
+          togglePlanMutation.mutate({
+            planId: plan.id,
+            isActive: !plan.isActive,
+          }),
       },
     ]);
   };
@@ -796,6 +834,67 @@ const OwnerGymDetailScreen = () => {
                 })
               )}
             </Card>
+            {/* Pagination */}
+            {(membersData?.pages ?? 1) > 1 && (
+              <View style={s.pagination}>
+                <TouchableOpacity
+                  style={[s.pageBtn, membersPage === 1 && s.pageBtnDisabled]}
+                  onPress={() => setMembersPage((p) => Math.max(1, p - 1))}
+                  disabled={membersPage === 1}
+                >
+                  <Icon
+                    name="chevron-left"
+                    size={16}
+                    color={
+                      membersPage === 1 ? Colors.textMuted : Colors.primary
+                    }
+                  />
+                  <Text
+                    style={[
+                      s.pageBtnText,
+                      membersPage === 1 && s.pageBtnTextDisabled,
+                    ]}
+                  >
+                    Prev
+                  </Text>
+                </TouchableOpacity>
+                <Text style={s.pageInfo}>
+                  Page {membersPage} / {membersData?.pages ?? 1}
+                </Text>
+                <TouchableOpacity
+                  style={[
+                    s.pageBtn,
+                    membersPage === (membersData?.pages ?? 1) &&
+                      s.pageBtnDisabled,
+                  ]}
+                  onPress={() =>
+                    setMembersPage((p) =>
+                      Math.min(membersData?.pages ?? 1, p + 1),
+                    )
+                  }
+                  disabled={membersPage === (membersData?.pages ?? 1)}
+                >
+                  <Text
+                    style={[
+                      s.pageBtnText,
+                      membersPage === (membersData?.pages ?? 1) &&
+                        s.pageBtnTextDisabled,
+                    ]}
+                  >
+                    Next
+                  </Text>
+                  <Icon
+                    name="chevron-right"
+                    size={16}
+                    color={
+                      membersPage === (membersData?.pages ?? 1)
+                        ? Colors.textMuted
+                        : Colors.primary
+                    }
+                  />
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
         )}
 
@@ -900,7 +999,7 @@ const OwnerGymDetailScreen = () => {
             </View>
 
             {/* Custom entry input */}
-            <View style={[s.addRow, { marginTop: Spacing.md }]}>
+            <View style={[s.addRow, { marginVertical: Spacing.md }]}>
               <TextInput
                 style={s.addInput}
                 placeholder="Add a custom facility..."
@@ -924,71 +1023,55 @@ const OwnerGymDetailScreen = () => {
               </TouchableOpacity>
             </View>
 
-            {/* Custom items (not in predefined list) — shown with X */}
-            {(gym.facilities ?? []).filter((f) => !FACILITIES.includes(f))
-              .length > 0 && (
-              <>
-                <Text
-                  style={[
-                    s.chipHint,
-                    { marginTop: Spacing.md, marginBottom: Spacing.sm },
-                  ]}
-                >
-                  Custom
-                </Text>
-                <View style={s.chipGrid}>
-                  {(gym.facilities ?? [])
-                    .filter((f) => !FACILITIES.includes(f))
-                    .map((f) => (
-                      <View
-                        key={f}
-                        style={[
-                          s.chip,
-                          s.chipActive,
-                          {
-                            flexDirection: "row",
-                            alignItems: "center",
-                            gap: 6,
-                          },
-                        ]}
-                      >
-                        <Text style={[s.chipText, s.chipTextActive]}>{f}</Text>
-                        <TouchableOpacity
-                          onPress={() => removeFacility(f)}
-                          disabled={updateGymMutation.isPending}
-                          hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                        >
-                          <Icon name="close" size={13} color={Colors.primary} />
-                        </TouchableOpacity>
-                      </View>
-                    ))}
-                </View>
-              </>
-            )}
-
-            {/* Predefined toggle chips */}
-            <Text
-              style={[
-                s.chipHint,
-                { marginTop: Spacing.lg, marginBottom: Spacing.sm },
-              ]}
-            >
-              Tap to add / remove
-            </Text>
+            {/* All facilities: active ones show with X, inactive tap to add */}
             <View style={s.chipGrid}>
+              {/* Custom (non-predefined) active items */}
+              {(gym.facilities ?? [])
+                .filter((f) => !FACILITIES.includes(f))
+                .map((f) => (
+                  <View
+                    key={f}
+                    style={[s.chip, s.chipActive, s.chipWithRemove]}
+                  >
+                    <Text style={[s.chipText, s.chipTextActive]}>{f}</Text>
+                    <TouchableOpacity
+                      onPress={() => removeFacility(f)}
+                      disabled={updateGymMutation.isPending}
+                      hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                    >
+                      <Icon name="close" size={13} color={Colors.primary} />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              {/* Predefined items */}
               {FACILITIES.map((f) => {
                 const active = gym.facilities?.includes(f);
+                if (active) {
+                  return (
+                    <View
+                      key={f}
+                      style={[s.chip, s.chipActive, s.chipWithRemove]}
+                    >
+                      <Text style={[s.chipText, s.chipTextActive]}>{f}</Text>
+                      <TouchableOpacity
+                        onPress={() => removeFacility(f)}
+                        disabled={updateGymMutation.isPending}
+                        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                      >
+                        <Icon name="close" size={13} color={Colors.primary} />
+                      </TouchableOpacity>
+                    </View>
+                  );
+                }
                 return (
                   <TouchableOpacity
                     key={f}
-                    style={[s.chip, active && s.chipActive]}
+                    style={s.chip}
                     onPress={() => toggleFacility(f)}
                     disabled={updateGymMutation.isPending}
                     activeOpacity={0.7}
                   >
-                    <Text style={[s.chipText, active && s.chipTextActive]}>
-                      {f}
-                    </Text>
+                    <Text style={s.chipText}>{f}</Text>
                   </TouchableOpacity>
                 );
               })}
@@ -1007,7 +1090,7 @@ const OwnerGymDetailScreen = () => {
             </View>
 
             {/* Custom entry input */}
-            <View style={[s.addRow, { marginTop: Spacing.md }]}>
+            <View style={[s.addRow, { marginVertical: Spacing.md }]}>
               <TextInput
                 style={s.addInput}
                 placeholder="Add a custom service..."
@@ -1031,71 +1114,55 @@ const OwnerGymDetailScreen = () => {
               </TouchableOpacity>
             </View>
 
-            {/* Custom items (not in predefined list) — shown with X */}
-            {(gym.services ?? []).filter((sv) => !SERVICES.includes(sv))
-              .length > 0 && (
-              <>
-                <Text
-                  style={[
-                    s.chipHint,
-                    { marginTop: Spacing.md, marginBottom: Spacing.sm },
-                  ]}
-                >
-                  Custom
-                </Text>
-                <View style={s.chipGrid}>
-                  {(gym.services ?? [])
-                    .filter((sv) => !SERVICES.includes(sv))
-                    .map((sv) => (
-                      <View
-                        key={sv}
-                        style={[
-                          s.chip,
-                          s.chipActive,
-                          {
-                            flexDirection: "row",
-                            alignItems: "center",
-                            gap: 6,
-                          },
-                        ]}
-                      >
-                        <Text style={[s.chipText, s.chipTextActive]}>{sv}</Text>
-                        <TouchableOpacity
-                          onPress={() => removeService(sv)}
-                          disabled={updateGymMutation.isPending}
-                          hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                        >
-                          <Icon name="close" size={13} color={Colors.primary} />
-                        </TouchableOpacity>
-                      </View>
-                    ))}
-                </View>
-              </>
-            )}
-
-            {/* Predefined toggle chips */}
-            <Text
-              style={[
-                s.chipHint,
-                { marginTop: Spacing.lg, marginBottom: Spacing.sm },
-              ]}
-            >
-              Tap to add / remove
-            </Text>
+            {/* All services: active ones show with X, inactive tap to add */}
             <View style={s.chipGrid}>
+              {/* Custom (non-predefined) active items */}
+              {(gym.services ?? [])
+                .filter((sv) => !SERVICES.includes(sv))
+                .map((sv) => (
+                  <View
+                    key={sv}
+                    style={[s.chip, s.chipActive, s.chipWithRemove]}
+                  >
+                    <Text style={[s.chipText, s.chipTextActive]}>{sv}</Text>
+                    <TouchableOpacity
+                      onPress={() => removeService(sv)}
+                      disabled={updateGymMutation.isPending}
+                      hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                    >
+                      <Icon name="close" size={13} color={Colors.primary} />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              {/* Predefined items */}
               {SERVICES.map((sv) => {
                 const active = gym.services?.includes(sv);
+                if (active) {
+                  return (
+                    <View
+                      key={sv}
+                      style={[s.chip, s.chipActive, s.chipWithRemove]}
+                    >
+                      <Text style={[s.chipText, s.chipTextActive]}>{sv}</Text>
+                      <TouchableOpacity
+                        onPress={() => removeService(sv)}
+                        disabled={updateGymMutation.isPending}
+                        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                      >
+                        <Icon name="close" size={13} color={Colors.primary} />
+                      </TouchableOpacity>
+                    </View>
+                  );
+                }
                 return (
                   <TouchableOpacity
                     key={sv}
-                    style={[s.chip, active && s.chipActive]}
+                    style={s.chip}
                     onPress={() => toggleService(sv)}
                     disabled={updateGymMutation.isPending}
                     activeOpacity={0.7}
                   >
-                    <Text style={[s.chipText, active && s.chipTextActive]}>
-                      {sv}
-                    </Text>
+                    <Text style={s.chipText}>{sv}</Text>
                   </TouchableOpacity>
                 );
               })}
@@ -1275,25 +1342,15 @@ const OwnerGymDetailScreen = () => {
                   <View style={s.planActions}>
                     <TouchableOpacity
                       style={s.planActionBtn}
-                      disabled={!plan.isActive}
                       onPress={() => openEditPlan(plan)}
                     >
                       <Icon
                         name="pencil-outline"
                         size={14}
-                        color={
-                          plan.isActive ? Colors.primary : Colors.textDisabled
-                        }
+                        color={Colors.primary}
                       />
                       <Text
-                        style={[
-                          s.planActionText,
-                          {
-                            color: plan.isActive
-                              ? Colors.primary
-                              : Colors.textDisabled,
-                          },
-                        ]}
+                        style={[s.planActionText, { color: Colors.primary }]}
                       >
                         Edit
                       </Text>
@@ -1301,11 +1358,55 @@ const OwnerGymDetailScreen = () => {
                     <View style={s.planDivider} />
                     <TouchableOpacity
                       style={s.planActionBtn}
+                      onPress={() => confirmTogglePlan(plan)}
+                      disabled={
+                        togglePlanMutation.isPending &&
+                        (togglePlanMutation.variables as any)?.planId ===
+                          plan.id
+                      }
+                    >
+                      {togglePlanMutation.isPending &&
+                      (togglePlanMutation.variables as any)?.planId ===
+                        plan.id ? (
+                        <ActivityIndicator
+                          size={14}
+                          color={
+                            plan.isActive ? Colors.warning : Colors.success
+                          }
+                        />
+                      ) : (
+                        <Icon
+                          name={
+                            plan.isActive
+                              ? "toggle-switch"
+                              : "toggle-switch-off"
+                          }
+                          size={14}
+                          color={
+                            plan.isActive ? Colors.warning : Colors.success
+                          }
+                        />
+                      )}
+                      <Text
+                        style={[
+                          s.planActionText,
+                          {
+                            color: plan.isActive
+                              ? Colors.warning
+                              : Colors.success,
+                          },
+                        ]}
+                      >
+                        {plan.isActive ? "Deactivate" : "Activate"}
+                      </Text>
+                    </TouchableOpacity>
+                    <View style={s.planDivider} />
+                    <TouchableOpacity
+                      style={s.planActionBtn}
                       onPress={() => confirmDeletePlan(plan.id, plan.name)}
                       disabled={
-                        (deletePlanMutation.isPending &&
-                          deletePlanMutation.variables === plan.id) ||
-                        !plan.isActive
+                        deletePlanMutation.isPending &&
+                        deletePlanMutation.variables === plan.id
                       }
                     >
                       {deletePlanMutation.isPending &&
@@ -1315,22 +1416,11 @@ const OwnerGymDetailScreen = () => {
                         <Icon
                           name="trash-can-outline"
                           size={14}
-                          color={
-                            plan.isActive ? Colors.error : Colors.textDisabled
-                          }
+                          color={Colors.error}
                         />
                       )}
-                      <Text
-                        style={[
-                          s.planActionText,
-                          {
-                            color: plan.isActive
-                              ? Colors.error
-                              : Colors.textDisabled,
-                          },
-                        ]}
-                      >
-                        Deactivate
+                      <Text style={[s.planActionText, { color: Colors.error }]}>
+                        Delete
                       </Text>
                     </TouchableOpacity>
                   </View>
@@ -1537,12 +1627,22 @@ const OwnerGymDetailScreen = () => {
             ) : (gym.gymImages?.length ?? 0) > 0 ? (
               <View style={s.photoGrid}>
                 {gym.gymImages.map((url, i) => (
-                  <Image
+                  <TouchableOpacity
                     key={i}
-                    source={{ uri: url }}
-                    style={s.photoThumb}
-                    resizeMode="cover"
-                  />
+                    onPress={() =>
+                      (navigation as any).navigate("GymImageViewer", {
+                        images: gym.gymImages,
+                        initialIndex: i,
+                      })
+                    }
+                    activeOpacity={0.85}
+                  >
+                    <Image
+                      source={{ uri: url }}
+                      style={s.photoThumb}
+                      resizeMode="cover"
+                    />
+                  </TouchableOpacity>
                 ))}
               </View>
             ) : (
@@ -1742,6 +1842,7 @@ const s = StyleSheet.create({
   },
   chipText: { color: Colors.textMuted, fontSize: Typography.sm },
   chipTextActive: { color: Colors.primary, fontWeight: "600" },
+  chipWithRemove: { flexDirection: "row", alignItems: "center", gap: 6 },
 
   // Plans
   planHeader: {
@@ -1793,6 +1894,41 @@ const s = StyleSheet.create({
   // Empty states
   emptyTab: { alignItems: "center", padding: Spacing.xxxl, gap: Spacing.md },
   emptyTabText: { color: Colors.textMuted, fontSize: Typography.sm },
+
+  // Pagination
+  pagination: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: Spacing.md,
+    marginTop: Spacing.xs,
+  },
+  pageBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: Colors.primaryFaded,
+    borderRadius: Radius.lg,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: Colors.primary + "40",
+  },
+  pageBtnDisabled: {
+    backgroundColor: Colors.surfaceRaised,
+    borderColor: Colors.border,
+  },
+  pageBtnText: {
+    color: Colors.primary,
+    fontSize: Typography.sm,
+    fontWeight: "600",
+  },
+  pageBtnTextDisabled: { color: Colors.textMuted },
+  pageInfo: {
+    color: Colors.textSecondary,
+    fontSize: Typography.sm,
+    fontWeight: "600",
+  },
 
   // Custom input row (services / facilities)
   addRow: { flexDirection: "row", gap: Spacing.sm, alignItems: "center" },

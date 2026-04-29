@@ -1,17 +1,27 @@
 // mobile/src/screens/owner/MemberDetailScreen.tsx
-import { membersApi } from "@/api/endpoints";
-import { Avatar, Badge, Card, Header, ListRow, Skeleton } from "@/components";
+import { membersApi, membershipPlansApi } from "@/api/endpoints";
+import {
+  Avatar,
+  Badge,
+  Card,
+  Header,
+  Input,
+  ListRow,
+  Skeleton,
+} from "@/components";
 import { showAlert } from "@/components/AppAlert";
 import { Colors, Radius, Spacing, Typography } from "@/theme";
 import type {
   AttendanceRecord,
   GymMemberDetail,
   PaymentRecord,
+  TrainerSummary,
 } from "@/types/api";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import React, { useState } from "react";
 import {
+  Modal,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -33,6 +43,15 @@ export default function OwnerMemberDetailScreen() {
   const qc = useQueryClient();
   const { memberId } = route.params as { memberId: string };
   const [tab, setTab] = useState<"info" | "attendance" | "payments">("info");
+  const [showTrainerModal, setShowTrainerModal] = useState(false);
+  const [showRenewModal, setShowRenewModal] = useState(false);
+  const [gymPlans, setGymPlans] = useState<any[]>([]);
+  const [renewForm, setRenewForm] = useState({
+    membershipPlanId: "",
+    paymentAmount: "",
+    paymentMethod: "CASH",
+    notes: "",
+  });
 
   const { data, isLoading, refetch, isRefetching } = useQuery<GymMemberDetail>({
     queryKey: ["ownerMember", memberId],
@@ -54,16 +73,29 @@ export default function OwnerMemberDetailScreen() {
     onError: (err: Error) => Toast.show({ type: "error", text1: err.message }),
   });
 
+  const assignTrainerMutation = useMutation({
+    mutationFn: (trainerId: string | null) =>
+      membersApi.update(memberId, { assignedTrainerId: trainerId }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["ownerMember", memberId] });
+      setShowTrainerModal(false);
+      Toast.show({ type: "success", text1: "Trainer assigned" });
+    },
+    onError: (err: Error) => Toast.show({ type: "error", text1: err.message }),
+  });
+
   const renewMutation = useMutation({
-    mutationFn: (planId: string) =>
+    mutationFn: () =>
       membersApi.renew(memberId, {
-        membershipPlanId: planId,
-        paymentAmount: data?.membershipPlan?.price,
-        paymentMethod: "CASH",
+        membershipPlanId: renewForm.membershipPlanId,
+        paymentAmount: parseFloat(renewForm.paymentAmount) || 0,
+        paymentMethod: renewForm.paymentMethod,
+        notes: renewForm.notes || undefined,
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["ownerMember", memberId] });
-      Toast.show({ type: "success", text1: "Membership renewed! ✅" });
+      setShowRenewModal(false);
+      Toast.show({ type: "success", text1: "Membership renewed!" });
     },
     onError: (err: Error) => Toast.show({ type: "error", text1: err.message }),
   });
@@ -201,29 +233,51 @@ export default function OwnerMemberDetailScreen() {
 
         {/* Quick actions */}
         <View style={styles.actions}>
-          {plan && (
-            <TouchableOpacity
-              style={styles.actionBtn}
-              onPress={() =>
-                showAlert(
-                  "Renew Membership",
-                  `Renew ${plan.name} for ₹${plan.price}?`,
-                  [
-                    { text: "Cancel", style: "cancel" },
-                    {
-                      text: "Renew (Cash)",
-                      onPress: () => renewMutation.mutate(plan.id),
-                    },
-                  ],
-                )
+          <TouchableOpacity
+            style={styles.actionBtn}
+            onPress={async () => {
+              let plans: any[] = [];
+              if (data.gym?.id) {
+                try {
+                  const all = (await membershipPlansApi.list(
+                    data.gym.id,
+                  )) as any[];
+                  plans = all.filter((p: any) => p.isActive);
+                } catch {
+                  plans = plan ? [plan] : [];
+                }
+              } else {
+                plans = plan ? [plan] : [];
               }
-            >
-              <Icon name="refresh" size={16} color={Colors.success} />
-              <Text style={[styles.actionText, { color: Colors.success }]}>
-                Renew
-              </Text>
-            </TouchableOpacity>
-          )}
+              setGymPlans(plans);
+              const defaultPlan =
+                plans.find((p: any) => p.id === data.membershipPlan?.id) ??
+                plans[0];
+              setRenewForm({
+                membershipPlanId: defaultPlan?.id ?? "",
+                paymentAmount: defaultPlan
+                  ? String(Number(defaultPlan.price))
+                  : "",
+                paymentMethod: "CASH",
+                notes: "",
+              });
+              setShowRenewModal(true);
+            }}
+          >
+            <Icon name="refresh" size={16} color={Colors.success} />
+            <Text style={[styles.actionText, { color: Colors.success }]}>
+              Renew
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.actionBtn}
+            onPress={() => setShowTrainerModal(true)}
+          >
+            <Icon name="account-tie-outline" size={16} color={Colors.info} />
+            <Text style={[styles.actionText, { color: Colors.info }]}>
+              {data.assignedTrainer ? "Trainer" : "Assign"}
+            </Text>
+          </TouchableOpacity>
           <TouchableOpacity
             style={styles.actionBtn}
             onPress={() => suspendMutation.mutate()}
@@ -283,6 +337,16 @@ export default function OwnerMemberDetailScreen() {
         {/* Info tab */}
         {tab === "info" && (
           <Card>
+            {data.assignedTrainer && (
+              <ListRow
+                icon="account-tie-outline"
+                label="Assigned Trainer"
+                value={data.assignedTrainer.profile.fullName}
+                bordered
+                iconColor={Colors.info}
+                iconBg={Colors.infoFaded}
+              />
+            )}
             {profile.mobileNumber ? (
               <ListRow
                 icon="phone-outline"
@@ -485,6 +549,439 @@ export default function OwnerMemberDetailScreen() {
           </View>
         )}
       </ScrollView>
+
+      {/* Renew Membership Modal */}
+      <Modal
+        visible={showRenewModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowRenewModal(false)}
+      >
+        <SafeAreaView style={{ flex: 1, backgroundColor: Colors.bg }}>
+          <ScrollView
+            contentContainerStyle={{
+              padding: Spacing.lg,
+              paddingBottom: 40,
+              gap: Spacing.md,
+            }}
+            keyboardShouldPersistTaps="handled"
+          >
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Renew Membership</Text>
+              <TouchableOpacity onPress={() => setShowRenewModal(false)}>
+                <Icon name="close" size={22} color={Colors.textMuted} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Current status info */}
+            <View
+              style={{
+                backgroundColor: Colors.surfaceRaised,
+                borderRadius: Radius.lg,
+                padding: Spacing.md,
+                gap: 6,
+              }}
+            >
+              <View
+                style={{
+                  flexDirection: "row",
+                  justifyContent: "space-between",
+                }}
+              >
+                <Text
+                  style={{ color: Colors.textMuted, fontSize: Typography.xs }}
+                >
+                  Current status
+                </Text>
+                <Text
+                  style={{
+                    color:
+                      data.status === "ACTIVE" ? Colors.success : Colors.error,
+                    fontSize: Typography.xs,
+                    fontWeight: "600",
+                  }}
+                >
+                  {data.status}
+                </Text>
+              </View>
+              <View
+                style={{
+                  flexDirection: "row",
+                  justifyContent: "space-between",
+                }}
+              >
+                <Text
+                  style={{ color: Colors.textMuted, fontSize: Typography.xs }}
+                >
+                  Current expiry
+                </Text>
+                <Text
+                  style={{
+                    color: Colors.textSecondary,
+                    fontSize: Typography.xs,
+                  }}
+                >
+                  {data.endDate
+                    ? new Date(data.endDate).toLocaleDateString("en-IN")
+                    : "No expiry"}
+                </Text>
+              </View>
+              {(() => {
+                const sel = gymPlans.find(
+                  (p: any) => p.id === renewForm.membershipPlanId,
+                );
+                if (!sel) return null;
+                const now = new Date();
+                const base =
+                  data.endDate && new Date(data.endDate) > now
+                    ? new Date(data.endDate)
+                    : now;
+                const d = new Date(base);
+                d.setMonth(d.getMonth() + sel.durationMonths);
+                const preview = d.toLocaleDateString("en-IN", {
+                  day: "numeric",
+                  month: "short",
+                  year: "numeric",
+                });
+                return (
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      justifyContent: "space-between",
+                    }}
+                  >
+                    <Text
+                      style={{
+                        color: Colors.textMuted,
+                        fontSize: Typography.xs,
+                      }}
+                    >
+                      New expiry (preview)
+                    </Text>
+                    <Text
+                      style={{
+                        color: Colors.success,
+                        fontSize: Typography.xs,
+                        fontWeight: "600",
+                      }}
+                    >
+                      {preview}
+                    </Text>
+                  </View>
+                );
+              })()}
+            </View>
+
+            {/* Plan selector */}
+            <View>
+              <Text
+                style={{
+                  color: Colors.textMuted,
+                  fontSize: Typography.xs,
+                  fontWeight: "500",
+                  marginBottom: 6,
+                }}
+              >
+                Membership Plan
+              </Text>
+              {gymPlans.length === 0 ? (
+                <View style={{ alignItems: "center", padding: Spacing.xl }}>
+                  <Icon name="tag-outline" size={28} color={Colors.textMuted} />
+                  <Text
+                    style={{
+                      color: Colors.textMuted,
+                      fontSize: Typography.sm,
+                      marginTop: Spacing.sm,
+                    }}
+                  >
+                    No plans available
+                  </Text>
+                </View>
+              ) : (
+                <View style={{ gap: Spacing.xs }}>
+                  {gymPlans.map((p: any) => (
+                    <TouchableOpacity
+                      key={p.id}
+                      onPress={() =>
+                        setRenewForm((f) => ({
+                          ...f,
+                          membershipPlanId: p.id,
+                          paymentAmount: String(Number(p.price)),
+                        }))
+                      }
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        padding: Spacing.md,
+                        borderRadius: Radius.lg,
+                        borderWidth: 1.5,
+                        borderColor:
+                          renewForm.membershipPlanId === p.id
+                            ? Colors.primary
+                            : Colors.border,
+                        backgroundColor:
+                          renewForm.membershipPlanId === p.id
+                            ? Colors.primaryFaded
+                            : Colors.surface,
+                      }}
+                    >
+                      <View style={{ flex: 1 }}>
+                        <Text
+                          style={{
+                            color: Colors.textPrimary,
+                            fontSize: Typography.sm,
+                            fontWeight: "600",
+                          }}
+                        >
+                          {p.name}
+                        </Text>
+                        <Text
+                          style={{
+                            color: Colors.textMuted,
+                            fontSize: Typography.xs,
+                          }}
+                        >
+                          {p.durationMonths} month
+                          {p.durationMonths !== 1 ? "s" : ""}
+                        </Text>
+                      </View>
+                      <Text
+                        style={{
+                          color: Colors.primary,
+                          fontSize: Typography.base,
+                          fontWeight: "700",
+                        }}
+                      >
+                        ₹{Number(p.price).toLocaleString("en-IN")}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+            </View>
+
+            {/* Payment Amount */}
+            <Input
+              label="Payment Amount (₹)"
+              value={renewForm.paymentAmount}
+              onChangeText={(v) =>
+                setRenewForm((f) => ({ ...f, paymentAmount: v }))
+              }
+              keyboardType="numeric"
+              leftIcon="currency-inr"
+            />
+
+            {/* Payment Method */}
+            <View>
+              <Text
+                style={{
+                  color: Colors.textMuted,
+                  fontSize: Typography.xs,
+                  fontWeight: "500",
+                  marginBottom: 6,
+                }}
+              >
+                Payment Method
+              </Text>
+              <View
+                style={{
+                  flexDirection: "row",
+                  flexWrap: "wrap",
+                  gap: Spacing.xs,
+                }}
+              >
+                {["CASH", "UPI", "CARD", "BANK_TRANSFER", "OTHER"].map((m) => (
+                  <TouchableOpacity
+                    key={m}
+                    onPress={() =>
+                      setRenewForm((f) => ({ ...f, paymentMethod: m }))
+                    }
+                    style={{
+                      paddingHorizontal: 12,
+                      paddingVertical: 6,
+                      borderRadius: Radius.full,
+                      borderWidth: 1,
+                      borderColor:
+                        renewForm.paymentMethod === m
+                          ? Colors.primary
+                          : Colors.border,
+                      backgroundColor:
+                        renewForm.paymentMethod === m
+                          ? Colors.primaryFaded
+                          : Colors.surface,
+                    }}
+                  >
+                    <Text
+                      style={{
+                        color:
+                          renewForm.paymentMethod === m
+                            ? Colors.primary
+                            : Colors.textMuted,
+                        fontSize: Typography.xs,
+                        fontWeight:
+                          renewForm.paymentMethod === m ? "700" : "400",
+                      }}
+                    >
+                      {m.replace("_", " ")}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            {/* Notes */}
+            <Input
+              label="Notes (optional)"
+              value={renewForm.notes}
+              onChangeText={(v) => setRenewForm((f) => ({ ...f, notes: v }))}
+              placeholder="e.g. Paid cash, receipt #123"
+            />
+
+            {/* Submit */}
+            <View style={{ flexDirection: "row", gap: Spacing.sm }}>
+              <TouchableOpacity
+                style={{
+                  flex: 1,
+                  padding: Spacing.md,
+                  borderRadius: Radius.lg,
+                  borderWidth: 1,
+                  borderColor: Colors.border,
+                  alignItems: "center",
+                }}
+                onPress={() => setShowRenewModal(false)}
+              >
+                <Text style={{ color: Colors.textMuted, fontWeight: "600" }}>
+                  Cancel
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={{
+                  flex: 1,
+                  padding: Spacing.md,
+                  borderRadius: Radius.lg,
+                  backgroundColor: Colors.primary,
+                  alignItems: "center",
+                }}
+                onPress={() => {
+                  if (!renewForm.membershipPlanId) {
+                    Toast.show({ type: "error", text1: "Select a plan" });
+                    return;
+                  }
+                  renewMutation.mutate();
+                }}
+                disabled={renewMutation.isPending}
+              >
+                {renewMutation.isPending ? (
+                  <Text style={{ color: "#fff", fontWeight: "700" }}>...</Text>
+                ) : (
+                  <Text style={{ color: "#fff", fontWeight: "700" }}>
+                    Renew
+                  </Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
+
+      {/* Assign Trainer Modal */}
+      <Modal
+        visible={showTrainerModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowTrainerModal(false)}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Assign Trainer</Text>
+            <TouchableOpacity onPress={() => setShowTrainerModal(false)}>
+              <Icon name="close" size={22} color={Colors.textMuted} />
+            </TouchableOpacity>
+          </View>
+          {data.assignedTrainer && (
+            <TouchableOpacity
+              style={styles.trainerRow}
+              onPress={() =>
+                showAlert(
+                  "Remove Trainer",
+                  `Remove ${data.assignedTrainer!.profile.fullName} from this member?`,
+                  [
+                    { text: "Cancel", style: "cancel" },
+                    {
+                      text: "Remove",
+                      style: "destructive",
+                      onPress: () => assignTrainerMutation.mutate(null),
+                    },
+                  ],
+                )
+              }
+            >
+              <Avatar
+                name={data.assignedTrainer.profile.fullName}
+                url={data.assignedTrainer.profile.avatarUrl}
+                size={36}
+              />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.trainerName}>
+                  {data.assignedTrainer.profile.fullName}
+                </Text>
+                <Text style={styles.trainerSub}>Currently assigned</Text>
+              </View>
+              <Icon
+                name="close-circle-outline"
+                size={18}
+                color={Colors.error}
+              />
+            </TouchableOpacity>
+          )}
+          {(data.gymTrainers ?? [])
+            .filter((t) => t.id !== data.assignedTrainer?.id)
+            .map((t: TrainerSummary) => (
+              <TouchableOpacity
+                key={t.id}
+                style={styles.trainerRow}
+                onPress={() => assignTrainerMutation.mutate(t.id)}
+                disabled={assignTrainerMutation.isPending}
+              >
+                <Avatar
+                  name={t.profile.fullName}
+                  url={t.profile.avatarUrl}
+                  size={36}
+                />
+                <Text style={[styles.trainerName, { flex: 1 }]}>
+                  {t.profile.fullName}
+                </Text>
+                <Icon
+                  name="account-check-outline"
+                  size={18}
+                  color={Colors.textMuted}
+                />
+              </TouchableOpacity>
+            ))}
+          {(data.gymTrainers ?? []).length === 0 && (
+            <View style={{ alignItems: "center", padding: Spacing.xxxl }}>
+              <Icon
+                name="account-tie-outline"
+                size={28}
+                color={Colors.textMuted}
+              />
+              <Text
+                style={[
+                  styles.modalTitle,
+                  {
+                    color: Colors.textMuted,
+                    fontSize: Typography.sm,
+                    marginTop: Spacing.sm,
+                  },
+                ]}
+              >
+                No trainers in this gym
+              </Text>
+            </View>
+          )}
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -609,4 +1106,42 @@ const styles = StyleSheet.create({
   },
   emptyTab: { alignItems: "center", padding: Spacing.xxxl, gap: Spacing.md },
   emptyTabText: { color: Colors.textMuted, fontSize: Typography.sm },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: Colors.bg,
+    padding: Spacing.lg,
+    gap: Spacing.sm,
+    paddingTop: 50,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: Spacing.md,
+  },
+  modalTitle: {
+    color: Colors.textPrimary,
+    fontSize: Typography.lg,
+    fontWeight: "700",
+  },
+  trainerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.md,
+    padding: Spacing.md,
+    backgroundColor: Colors.surfaceRaised,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  trainerName: {
+    color: Colors.textPrimary,
+    fontSize: Typography.sm,
+    fontWeight: "600",
+  },
+  trainerSub: {
+    color: Colors.textMuted,
+    fontSize: Typography.xs,
+    marginTop: 1,
+  },
 });

@@ -1,5 +1,11 @@
 import { trainerDashboardApi } from "@/api/endpoints";
-import { Avatar, Card, Skeleton, StatCard } from "@/components";
+import {
+  Avatar,
+  Card,
+  NotificationBell,
+  Skeleton,
+  StatCard,
+} from "@/components";
 import { useAuthStore } from "@/store/authStore";
 import { Colors, Radius, Spacing, Typography } from "@/theme";
 import { DrawerActions, useNavigation } from "@react-navigation/native";
@@ -176,13 +182,22 @@ export function DashboardScreen() {
                 <Text style={s.gymSub}>{data.gymName} · Trainer</Text>
               )} */}
             </View>
-            <TouchableOpacity onPress={() => navigation.navigate("Profile")}>
-              <Avatar
-                name={profile?.fullName ?? "T"}
-                url={profile?.avatarUrl}
-                size={42}
-              />
-            </TouchableOpacity>
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: Spacing.sm,
+              }}
+            >
+              <NotificationBell />
+              <TouchableOpacity onPress={() => navigation.navigate("Profile")}>
+                <Avatar
+                  name={profile?.fullName ?? "T"}
+                  url={profile?.avatarUrl}
+                  size={42}
+                />
+              </TouchableOpacity>
+            </View>
           </View>
 
           {isLoading ? (

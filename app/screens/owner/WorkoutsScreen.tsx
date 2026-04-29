@@ -1,472 +1,8 @@
-// mobile/src/screens/owner/WorkoutsScreen.tsx
-// List view — create/edit via AddWorkoutPlanScreen.
-// Features: search, gym filter, duplicate, active-days count, isTemplate badge.
-// import {
-//   Badge,
-//   Button,
-//   Card,
-//   EmptyState,
-//   Header,
-//   Input,
-//   PlanGate,
-//   SkeletonGroup,
-// } from "@/components";
-// import { useSubscription } from "@/hooks/useSubsciption";
-// import { Colors, Radius, Spacing, Typography } from "@/theme";
-// import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-// import React, { useState } from "react";
-// import {
-//   FlatList,
-//   Modal,
-//   RefreshControl,
-//   ScrollView,
-//   Text,
-//   TouchableOpacity,
-//   View
-// } from "react-native";
-// import { SafeAreaView } from "react-native-safe-area-context";
-// import Toast from "react-native-toast-message";
-// import Icon from "react-native-vector-icons/MaterialCommunityIcons";
-
-// const DIFFICULTIES = ["BEGINNER", "INTERMEDIATE", "ADVANCED"];
-// const DIFF_VARIANT: Record<string, "success" | "warning" | "error"> = {
-//   BEGINNER: "success",
-//   INTERMEDIATE: "warning",
-//   ADVANCED: "error",
-// };
-
-// export default function OwnerWorkoutsScreen() {
-//   const qc = useQueryClient();
-//   const { hasWorkoutPlans } = useSubscription();
-//   const [gymId, setGymId] = useState("");
-//   const [showAdd, setShowAdd] = useState(false);
-//   const [form, setForm] = useState({
-//     gymId: "",
-//     title: "",
-//     goal: "",
-//     difficulty: "BEGINNER",
-//     durationWeeks: "4",
-//     isGlobal: false,
-//   });
-
-//   const { data: gyms = [] } = useQuery({
-//     queryKey: ["ownerGyms"],
-//     queryFn: gymsApi.list,
-//     staleTime: 5 * 60_000,
-//   });
-//   const {
-//     data: plans = [],
-//     isLoading,
-//     refetch,
-//     isRefetching,
-//   } = useQuery({
-//     queryKey: ["ownerWorkouts", gymId],
-//     queryFn: () => workoutsApi.list({ gymId: gymId || undefined }),
-//     enabled: hasWorkoutPlans,
-//     staleTime: 60_000,
-//   });
-
-//   const addMutation = useMutation({
-//     mutationFn: () =>
-//       workoutsApi.create({
-//         ...form,
-//         gymId: form.gymId || gymId || (gyms as any[])[0]?.id,
-//         durationWeeks: parseInt(form.durationWeeks),
-//       }),
-//     onSuccess: () => {
-//       qc.invalidateQueries({ queryKey: ["ownerWorkouts"] });
-//       setShowAdd(false);
-//       Toast.show({ type: "success", text1: "Workout plan created!" });
-//     },
-//     onError: (err: any) => Toast.show({ type: "error", text1: err.message }),
-//   });
-
-//   const set = (k: string, v: any) => setForm((f) => ({ ...f, [k]: v }));
-
-//   return (
-//     <SafeAreaView style={{ flex: 1, backgroundColor: Colors.bg }}>
-//       <View
-//         style={{
-//           paddingHorizontal: Spacing.lg,
-//           paddingTop: Spacing.lg,
-//           gap: Spacing.md,
-//         }}
-//       >
-//         <Header
-//           title="Workout Plans"
-//           menu
-//           right={
-//             hasWorkoutPlans ? (
-//               <TouchableOpacity
-//                 style={{
-//                   width: 38,
-//                   height: 38,
-//                   borderRadius: Radius.lg,
-//                   backgroundColor: Colors.primary,
-//                   alignItems: "center",
-//                   justifyContent: "center",
-//                 }}
-//                 onPress={() => setShowAdd(true)}
-//               >
-//                 <Icon name="plus" size={20} color="#fff" />
-//               </TouchableOpacity>
-//             ) : null
-//           }
-//         />
-//         {gyms.length > 1 && (
-//           <View
-//             style={{ flexDirection: "row", gap: Spacing.xs, flexWrap: "wrap" }}
-//           >
-//             {[{ id: "", name: "All" }, ...(gyms as any[])].map((g: any) => (
-//               <TouchableOpacity
-//                 key={g.id}
-//                 onPress={() => setGymId(g.id)}
-//                 style={{
-//                   paddingHorizontal: 12,
-//                   paddingVertical: 6,
-//                   borderRadius: Radius.full,
-//                   backgroundColor:
-//                     gymId === g.id ? Colors.primaryFaded : Colors.surfaceRaised,
-//                   borderWidth: 1,
-//                   borderColor: gymId === g.id ? Colors.primary : Colors.border,
-//                 }}
-//               >
-//                 <Text
-//                   style={{
-//                     color: gymId === g.id ? Colors.primary : Colors.textMuted,
-//                     fontSize: Typography.xs,
-//                     fontWeight: gymId === g.id ? "700" : "400",
-//                   }}
-//                 >
-//                   {g.name}
-//                 </Text>
-//               </TouchableOpacity>
-//             ))}
-//           </View>
-//         )}
-//       </View>
-//       <PlanGate allowed={hasWorkoutPlans} featureLabel="Workout Plans">
-//         {isLoading ? (
-//           <View style={{ padding: Spacing.lg }}>
-//             <SkeletonGroup count={4} itemHeight={80} gap={Spacing.md} />
-//           </View>
-//         ) : (plans as any[]).length === 0 ? (
-//           <EmptyState
-//             icon="clipboard-list-outline"
-//             title="No workout plans"
-//             subtitle="Create plans for your members"
-//             action={
-//               <TouchableOpacity
-//                 style={{
-//                   flexDirection: "row",
-//                   alignItems: "center",
-//                   gap: Spacing.sm,
-//                   backgroundColor: Colors.primary,
-//                   borderRadius: Radius.lg,
-//                   paddingHorizontal: Spacing.xl,
-//                   paddingVertical: Spacing.md,
-//                   marginTop: Spacing.sm,
-//                 }}
-//                 onPress={() => setShowAdd(true)}
-//               >
-//                 <Icon name="plus" size={16} color="#fff" />
-//                 <Text
-//                   style={{
-//                     color: "#fff",
-//                     fontWeight: "700",
-//                     fontSize: Typography.sm,
-//                   }}
-//                 >
-//                   New Plan
-//                 </Text>
-//               </TouchableOpacity>
-//             }
-//           />
-//         ) : (
-//           <FlatList
-//             data={plans as any[]}
-//             keyExtractor={(p) => p.id}
-//             contentContainerStyle={{ padding: Spacing.lg, paddingBottom: 32 }}
-//             showsVerticalScrollIndicator={false}
-//             refreshControl={
-//               <RefreshControl
-//                 refreshing={isRefetching}
-//                 onRefresh={refetch}
-//                 tintColor={Colors.primary}
-//                 colors={[Colors.primary]}
-//               />
-//             }
-//             ItemSeparatorComponent={() => (
-//               <View style={{ height: Spacing.md }} />
-//             )}
-//             renderItem={({ item: p }) => (
-//               <Card>
-//                 <View
-//                   style={{
-//                     flexDirection: "row",
-//                     alignItems: "flex-start",
-//                     justifyContent: "space-between",
-//                     gap: Spacing.sm,
-//                   }}
-//                 >
-//                   <View style={{ flex: 1 }}>
-//                     <Text
-//                       style={{
-//                         color: Colors.textPrimary,
-//                         fontSize: Typography.base,
-//                         fontWeight: "700",
-//                       }}
-//                     >
-//                       {p.title ?? "Untitled Plan"}
-//                     </Text>
-//                     <Text
-//                       style={{
-//                         color: Colors.textMuted,
-//                         fontSize: Typography.xs,
-//                         marginTop: 2,
-//                       }}
-//                     >
-//                       {p.gym?.name} · {p.durationWeeks}w
-//                     </Text>
-//                     {p.goal ? (
-//                       <Text
-//                         style={{
-//                           color: Colors.textSecondary,
-//                           fontSize: Typography.xs,
-//                           marginTop: 2,
-//                         }}
-//                       >
-//                         {p.goal}
-//                       </Text>
-//                     ) : null}
-//                     {p.assignedMember ? (
-//                       <Text
-//                         style={{
-//                           color: Colors.primary,
-//                           fontSize: Typography.xs,
-//                           marginTop: 2,
-//                         }}
-//                       >
-//                         → {p.assignedMember?.profile?.fullName}
-//                       </Text>
-//                     ) : p.isGlobal ? (
-//                       <Text
-//                         style={{
-//                           color: Colors.info,
-//                           fontSize: Typography.xs,
-//                           marginTop: 2,
-//                         }}
-//                       >
-//                         Global Plan
-//                       </Text>
-//                     ) : null}
-//                   </View>
-//                   <Badge
-//                     label={p.difficulty ?? "BEGINNER"}
-//                     variant={DIFF_VARIANT[p.difficulty] ?? "default"}
-//                   />
-//                 </View>
-//               </Card>
-//             )}
-//           />
-//         )}
-//       </PlanGate>
-
-//       <Modal
-//         visible={showAdd}
-//         animationType="slide"
-//         presentationStyle="pageSheet"
-//         onRequestClose={() => setShowAdd(false)}
-//       >
-//         <SafeAreaView style={{ flex: 1, backgroundColor: Colors.bg }}>
-//           <ScrollView
-//             contentContainerStyle={{
-//               padding: Spacing.lg,
-//               paddingBottom: 40,
-//               gap: Spacing.md,
-//             }}
-//             keyboardShouldPersistTaps="handled"
-//           >
-//             <View
-//               style={{
-//                 flexDirection: "row",
-//                 alignItems: "center",
-//                 justifyContent: "space-between",
-//                 marginBottom: Spacing.sm,
-//               }}
-//             >
-//               <Text
-//                 style={{
-//                   color: Colors.textPrimary,
-//                   fontSize: Typography.xl,
-//                   fontWeight: "700",
-//                 }}
-//               >
-//                 New Workout Plan
-//               </Text>
-//               <TouchableOpacity onPress={() => setShowAdd(false)}>
-//                 <Icon name="close" size={22} color={Colors.textMuted} />
-//               </TouchableOpacity>
-//             </View>
-//             {gyms.length > 1 && (
-//               <View>
-//                 <Text
-//                   style={{
-//                     color: Colors.textMuted,
-//                     fontSize: Typography.xs,
-//                     fontWeight: "500",
-//                     marginBottom: 8,
-//                   }}
-//                 >
-//                   Gym *
-//                 </Text>
-//                 <View
-//                   style={{
-//                     flexDirection: "row",
-//                     flexWrap: "wrap",
-//                     gap: Spacing.xs,
-//                   }}
-//                 >
-//                   {(gyms as any[]).map((g: any) => (
-//                     <TouchableOpacity
-//                       key={g.id}
-//                       onPress={() => set("gymId", g.id)}
-//                       style={{
-//                         paddingHorizontal: 12,
-//                         paddingVertical: 6,
-//                         borderRadius: Radius.full,
-//                         backgroundColor:
-//                           form.gymId === g.id
-//                             ? Colors.primaryFaded
-//                             : Colors.surfaceRaised,
-//                         borderWidth: 1,
-//                         borderColor:
-//                           form.gymId === g.id ? Colors.primary : Colors.border,
-//                       }}
-//                     >
-//                       <Text
-//                         style={{
-//                           color:
-//                             form.gymId === g.id
-//                               ? Colors.primary
-//                               : Colors.textMuted,
-//                           fontSize: Typography.xs,
-//                         }}
-//                       >
-//                         {g.name}
-//                       </Text>
-//                     </TouchableOpacity>
-//                   ))}
-//                 </View>
-//               </View>
-//             )}
-//             <Input
-//               label="Title *"
-//               value={form.title}
-//               onChangeText={(v) => set("title", v)}
-//               placeholder="e.g. 4-Week Fat Loss Plan"
-//             />
-//             <Input
-//               label="Goal"
-//               value={form.goal}
-//               onChangeText={(v) => set("goal", v)}
-//               placeholder="Weight loss, Muscle gain..."
-//             />
-//             <View>
-//               <Text
-//                 style={{
-//                   color: Colors.textMuted,
-//                   fontSize: Typography.xs,
-//                   fontWeight: "500",
-//                   marginBottom: 8,
-//                 }}
-//               >
-//                 Difficulty
-//               </Text>
-//               <View style={{ flexDirection: "row", gap: Spacing.xs }}>
-//                 {DIFFICULTIES.map((d) => (
-//                   <TouchableOpacity
-//                     key={d}
-//                     onPress={() => set("difficulty", d)}
-//                     style={{
-//                       flex: 1,
-//                       paddingVertical: 8,
-//                       alignItems: "center",
-//                       borderRadius: Radius.lg,
-//                       backgroundColor:
-//                         form.difficulty === d
-//                           ? Colors.primaryFaded
-//                           : Colors.surfaceRaised,
-//                       borderWidth: 1,
-//                       borderColor:
-//                         form.difficulty === d ? Colors.primary : Colors.border,
-//                     }}
-//                   >
-//                     <Text
-//                       style={{
-//                         color:
-//                           form.difficulty === d
-//                             ? Colors.primary
-//                             : Colors.textMuted,
-//                         fontSize: Typography.xs,
-//                         fontWeight: form.difficulty === d ? "700" : "400",
-//                       }}
-//                     >
-//                       {d.charAt(0) + d.slice(1).toLowerCase()}
-//                     </Text>
-//                   </TouchableOpacity>
-//                 ))}
-//               </View>
-//             </View>
-//             <Input
-//               label="Duration (weeks)"
-//               value={form.durationWeeks}
-//               onChangeText={(v) => set("durationWeeks", v)}
-//               keyboardType="numeric"
-//             />
-//             <TouchableOpacity
-//               onPress={() => set("isGlobal", !form.isGlobal)}
-//               style={{
-//                 flexDirection: "row",
-//                 alignItems: "center",
-//                 gap: Spacing.md,
-//               }}
-//             >
-//               <Icon
-//                 name={
-//                   form.isGlobal ? "checkbox-marked" : "checkbox-blank-outline"
-//                 }
-//                 size={22}
-//                 color={form.isGlobal ? Colors.primary : Colors.textMuted}
-//               />
-//               <Text
-//                 style={{ color: Colors.textSecondary, fontSize: Typography.sm }}
-//               >
-//                 Make visible to all members
-//               </Text>
-//             </TouchableOpacity>
-//             <Button
-//               label="Create Plan"
-//               onPress={() => {
-//                 if (!form.title.trim()) {
-//                   Toast.show({ type: "error", text1: "Title required" });
-//                   return;
-//                 }
-//                 addMutation.mutate();
-//               }}
-//               loading={addMutation.isPending}
-//             />
-//           </ScrollView>
-//         </SafeAreaView>
-//       </Modal>
-//     </SafeAreaView>
-//   );
-// }
-
-// mobile/src/screens/owner/WorkoutsScreen.tsx
-// List view — create/edit via AddWorkoutPlanScreen.
-// Features: search, gym filter, duplicate, active-days count, isTemplate badge.
-import { gymsApi, workoutsApi } from "@/api/endpoints";
+// app/screens/owner/WorkoutsScreen.tsx
+// List view + template picker — create/edit via AddWorkoutPlanScreen.
+// Features: search, gym filter, duplicate, archive, template badge,
+//           active-days/exercise count, template picker modal (web parity).
+import { gymsApi, planTemplatesApi, workoutsApi } from "@/api/endpoints";
 import {
   Badge,
   Card,
@@ -484,7 +20,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import React, { useMemo, useState } from "react";
 import {
   FlatList,
+  Modal,
   RefreshControl,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -495,36 +33,190 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 
+// ── Constants ─────────────────────────────────────────────────────────────────
+
+const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
+
 const DIFF_VARIANT: Record<string, "success" | "warning" | "error"> = {
   BEGINNER: "success",
   INTERMEDIATE: "warning",
   ADVANCED: "error",
 };
 
+const DIFF_COLORS: Record<string, string> = {
+  BEGINNER: Colors.success,
+  INTERMEDIATE: Colors.warning,
+  ADVANCED: Colors.error,
+};
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function calcPlanStats(planData: Record<string, Record<string, unknown[]>> | undefined) {
+function calcPlanStats(planData: Record<string, any[]> | undefined) {
   if (!planData) return { exercises: 0, activeDays: 0 };
   let exercises = 0;
   let activeDays = 0;
-  for (const days of Object.values(planData)) {
-    for (const exs of Object.values(days)) {
-      const len = exs?.length ?? 0;
-      exercises += len;
-      if (len > 0) activeDays += 1;
-    }
+  for (const d of DAYS) {
+    const len = (planData[d] ?? []).length;
+    exercises += len;
+    if (len > 0) activeDays++;
   }
   return { exercises, activeDays };
+}
+
+// ── Template picker modal ─────────────────────────────────────────────────────
+
+interface Template {
+  id: string;
+  title: string;
+  goal?: string | null;
+  difficulty?: string | null;
+  planData: any;
+  isGlobal: boolean;
+  usageCount: number;
+  createdBy: { fullName: string };
+  gym?: { name: string } | null;
+}
+
+function TemplatePicker({
+  visible,
+  onSelect,
+  onClose,
+}: {
+  visible: boolean;
+  onSelect: (t: Template) => void;
+  onClose: () => void;
+}) {
+  const [search, setSearch] = useState("");
+
+  const { data: templates = [], isLoading } = useQuery<Template[]>({
+    queryKey: ["planTemplates", "WORKOUT"],
+    queryFn: () =>
+      planTemplatesApi.list({ type: "WORKOUT" }) as Promise<Template[]>,
+    enabled: visible,
+    staleTime: 60_000,
+  });
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return templates;
+    return templates.filter(
+      (t) =>
+        t.title.toLowerCase().includes(q) ||
+        (t.goal ?? "").toLowerCase().includes(q),
+    );
+  }, [templates, search]);
+
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      onRequestClose={onClose}
+    >
+      <View style={tp.backdrop}>
+        <View style={tp.sheet}>
+          {/* Header */}
+          <View style={tp.header}>
+            <View style={tp.headerLeft}>
+              <Icon name="star-four-points" size={16} color={Colors.purple} />
+              <Text style={tp.title}>Choose a Template</Text>
+            </View>
+            <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Icon name="close" size={20} color={Colors.textMuted} />
+            </TouchableOpacity>
+          </View>
+
+          {/* Search */}
+          <View style={tp.searchRow}>
+            <Icon name="magnify" size={15} color={Colors.textMuted} style={{ marginRight: 6 }} />
+            <TextInput
+              style={tp.searchInput}
+              value={search}
+              onChangeText={setSearch}
+              placeholder="Search templates..."
+              placeholderTextColor={Colors.textMuted}
+            />
+          </View>
+
+          {/* List */}
+          {isLoading ? (
+            <View style={{ padding: Spacing.lg, gap: Spacing.sm }}>
+              {[...Array(3)].map((_, i) => (
+                <View key={i} style={tp.skeleton} />
+              ))}
+            </View>
+          ) : filtered.length === 0 ? (
+            <View style={tp.empty}>
+              <Icon name="clipboard-list-outline" size={32} color={Colors.textMuted} />
+              <Text style={tp.emptyTxt}>
+                {search ? "No templates match your search" : "No templates yet"}
+              </Text>
+            </View>
+          ) : (
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={{ padding: Spacing.md, gap: Spacing.sm }}
+            >
+              {filtered.map((t) => (
+                <TouchableOpacity
+                  key={t.id}
+                  style={tp.item}
+                  activeOpacity={0.8}
+                  onPress={() => onSelect(t)}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text style={tp.itemTitle}>{t.title}</Text>
+                    {t.goal ? (
+                      <Text style={tp.itemGoal}>🎯 {t.goal}</Text>
+                    ) : null}
+                    <Text style={tp.itemMeta}>
+                      by {t.createdBy.fullName} · {t.usageCount} uses
+                    </Text>
+                  </View>
+                  <View style={tp.itemRight}>
+                    {t.difficulty ? (
+                      <View
+                        style={[
+                          tp.diffBadge,
+                          { backgroundColor: (DIFF_COLORS[t.difficulty] ?? Colors.textMuted) + "20" },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            tp.diffTxt,
+                            { color: DIFF_COLORS[t.difficulty] ?? Colors.textMuted },
+                          ]}
+                        >
+                          {t.difficulty}
+                        </Text>
+                      </View>
+                    ) : null}
+                    {t.isGlobal ? (
+                      <View style={tp.globalBadge}>
+                        <Text style={tp.globalTxt}>Global</Text>
+                      </View>
+                    ) : null}
+                    <Icon name="chevron-right" size={16} color={Colors.textMuted} />
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          )}
+        </View>
+      </View>
+    </Modal>
+  );
 }
 
 // ── Screen ────────────────────────────────────────────────────────────────────
 
 export default function OwnerWorkoutsScreen() {
-  const navigation = useNavigation();
+  const navigation = useNavigation<any>();
   const qc = useQueryClient();
   const { hasWorkoutPlans } = useSubscription();
   const [gymId, setGymId] = useState("");
   const [searchQ, setSearchQ] = useState("");
+  const [showTemplates, setShowTemplates] = useState(false);
 
   const { data: gyms = [] } = useQuery<Gym[]>({
     queryKey: ["ownerGyms"],
@@ -545,8 +237,6 @@ export default function OwnerWorkoutsScreen() {
     staleTime: 60_000,
   });
 
-  // ── Filtered list ────────────────────────────────────────────────────────
-
   const filteredPlans = useMemo(() => {
     const q = searchQ.trim().toLowerCase();
     if (!q) return plans;
@@ -557,10 +247,10 @@ export default function OwnerWorkoutsScreen() {
     );
   }, [plans, searchQ]);
 
-  // ── Mutations ─────────────────────────────────────────────────────────────
+  // ── Mutations ──────────────────────────────────────────────────────────────
 
   const archiveMutation = useMutation({
-    mutationFn: (id: string) => workoutsApi.update(id, { isActive: false }),
+    mutationFn: (id: string) => workoutsApi.delete(id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["ownerWorkouts"] });
       Toast.show({ type: "success", text1: "Plan archived" });
@@ -598,21 +288,30 @@ export default function OwnerWorkoutsScreen() {
     ]);
   };
 
-  // ── Render ────────────────────────────────────────────────────────────────
+  // ── Template selection ─────────────────────────────────────────────────────
+
+  const handleTemplateSelect = (t: Template) => {
+    setShowTemplates(false);
+    // Increment usage count (fire-and-forget)
+    planTemplatesApi.incrementUsage(t.id).catch(() => {});
+    // Navigate to create screen with template data pre-filled
+    navigation.navigate("OwnerAddWorkoutPlan", { template: t });
+  };
+
+  // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
     <SafeAreaView style={s.safe}>
       <View style={s.topBar}>
         <Header
           title="Workout Plans"
+          subtitle={`${filteredPlans.length} plan${filteredPlans.length !== 1 ? "s" : ""}`}
           back
           right={
             hasWorkoutPlans ? (
               <TouchableOpacity
                 style={s.addBtn}
-                onPress={() =>
-                  (navigation as any).navigate("OwnerAddWorkoutPlan")
-                }
+                onPress={() => navigation.navigate("OwnerAddWorkoutPlan")}
               >
                 <Icon name="plus" size={20} color="#fff" />
               </TouchableOpacity>
@@ -627,28 +326,43 @@ export default function OwnerWorkoutsScreen() {
             style={s.searchInput}
             value={searchQ}
             onChangeText={setSearchQ}
-            placeholder="Search plans..."
+            placeholder="Search plans by title or goal..."
             placeholderTextColor={Colors.textMuted}
             clearButtonMode="while-editing"
           />
         </View>
 
-        {/* Gym filter */}
-        {gyms.length > 1 && (
-          <View style={s.filterRow}>
-            {[{ id: "", name: "All" } as Gym, ...gyms].map((g) => (
-              <TouchableOpacity
-                key={g.id}
-                onPress={() => setGymId(g.id)}
-                style={[s.pill, gymId === g.id && s.pillActive]}
-              >
-                <Text style={[s.pillText, gymId === g.id && s.pillTextActive]}>
-                  {g.name}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        )}
+        {/* Use Template + Gym filter row */}
+        <View style={s.actionsRow}>
+          {hasWorkoutPlans && (
+            <TouchableOpacity
+              style={s.templateBtn}
+              onPress={() => setShowTemplates(true)}
+            >
+              <Icon name="star-four-points" size={13} color={Colors.purple} />
+              <Text style={s.templateBtnTxt}>Use Template</Text>
+            </TouchableOpacity>
+          )}
+          {gyms.length > 1 && (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ gap: Spacing.xs }}
+            >
+              {[{ id: "", name: "All" } as Gym, ...gyms].map((g) => (
+                <TouchableOpacity
+                  key={g.id}
+                  onPress={() => setGymId(g.id)}
+                  style={[s.pill, gymId === g.id && s.pillActive]}
+                >
+                  <Text style={[s.pillText, gymId === g.id && s.pillTextActive]}>
+                    {g.name}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          )}
+        </View>
       </View>
 
       <PlanGate allowed={hasWorkoutPlans} featureLabel="Workout Plans">
@@ -663,19 +377,26 @@ export default function OwnerWorkoutsScreen() {
             subtitle={
               searchQ
                 ? "Try a different keyword"
-                : "Create structured plans for your members"
+                : "Create structured plans or start from a template"
             }
             action={
               !searchQ ? (
-                <TouchableOpacity
-                  style={s.emptyAction}
-                  onPress={() =>
-                    (navigation as any).navigate("OwnerAddWorkoutPlan")
-                  }
-                >
-                  <Icon name="plus" size={16} color="#fff" />
-                  <Text style={s.emptyActionText}>Create First Plan</Text>
-                </TouchableOpacity>
+                <View style={s.emptyActions}>
+                  <TouchableOpacity
+                    style={s.emptyActionPrimary}
+                    onPress={() => navigation.navigate("OwnerAddWorkoutPlan")}
+                  >
+                    <Icon name="plus" size={16} color="#fff" />
+                    <Text style={s.emptyActionPrimaryTxt}>Create Plan</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={s.emptyActionSecondary}
+                    onPress={() => setShowTemplates(true)}
+                  >
+                    <Icon name="star-four-points" size={14} color={Colors.purple} />
+                    <Text style={s.emptyActionSecondaryTxt}>From Template</Text>
+                  </TouchableOpacity>
+                </View>
               ) : undefined
             }
           />
@@ -695,16 +416,14 @@ export default function OwnerWorkoutsScreen() {
             }
             ItemSeparatorComponent={() => <View style={{ height: Spacing.md }} />}
             renderItem={({ item: p }) => {
-              const { exercises, activeDays } = calcPlanStats(
-                (p as any).planData,
-              );
+              const { exercises, activeDays } = calcPlanStats((p as any).planData);
               const isTemplate = !!(p as any).isTemplate;
 
               return (
                 <TouchableOpacity
                   activeOpacity={0.85}
                   onPress={() =>
-                    (navigation as any).navigate("OwnerWorkoutPlanDetail", { plan: p })
+                    navigation.navigate("OwnerWorkoutPlanDetail", { plan: p })
                   }
                 >
                   <Card>
@@ -721,16 +440,20 @@ export default function OwnerWorkoutsScreen() {
                               <Text style={s.templateBadgeTxt}>Template</Text>
                             </View>
                           )}
+                          {p.isGlobal && (
+                            <View style={s.globalBadge}>
+                              <Icon name="earth" size={10} color={Colors.info} />
+                              <Text style={s.globalBadgeTxt}>All Members</Text>
+                            </View>
+                          )}
                         </View>
 
-                        {/* Gym · duration */}
-                        <Text style={s.planMeta}>
-                          {p.gym?.name} · {p.durationWeeks}w
-                        </Text>
+                        {/* Gym */}
+                        <Text style={s.planMeta}>{p.gym?.name}</Text>
 
-                        {p.goal ? <Text style={s.planGoal}>{p.goal}</Text> : null}
+                        {p.goal ? <Text style={s.planGoal}>🎯 {p.goal}</Text> : null}
 
-                        {/* Assignment / visibility */}
+                        {/* Assignment */}
                         {p.assignedMember ? (
                           <View style={s.assignedRow}>
                             <Icon name="account-outline" size={11} color={Colors.primary} />
@@ -738,29 +461,24 @@ export default function OwnerWorkoutsScreen() {
                               {p.assignedMember.profile?.fullName}
                             </Text>
                           </View>
-                        ) : p.isGlobal ? (
-                          <View style={s.assignedRow}>
-                            <Icon name="earth" size={11} color={Colors.info} />
-                            <Text style={[s.assignedText, { color: Colors.info }]}>
-                              Global Plan
-                            </Text>
-                          </View>
                         ) : null}
 
-                        {/* Stats row */}
+                        {/* Stats */}
                         {(exercises > 0 || activeDays > 0) && (
                           <View style={s.statsRow}>
                             {exercises > 0 && (
                               <View style={s.stat}>
                                 <Icon name="dumbbell" size={10} color={Colors.textMuted} />
-                                <Text style={s.statTxt}>{exercises} ex</Text>
+                                <Text style={s.statTxt}>
+                                  {exercises} exercise{exercises !== 1 ? "s" : ""}
+                                </Text>
                               </View>
                             )}
                             {activeDays > 0 && (
                               <View style={s.stat}>
                                 <Icon name="calendar-check-outline" size={10} color={Colors.textMuted} />
                                 <Text style={s.statTxt}>
-                                  {activeDays} day{activeDays !== 1 ? "s" : ""}
+                                  {activeDays} active day{activeDays !== 1 ? "s" : ""}
                                 </Text>
                               </View>
                             )}
@@ -773,12 +491,7 @@ export default function OwnerWorkoutsScreen() {
                           label={p.difficulty ?? "BEGINNER"}
                           variant={DIFF_VARIANT[p.difficulty ?? "BEGINNER"] ?? "default"}
                         />
-
-                        {/* Action buttons — each stops touch from bubbling to card */}
-                        <View
-                          style={s.actionBtns}
-                          onStartShouldSetResponder={() => true}
-                        >
+                        <View style={s.actionBtns} onStartShouldSetResponder={() => true}>
                           <TouchableOpacity
                             onPress={() => duplicateMutation.mutate(p)}
                             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
@@ -787,7 +500,7 @@ export default function OwnerWorkoutsScreen() {
                           </TouchableOpacity>
                           <TouchableOpacity
                             onPress={() =>
-                              (navigation as any).navigate("OwnerAddWorkoutPlan", { plan: p })
+                              navigation.navigate("OwnerAddWorkoutPlan", { plan: p })
                             }
                             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                           >
@@ -809,9 +522,17 @@ export default function OwnerWorkoutsScreen() {
           />
         )}
       </PlanGate>
+
+      <TemplatePicker
+        visible={showTemplates}
+        onSelect={handleTemplateSelect}
+        onClose={() => setShowTemplates(false)}
+      />
     </SafeAreaView>
   );
 }
+
+// ── Styles ────────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.bg },
@@ -846,7 +567,24 @@ const s = StyleSheet.create({
     fontSize: Typography.sm,
     height: 40,
   },
-  filterRow: { flexDirection: "row", gap: Spacing.xs, flexWrap: "wrap" },
+  actionsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    flexWrap: "wrap",
+  },
+  templateBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: Colors.purple + "15",
+    borderWidth: 1,
+    borderColor: Colors.purple + "30",
+    borderRadius: Radius.full,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  templateBtnTxt: { color: Colors.purple, fontSize: Typography.xs, fontWeight: "600" },
   pill: {
     paddingHorizontal: 12,
     paddingVertical: 6,
@@ -855,10 +593,7 @@ const s = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.border,
   },
-  pillActive: {
-    backgroundColor: Colors.primaryFaded,
-    borderColor: Colors.primary,
-  },
+  pillActive: { backgroundColor: Colors.primaryFaded, borderColor: Colors.primary },
   pillText: { color: Colors.textMuted, fontSize: Typography.xs },
   pillTextActive: { color: Colors.primary, fontWeight: "700" },
   list: { padding: Spacing.lg, paddingBottom: 32 },
@@ -882,6 +617,18 @@ const s = StyleSheet.create({
     borderColor: Colors.purple + "40",
   },
   templateBadgeTxt: { color: Colors.purple, fontSize: 9, fontWeight: "700" },
+  globalBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    backgroundColor: Colors.info + "18",
+    borderRadius: Radius.full,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderWidth: 1,
+    borderColor: Colors.info + "40",
+  },
+  globalBadgeTxt: { color: Colors.info, fontSize: 9, fontWeight: "700" },
   planMeta: { color: Colors.textMuted, fontSize: Typography.xs, marginTop: 2 },
   planGoal: { color: Colors.textSecondary, fontSize: Typography.xs, marginTop: 3 },
   assignedRow: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 4 },
@@ -891,15 +638,100 @@ const s = StyleSheet.create({
   statTxt: { color: Colors.textMuted, fontSize: 10 },
   cardRight: { alignItems: "flex-end", gap: Spacing.sm, flexShrink: 0 },
   actionBtns: { flexDirection: "row", gap: Spacing.md },
-  emptyAction: {
+  emptyActions: { flexDirection: "row", gap: Spacing.sm, marginTop: Spacing.sm },
+  emptyActionPrimary: {
     flexDirection: "row",
     alignItems: "center",
-    gap: Spacing.sm,
+    gap: Spacing.xs,
     backgroundColor: Colors.primary,
     borderRadius: Radius.lg,
-    paddingHorizontal: Spacing.xl,
+    paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
-    marginTop: Spacing.sm,
   },
-  emptyActionText: { color: "#fff", fontWeight: "700", fontSize: Typography.sm },
+  emptyActionPrimaryTxt: { color: "#fff", fontWeight: "700", fontSize: Typography.sm },
+  emptyActionSecondary: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+    backgroundColor: Colors.purple + "15",
+    borderWidth: 1,
+    borderColor: Colors.purple + "30",
+    borderRadius: Radius.lg,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+  },
+  emptyActionSecondaryTxt: { color: Colors.purple, fontWeight: "700", fontSize: Typography.sm },
+});
+
+// ── Template picker styles ─────────────────────────────────────────────────────
+
+const tp = StyleSheet.create({
+  backdrop: {
+    flex: 1,
+    justifyContent: "flex-end",
+    backgroundColor: "rgba(0,0,0,0.65)",
+  },
+  sheet: {
+    backgroundColor: Colors.surface,
+    borderTopLeftRadius: Radius.xxl,
+    borderTopRightRadius: Radius.xxl,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    maxHeight: "80%",
+  },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  headerLeft: { flexDirection: "row", alignItems: "center", gap: 8 },
+  title: { color: Colors.textPrimary, fontSize: Typography.base, fontWeight: "700" },
+  searchRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Colors.surfaceRaised,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+    paddingHorizontal: Spacing.lg,
+    height: 44,
+  },
+  searchInput: { flex: 1, color: Colors.textPrimary, fontSize: Typography.sm },
+  item: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Colors.surfaceRaised,
+    borderRadius: Radius.xl,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: Spacing.md,
+    gap: Spacing.sm,
+  },
+  itemTitle: { color: Colors.textPrimary, fontSize: Typography.sm, fontWeight: "600" },
+  itemGoal: { color: Colors.textSecondary, fontSize: Typography.xs, marginTop: 2 },
+  itemMeta: { color: Colors.textMuted, fontSize: 10, marginTop: 3 },
+  itemRight: { flexDirection: "row", alignItems: "center", gap: 6, flexShrink: 0 },
+  diffBadge: {
+    borderRadius: Radius.full,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+  },
+  diffTxt: { fontSize: 9, fontWeight: "700" },
+  globalBadge: {
+    backgroundColor: Colors.purple + "20",
+    borderRadius: Radius.full,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+  },
+  globalTxt: { color: Colors.purple, fontSize: 9, fontWeight: "700" },
+  skeleton: {
+    height: 64,
+    backgroundColor: Colors.surfaceRaised,
+    borderRadius: Radius.xl,
+  },
+  empty: { paddingVertical: 48, alignItems: "center", gap: Spacing.sm },
+  emptyTxt: { color: Colors.textMuted, fontSize: Typography.sm },
 });

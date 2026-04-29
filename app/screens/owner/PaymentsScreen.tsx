@@ -34,6 +34,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -68,6 +69,7 @@ export default function OwnerPaymentsScreen() {
   });
   const [members, setMembers] = useState<GymMemberListItem[]>([]);
   const [plans, setPlans] = useState<MembershipPlan[]>([]);
+  const [memberSearch, setMemberSearch] = useState("");
 
   const { data: gyms = [] } = useQuery<Gym[]>({
     queryKey: ["ownerGyms"],
@@ -327,22 +329,105 @@ export default function OwnerPaymentsScreen() {
 
             <View>
               <Text style={ps.fieldLabel}>Member *</Text>
-              <View style={ps.chips}>
-                {members.slice(0, 8).map((m) => (
+              {form.memberId ? (
+                <View style={ps.selectedMember}>
+                  <Icon
+                    name="account-circle-outline"
+                    size={18}
+                    color={Colors.primary}
+                  />
+                  <Text style={ps.selectedMemberName} numberOfLines={1}>
+                    {members.find((m) => m.id === form.memberId)?.profile
+                      ?.fullName ?? "Unknown"}
+                  </Text>
                   <TouchableOpacity
-                    key={m.id}
-                    onPress={() => set("memberId", m.id)}
-                    style={[ps.chip, form.memberId === m.id && ps.chipA]}
+                    onPress={() => {
+                      set("memberId", "");
+                      setMemberSearch("");
+                    }}
                   >
-                    <Text
-                      style={[ps.chipT, form.memberId === m.id && ps.chipTA]}
-                      numberOfLines={1}
-                    >
-                      {m.profile?.fullName}
-                    </Text>
+                    <Icon
+                      name="close-circle"
+                      size={18}
+                      color={Colors.textMuted}
+                    />
                   </TouchableOpacity>
-                ))}
-              </View>
+                </View>
+              ) : (
+                <View style={ps.dropdown}>
+                  <View
+                    style={[
+                      ps.searchBox,
+                      {
+                        borderRadius: 0,
+                        borderWidth: 0,
+                        borderBottomWidth: 1,
+                        backgroundColor: "transparent",
+                      },
+                    ]}
+                  >
+                    <Icon name="magnify" size={16} color={Colors.textMuted} />
+                    <TextInput
+                      style={ps.searchInput}
+                      value={memberSearch}
+                      onChangeText={setMemberSearch}
+                      placeholder="Search member…"
+                      placeholderTextColor={Colors.textMuted}
+                    />
+                    {memberSearch.length > 0 && (
+                      <TouchableOpacity onPress={() => setMemberSearch("")}>
+                        <Icon name="close" size={16} color={Colors.textMuted} />
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                  {!form.gymId ? (
+                    <View style={ps.dropdownEmpty}>
+                      <Text style={ps.dropdownEmptyText}>
+                        Select a gym first
+                      </Text>
+                    </View>
+                  ) : (
+                    (() => {
+                      const filtered = members
+                        .filter(
+                          (m) =>
+                            !memberSearch ||
+                            m.profile?.fullName
+                              ?.toLowerCase()
+                              .includes(memberSearch.toLowerCase()),
+                        )
+                        .slice(0, 10);
+                      return filtered.length === 0 ? (
+                        <View style={ps.dropdownEmpty}>
+                          <Text style={ps.dropdownEmptyText}>
+                            No members found
+                          </Text>
+                        </View>
+                      ) : (
+                        filtered.map((m) => (
+                          <TouchableOpacity
+                            key={m.id}
+                            style={ps.dropdownItem}
+                            onPress={() => {
+                              set("memberId", m.id);
+                              setMemberSearch("");
+                            }}
+                          >
+                            <Icon
+                              name="account-outline"
+                              size={14}
+                              color={Colors.textMuted}
+                            />
+                            <Text style={ps.dropdownText} numberOfLines={1}>
+                              {m.profile?.fullName}
+                            </Text>
+                          </TouchableOpacity>
+                        ))
+                      );
+                    })()
+                  )}
+                </View>
+              )}
             </View>
 
             <View>
@@ -557,5 +642,71 @@ const ps = StyleSheet.create({
     color: Colors.textSecondary,
     fontSize: Typography.sm,
     fontWeight: "600",
+  },
+
+  // Member search dropdown
+  selectedMember: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    backgroundColor: Colors.primaryFaded,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: Colors.primary + "40",
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 10,
+  },
+  selectedMemberName: {
+    flex: 1,
+    color: Colors.primary,
+    fontSize: Typography.sm,
+    fontWeight: "600",
+  },
+  searchBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    backgroundColor: Colors.surfaceRaised,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    paddingHorizontal: Spacing.md,
+    height: 44,
+  },
+  searchInput: {
+    flex: 1,
+    color: Colors.textPrimary,
+    fontSize: Typography.sm,
+    paddingVertical: 0,
+  },
+  dropdown: {
+    backgroundColor: Colors.surface,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    overflow: "hidden",
+    marginTop: 4,
+  },
+  dropdownItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  dropdownText: {
+    color: Colors.textPrimary,
+    fontSize: Typography.sm,
+  },
+  dropdownEmpty: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 12,
+  },
+  dropdownEmptyText: {
+    color: Colors.textMuted,
+    fontSize: Typography.sm,
+    fontStyle: "italic",
   },
 });

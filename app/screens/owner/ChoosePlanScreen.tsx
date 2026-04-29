@@ -352,7 +352,7 @@ export function ChoosePlanScreen() {
 
   const activateFreeMutation = useMutation({
     mutationFn: (saasPlanId: string) =>
-      subscriptionApi.subscribe({ saasPlanId }),
+      subscriptionApi.subscribe({ saasPlanId, amount: 0 }),
     onSuccess: () => {
       setHasActivePlan(true);
       Toast.show({
@@ -371,25 +371,26 @@ export function ChoosePlanScreen() {
   ) => {
     setPurchasingPaid(true);
     try {
-      const subData = (await subscriptionApi.createSubscription({
+      const orderData = (await subscriptionApi.createOrder({
         saasPlanId,
       })) as any;
 
-      if (!subData.subscriptionId)
-        throw new Error(subData.error ?? "Could not create subscription");
-
-      const paymentData = await (RazorpayCheckout.open as any)({
-        subscription_id: subData.subscriptionId,
+      const paymentData = await RazorpayCheckout.open({
+        description: `${planLabel} Subscription`,
+        currency: orderData.currency ?? "INR",
         key: process.env.EXPO_PUBLIC_RAZORPAY_KEY_ID ?? "",
+        amount: Number(orderData.amount),
         name: "GymStack",
-        description: `${planLabel} — Auto-renews`,
+        order_id: orderData.orderId,
+        prefill: { email: "", contact: "", name: "" },
         theme: { color: "#f97316" },
       });
 
       await subscriptionApi.subscribe({
         saasPlanId,
+        amount: Number(orderData.amount) / 100,
         razorpayPaymentId: paymentData.razorpay_payment_id,
-        razorpaySubscriptionId: paymentData.razorpay_subscription_id,
+        razorpayOrderId: paymentData.razorpay_order_id,
         razorpaySignature: paymentData.razorpay_signature,
       });
 
@@ -402,7 +403,7 @@ export function ChoosePlanScreen() {
       if (err?.code !== 0) {
         Toast.show({
           type: "error",
-          text1: err?.description ?? err?.message ?? "Payment failed. Please try again.",
+          text1: err?.description ?? "Payment failed. Please try again.",
         });
       }
     } finally {

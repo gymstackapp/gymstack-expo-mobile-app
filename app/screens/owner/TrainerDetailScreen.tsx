@@ -1,8 +1,8 @@
 // mobile/src/screens/owner/TrainerDetailScreen.tsx
 import { trainersApi } from "@/api/endpoints";
-import { Avatar, Badge, Card, Header, Input, ListRow, Skeleton } from "@/components";
+import { Avatar, Card, Header, ListRow, Skeleton } from "@/components";
 import { Colors, Radius, Spacing, Typography } from "@/theme";
-import { useNavigation, useRoute } from "@react-navigation/native";
+import { useRoute } from "@react-navigation/native";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import React, { useState } from "react";
 import {
@@ -41,58 +41,19 @@ interface TrainerDetail {
   }[];
 }
 
-// ── Constants ─────────────────────────────────────────────────────────────────
-
-const SPECIALIZATIONS = [
-  "Weight Training", "Cardio", "Yoga", "Zumba", "CrossFit",
-  "Boxing", "HIIT", "Pilates", "Nutrition", "Swimming",
-  "Personal Training", "Stretching", "Rehabilitation", "Dance Fitness", "Martial Arts",
-];
-
 // ── Screen ────────────────────────────────────────────────────────────────────
 
 export default function OwnerTrainerDetailScreen() {
-  const navigation = useNavigation();
   const route = useRoute();
   const qc = useQueryClient();
   const { trainerId } = route.params as { trainerId: string };
 
   const [tab, setTab] = useState<"info" | "members">("info");
-  const [editing, setEditing] = useState(false);
-  const [editForm, setEditForm] = useState({
-    specializations: [] as string[],
-    certifications: [] as string[],
-    bio: "",
-    experienceYears: 0,
-    isAvailable: true,
-    certificationsText: "",
-  });
 
   const { data, isLoading, refetch, isRefetching } = useQuery<TrainerDetail>({
     queryKey: ["ownerTrainer", trainerId],
     queryFn: () => trainersApi.get(trainerId) as Promise<TrainerDetail>,
     enabled: !!trainerId,
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: () =>
-      trainersApi.update(trainerId, {
-        specializations: editForm.specializations,
-        certifications: editForm.certificationsText
-          ? editForm.certificationsText.split(",").map((s) => s.trim()).filter(Boolean)
-          : editForm.certifications,
-        bio: editForm.bio.trim() || null,
-        experienceYears: editForm.experienceYears,
-        isAvailable: editForm.isAvailable,
-      }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["ownerTrainer", trainerId] });
-      qc.invalidateQueries({ queryKey: ["ownerTrainers"] });
-      setEditing(false);
-      Toast.show({ type: "success", text1: "Trainer updated" });
-    },
-    onError: (err: any) =>
-      Toast.show({ type: "error", text1: err.message ?? "Failed to update" }),
   });
 
   const toggleAvailMutation = useMutation({
@@ -106,28 +67,6 @@ export default function OwnerTrainerDetailScreen() {
     onError: (err: any) =>
       Toast.show({ type: "error", text1: err.message ?? "Failed to update" }),
   });
-
-  function enterEdit() {
-    if (!data) return;
-    setEditForm({
-      specializations: [...data.specializations],
-      certifications: [...data.certifications],
-      bio: data.bio ?? "",
-      experienceYears: data.experienceYears,
-      isAvailable: data.isAvailable,
-      certificationsText: data.certifications.join(", "),
-    });
-    setEditing(true);
-  }
-
-  function toggleSpec(s: string) {
-    setEditForm((f) => ({
-      ...f,
-      specializations: f.specializations.includes(s)
-        ? f.specializations.filter((x) => x !== s)
-        : [...f.specializations, s],
-    }));
-  }
 
   if (isLoading) {
     return (
@@ -156,28 +95,7 @@ export default function OwnerTrainerDetailScreen() {
           />
         }
       >
-        <Header
-          title="Trainer Details"
-          back
-          right={
-            editing ? (
-              <TouchableOpacity
-                style={styles.saveBtn}
-                onPress={() => updateMutation.mutate()}
-                disabled={updateMutation.isPending}
-              >
-                <Icon name="check" size={16} color="#fff" />
-                <Text style={styles.saveBtnText}>
-                  {updateMutation.isPending ? "Saving…" : "Save"}
-                </Text>
-              </TouchableOpacity>
-            ) : (
-              <TouchableOpacity style={styles.editBtn} onPress={enterEdit}>
-                <Icon name="pencil-outline" size={16} color={Colors.textSecondary} />
-              </TouchableOpacity>
-            )
-          }
-        />
+        <Header title="Trainer Details" back />
 
         {/* ── Profile card ── */}
         <Card style={styles.profileCard}>
@@ -205,7 +123,9 @@ export default function OwnerTrainerDetailScreen() {
               <Text
                 style={[
                   styles.availText,
-                  { color: data.isAvailable ? Colors.success : Colors.textMuted },
+                  {
+                    color: data.isAvailable ? Colors.success : Colors.textMuted,
+                  },
                 ]}
               >
                 {data.isAvailable ? "Available" : "Busy"}
@@ -217,7 +137,14 @@ export default function OwnerTrainerDetailScreen() {
           <View style={styles.statsBar}>
             <View style={styles.statItem}>
               <Text style={styles.statLabel}>Rating</Text>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 3, marginTop: 2 }}>
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 3,
+                  marginTop: 2,
+                }}
+              >
                 <Icon name="star" size={12} color={Colors.warning} />
                 <Text style={styles.statValue}>
                   {Number(data.rating).toFixed(1)}
@@ -239,7 +166,7 @@ export default function OwnerTrainerDetailScreen() {
           </View>
         </Card>
 
-        {/* ── Quick action ── */}
+        {/* ── Availability toggle ── */}
         <TouchableOpacity
           style={[
             styles.actionBtn,
@@ -249,7 +176,11 @@ export default function OwnerTrainerDetailScreen() {
           disabled={toggleAvailMutation.isPending}
         >
           <Icon
-            name={data.isAvailable ? "account-clock-outline" : "account-check-outline"}
+            name={
+              data.isAvailable
+                ? "account-clock-outline"
+                : "account-check-outline"
+            }
             size={16}
             color={data.isAvailable ? Colors.warning : Colors.success}
           />
@@ -313,29 +244,10 @@ export default function OwnerTrainerDetailScreen() {
               <ListRow
                 icon="briefcase-outline"
                 label="Experience"
-                value={
-                  editing ? undefined : `${data.experienceYears} year${data.experienceYears !== 1 ? "s" : ""}`
-                }
-                bordered={!editing}
+                value={`${data.experienceYears} year${data.experienceYears !== 1 ? "s" : ""}`}
                 iconColor={Colors.primary}
                 iconBg={Colors.primaryFaded}
               />
-              {editing && (
-                <View style={{ paddingHorizontal: Spacing.sm, paddingBottom: Spacing.sm }}>
-                  <Input
-                    label=""
-                    value={String(editForm.experienceYears)}
-                    onChangeText={(v) =>
-                      setEditForm((f) => ({
-                        ...f,
-                        experienceYears: parseInt(v) || 0,
-                      }))
-                    }
-                    keyboardType="number-pad"
-                    placeholder="Years of experience"
-                  />
-                </View>
-              )}
             </Card>
 
             {/* Bio */}
@@ -344,54 +256,20 @@ export default function OwnerTrainerDetailScreen() {
                 <Icon name="text-account" size={16} color={Colors.primary} />
                 <Text style={styles.sectionTitle}>Bio</Text>
               </View>
-              {editing ? (
-                <Input
-                  label=""
-                  value={editForm.bio}
-                  onChangeText={(v) => setEditForm((f) => ({ ...f, bio: v }))}
-                  placeholder="Write trainer bio..."
-                  multiline
-                  numberOfLines={3}
-                />
-              ) : (
-                <Text style={styles.bioText}>
-                  {data.bio || "No bio added"}
-                </Text>
-              )}
+              <Text style={styles.bioText}>{data.bio || "No bio added"}</Text>
             </Card>
 
             {/* Specializations */}
             <Card>
               <View style={styles.sectionHeader}>
-                <Icon name="arm-flex-outline" size={16} color={Colors.primary} />
+                <Icon
+                  name="arm-flex-outline"
+                  size={16}
+                  color={Colors.primary}
+                />
                 <Text style={styles.sectionTitle}>Specializations</Text>
               </View>
-              {editing ? (
-                <View style={styles.specGrid}>
-                  {SPECIALIZATIONS.map((s) => {
-                    const active = editForm.specializations.includes(s);
-                    return (
-                      <TouchableOpacity
-                        key={s}
-                        onPress={() => toggleSpec(s)}
-                        style={[
-                          styles.specToggle,
-                          active ? styles.specToggleActive : styles.specToggleInactive,
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            styles.specToggleText,
-                            { color: active ? Colors.primary : Colors.textMuted },
-                          ]}
-                        >
-                          {s}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              ) : data.specializations.length > 0 ? (
+              {data.specializations.length > 0 ? (
                 <View style={styles.specGrid}>
                   {data.specializations.map((s) => (
                     <View key={s} style={styles.specPill}>
@@ -407,19 +285,14 @@ export default function OwnerTrainerDetailScreen() {
             {/* Certifications */}
             <Card>
               <View style={styles.sectionHeader}>
-                <Icon name="certificate-outline" size={16} color={Colors.primary} />
+                <Icon
+                  name="certificate-outline"
+                  size={16}
+                  color={Colors.primary}
+                />
                 <Text style={styles.sectionTitle}>Certifications</Text>
               </View>
-              {editing ? (
-                <Input
-                  label=""
-                  value={editForm.certificationsText}
-                  onChangeText={(v) =>
-                    setEditForm((f) => ({ ...f, certificationsText: v }))
-                  }
-                  placeholder="ACE, NASM, ISSA..."
-                />
-              ) : data.certifications.length > 0 ? (
+              {data.certifications.length > 0 ? (
                 <View style={styles.specGrid}>
                   {data.certifications.map((c) => (
                     <View key={c} style={styles.certPill}>
@@ -431,16 +304,6 @@ export default function OwnerTrainerDetailScreen() {
                 <Text style={styles.emptyText}>No certifications added</Text>
               )}
             </Card>
-
-            {/* Cancel edit button */}
-            {editing && (
-              <TouchableOpacity
-                style={styles.cancelBtn}
-                onPress={() => setEditing(false)}
-              >
-                <Text style={styles.cancelText}>Cancel</Text>
-              </TouchableOpacity>
-            )}
           </>
         )}
 
@@ -481,27 +344,6 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.bg },
   scroll: { padding: Spacing.lg, paddingBottom: 40, gap: Spacing.md },
 
-  saveBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    backgroundColor: Colors.primary,
-    borderRadius: Radius.lg,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-  },
-  saveBtnText: { color: "#fff", fontSize: Typography.xs, fontWeight: "700" },
-  editBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: Radius.lg,
-    backgroundColor: Colors.surfaceRaised,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
   profileCard: {},
   profileRow: {
     flexDirection: "row",
@@ -514,7 +356,11 @@ const styles = StyleSheet.create({
     fontSize: Typography.lg,
     fontWeight: "700",
   },
-  trainerGym: { color: Colors.textMuted, fontSize: Typography.xs, marginTop: 2 },
+  trainerGym: {
+    color: Colors.textMuted,
+    fontSize: Typography.xs,
+    marginTop: 2,
+  },
   trainerPhone: {
     color: Colors.textSecondary,
     fontSize: Typography.xs,
@@ -606,21 +452,6 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   specPillText: { color: Colors.primary, fontSize: 12, fontWeight: "500" },
-  specToggle: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: Radius.full,
-    borderWidth: 1,
-  },
-  specToggleActive: {
-    backgroundColor: Colors.primaryFaded,
-    borderColor: Colors.primary + "50",
-  },
-  specToggleInactive: {
-    backgroundColor: Colors.surfaceRaised,
-    borderColor: Colors.border,
-  },
-  specToggleText: { fontSize: 12 },
   certPill: {
     backgroundColor: Colors.surfaceRaised,
     borderWidth: 1,
@@ -631,16 +462,6 @@ const styles = StyleSheet.create({
   },
   certPillText: { color: Colors.textSecondary, fontSize: 12 },
   emptyText: { color: Colors.textMuted, fontSize: Typography.sm },
-
-  cancelBtn: {
-    alignItems: "center",
-    paddingVertical: Spacing.md,
-    borderRadius: Radius.lg,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    backgroundColor: Colors.surfaceRaised,
-  },
-  cancelText: { color: Colors.textMuted, fontSize: Typography.sm },
 
   memberRow: {
     flexDirection: "row",

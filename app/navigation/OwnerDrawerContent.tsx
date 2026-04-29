@@ -96,7 +96,7 @@ const NAV_ITEMS: NavItem[] = [
     screen: "OwnerDiets",
     featureKey: "hasDietPlans",
   },
-  { icon: "gift-outline", label: "Refer & Earn", screen: "OwnerReferral" },
+  // { icon: "gift-outline", label: "Refer & Earn", screen: "OwnerReferral" },
   {
     icon: "bell-outline",
     label: "Notifications",
@@ -127,8 +127,6 @@ export function OwnerDrawerContent(props: DrawerContentComponentProps) {
   const sub = useSubscription();
   const { subscription, usage, limits } = sub;
   const insets = useSafeAreaInsets();
-
-  console.log("sub", sub);
 
   const activeRouteName = props.state.routes[props.state.index].name;
 

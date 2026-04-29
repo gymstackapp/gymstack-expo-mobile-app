@@ -1,6 +1,13 @@
 // mobile/src/screens/owner/DashboardScreen.tsx
 import { ownerDashboardApi } from "@/api/endpoints";
-import { Avatar, Card, RangePicker, Skeleton, StatCard } from "@/components";
+import {
+  Avatar,
+  Card,
+  NotificationBell,
+  RangePicker,
+  Skeleton,
+  StatCard,
+} from "@/components";
 import { useSubscription } from "@/hooks/useSubsciption";
 import { useAuthStore } from "@/store/authStore";
 import { Colors, Radius, Spacing, Typography } from "@/theme";
@@ -17,6 +24,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { BarChart } from "react-native-gifted-charts";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 
@@ -31,7 +39,7 @@ interface DashboardData {
   rangeStart: string;
   rangeEnd: string;
   rangeRevenue: number;
-  rangeSupplementRevenue: number;
+  rangeSuppRevenue: number;
   totalRevenue: number;
   rangeExpenses: number;
   todayExpenses: number;
@@ -132,125 +140,146 @@ function timeAgo(d: string) {
   return `${Math.max(0, m)}m ago`;
 }
 
-// ── Colors matching the reference image ─────────────────────────────────────
-// Membership  = amber/orange (primary)
-// Supplements = yellow-gold
-// Expenses    = blue
 const CHART_COLORS = {
-  membership: Colors.primary, // orange-amber  ~#f97316
-  supplement: "#eab308", // yellow-gold
+  membership: Colors.primary, // orange ~#f97316
+  supplement: "#22c55e", // green  (matches web)
   expense: "#3b82f6", // blue
 };
 
-// ── Multi-series bar chart ────────────────────────────────────────────────────
-// Three bars per bucket always rendered (membership, supplement, expense).
-// Zero-value bars show as a faint ghost so the grouped structure is always visible.
-function RevenueChart({ data }: { data: DashboardData }) {
+const YAXIS_W = 48;
+
+function RevenueChart({
+  data,
+  rangeLabel,
+}: {
+  data: DashboardData;
+  rangeLabel: string;
+}) {
   const membership = data.dailyMembershipRevenue ?? [];
   const supplement = data.dailySupplementRevenue ?? [];
-  const expenses = data.dailyExpenses ?? [];
-  const labels = data.dailyRevenue.map((d) => d.date);
+  const expenses   = data.dailyExpenses ?? [];
 
-  if (!labels.length) return null;
+  const suppMap: Record<string, number> = {};
+  const expMap:  Record<string, number> = {};
+  for (const s of supplement) suppMap[s.date] = Number(s.amount);
+  for (const e of expenses)   expMap[e.date]  = Number(e.amount);
 
-  const allValues = [
-    ...membership.map((d) => d.amount),
-    ...supplement.map((d) => d.amount),
-    ...expenses.map((d) => d.amount),
-    1,
-  ];
-  const max = Math.max(...allValues);
-  const BAR_H = 60;
-  const showEvery = labels.length > 14 ? Math.ceil(labels.length / 7) : 1;
+  const buckets = membership.map((d) => ({
+    date: d.date,
+    mem:  Number(d.amount),
+    supp: suppMap[d.date] ?? 0,
+    exp:  expMap[d.date]  ?? 0,
+  }));
 
-  const totalMem = membership.reduce((s, d) => s + d.amount, 0);
-  const totalSupp = supplement.reduce((s, d) => s + d.amount, 0);
-  const totalExp = expenses.reduce((s, d) => s + d.amount, 0);
+  if (!buckets.length) return null;
+
+  const totalMem  = buckets.reduce((s, b) => s + b.mem,  0);
+  const totalSupp = buckets.reduce((s, b) => s + b.supp, 0);
+  const totalExp  = buckets.reduce((s, b) => s + b.exp,  0);
   const net = totalMem + totalSupp - totalExp;
+
+  const maxVal = Math.max(
+    ...buckets.flatMap((b) => [b.mem, b.supp, b.exp]),
+    1,
+  );
+  const withHeadroom = maxVal * 1.2;
+  const magnitude    = Math.pow(10, Math.floor(Math.log10(withHeadroom)));
+  const roundedMax   = Math.ceil(withHeadroom / (magnitude / 2)) * (magnitude / 2);
+
+  const n = buckets.length;
+
+  // Bar & gap sizing — scale down for larger date ranges
+  const barW     = n <= 7 ? 12 : n <= 14 ? 10 : n <= 31 ? 8 : n <= 90 ? 6 : 4;
+  const intraGap = n <= 14 ? 3 : 2;       // gap between bars within one day
+  const interGap = n <= 7 ? 16 : n <= 14 ? 12 : n <= 31 ? 10 : 8; // gap between day groups
+  const perGroup  = 3 * barW + 2 * intraGap + interGap;
+  // Full canvas: Y-axis area + small leading pad + all groups
+  const contentW  = YAXIS_W + 4 + n * perGroup;
+
+  // Show every day up to 31; every 3rd for ≤90; every 7th beyond
+  const showEvery = n <= 31 ? 1 : n <= 90 ? 3 : 7;
+
+  const barData = buckets.flatMap((b, i) => {
+    const show  = i % showEvery === 0;
+    const parts = b.date.split(" ");
+    // "1 Apr" keeps full label so month is visible; other days show day number only
+    const lbl = show ? (parts[0] === "1" ? b.date : parts[0]) : "";
+    return [
+      {
+        value:      b.mem,
+        frontColor: b.mem  > 0 ? CHART_COLORS.membership : CHART_COLORS.membership + "28",
+        spacing:    intraGap,
+        label:      "",
+      },
+      {
+        value:          b.supp,
+        frontColor:     b.supp > 0 ? CHART_COLORS.supplement : CHART_COLORS.supplement + "28",
+        spacing:        intraGap,
+        label:          lbl,
+        labelTextStyle: ch.xLabel,
+      },
+      {
+        value:      b.exp,
+        frontColor: b.exp  > 0 ? CHART_COLORS.expense : CHART_COLORS.expense + "28",
+        spacing:    i < n - 1 ? interGap : 0,
+        label:      "",
+      },
+    ];
+  });
 
   return (
     <View>
-      {/* Legend */}
-      <View style={ch.legend}>
-        {[
-          { color: CHART_COLORS.membership, label: "Membership" },
-          { color: CHART_COLORS.supplement, label: "Supplements" },
-          { color: CHART_COLORS.expense, label: "Expenses" },
-        ].map((l) => (
-          <View key={l.label} style={ch.legendItem}>
-            <View style={[ch.legendDot, { backgroundColor: l.color }]} />
-            <Text style={ch.legendTxt}>{l.label}</Text>
-          </View>
-        ))}
-      </View>
-
-      {/* Bars — always three per bucket */}
-      <View style={[ch.barsWrap, { height: BAR_H }]}>
-        {labels.map((_, i) => {
-          const mem = membership[i]?.amount ?? 0;
-          const supp = supplement[i]?.amount ?? 0;
-          const exp = expenses[i]?.amount ?? 0;
-          // Use minimum 2px height so zero-value bars are visible as ghosts
-          const memH = max > 0 ? Math.max((mem / max) * BAR_H, 2) : 2;
-          const suppH = max > 0 ? Math.max((supp / max) * BAR_H, 2) : 2;
-          const expH = max > 0 ? Math.max((exp / max) * BAR_H, 2) : 2;
-
-          return (
-            <View key={i} style={ch.barGroup}>
-              <View
-                style={[
-                  ch.bar,
-                  {
-                    height: memH,
-                    backgroundColor: CHART_COLORS.membership,
-                    opacity: mem > 0 ? 0.85 : 0.12,
-                  },
-                ]}
-              />
-              <View
-                style={[
-                  ch.bar,
-                  {
-                    height: suppH,
-                    backgroundColor: CHART_COLORS.supplement,
-                    opacity: supp > 0 ? 0.85 : 0.12,
-                  },
-                ]}
-              />
-              <View
-                style={[
-                  ch.bar,
-                  {
-                    height: expH,
-                    backgroundColor: CHART_COLORS.expense,
-                    opacity: exp > 0 ? 0.85 : 0.12,
-                  },
-                ]}
-              />
+      {/* Header — title + subtitle left, legend right */}
+      <View style={ch.headerRow}>
+        <View style={{ flex: 1 }}>
+          <Text style={ch.rangeTitle}>{rangeLabel}</Text>
+          <Text style={ch.rangeSub}>Membership · Supplements · Expenses</Text>
+        </View>
+        <View style={ch.legendWrap}>
+          {[
+            { color: CHART_COLORS.membership, label: "Membership"  },
+            { color: CHART_COLORS.supplement, label: "Supplements" },
+            { color: CHART_COLORS.expense,    label: "Expenses"    },
+          ].map((l) => (
+            <View key={l.label} style={ch.legendItem}>
+              <View style={[ch.legendDot, { backgroundColor: l.color }]} />
+              <Text style={ch.legendTxt}>{l.label}</Text>
             </View>
-          );
-        })}
+          ))}
+        </View>
       </View>
 
-      {/* Date labels */}
-      <View style={ch.labelRow}>
-        {labels.map((lbl, i) => {
-          if (i % showEvery !== 0) {
-            return <Text key={i} style={ch.labelTxt} />;
-          }
-          // Backend sends "D Mon" format e.g. "1 Mar", "15 Mar".
-          // Show just the day number; keep full label on the 1st so month is visible.
-          const parts = lbl.split(" ");
-          const display = parts[0] === "1" ? lbl : parts[0];
-          return (
-            <Text key={i} style={ch.labelTxt} numberOfLines={1}>
-              {display}
-            </Text>
-          );
-        })}
-      </View>
+      {/* Horizontally scrollable chart — every day group visible */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        nestedScrollEnabled
+        style={ch.chartScroll}
+      >
+        <BarChart
+          data={barData}
+          width={contentW}
+          height={200}
+          barWidth={barW}
+          initialSpacing={4}
+          noOfSections={4}
+          maxValue={roundedMax}
+          yAxisThickness={0}
+          xAxisThickness={0}
+          rulesColor={Colors.border + "60"}
+          rulesType="solid"
+          yAxisTextStyle={ch.yLabel as any}
+          formatYLabel={(label: string) => fmt(Number(label))}
+          yAxisLabelWidth={YAXIS_W}
+          barBorderRadius={2}
+          isAnimated={false}
+          backgroundColor="transparent"
+          hideOrigin
+          xAxisLabelTextStyle={ch.xLabel as any}
+        />
+      </ScrollView>
 
-      {/* Summary totals */}
+      {/* Footer summary */}
       <View style={ch.summaryRow}>
         <Text style={ch.summaryItem}>
           Mem:{" "}
@@ -287,25 +316,30 @@ function RevenueChart({ data }: { data: DashboardData }) {
 }
 
 const ch = StyleSheet.create({
-  legend: {
+  headerRow: {
     flexDirection: "row",
-    flexWrap: "wrap",
-    gap: Spacing.md,
-    marginBottom: Spacing.sm,
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: Spacing.sm,
+    marginBottom: Spacing.md,
   },
+  rangeTitle: {
+    color: Colors.textPrimary,
+    fontSize: Typography.sm,
+    fontWeight: "700",
+  },
+  rangeSub: {
+    color: Colors.textMuted,
+    fontSize: Typography.xs,
+    marginTop: 2,
+  },
+  legendWrap: { gap: 5 },
   legendItem: { flexDirection: "row", alignItems: "center", gap: 5 },
   legendDot: { width: 8, height: 8, borderRadius: 2 },
   legendTxt: { color: Colors.textMuted, fontSize: 10 },
-  barsWrap: { flexDirection: "row", alignItems: "flex-end", gap: 2 },
-  barGroup: { flex: 1, flexDirection: "row", alignItems: "flex-end", gap: 1 },
-  bar: { flex: 1, borderRadius: 2, minHeight: 2 },
-  labelRow: { flexDirection: "row", marginTop: 4 },
-  labelTxt: {
-    flex: 1,
-    color: Colors.textMuted,
-    fontSize: 8,
-    textAlign: "center",
-  },
+  chartScroll: { marginHorizontal: -Spacing.lg },
+  yLabel: { color: Colors.textMuted, fontSize: 9 },
+  xLabel: { color: Colors.textMuted, fontSize: 8, textAlign: "center" },
   summaryRow: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -342,8 +376,8 @@ function ExpiryAlert({
     days < 0
       ? `${count} expired memberships`
       : days === 0
-        ? `Last day: ${names?.join(", ") ?? count + " memberships"}`
-        : `${count} expiring in ${days} day${days !== 1 ? "s" : ""}`;
+        ? `Last day today: ${names?.join(", ") ?? count + " membership" + (count > 1 ? "s" : "")}`
+        : `${count} membership${count > 1 ? "s" : ""} expiring within ${days} day${days !== 1 ? "s" : ""}`;
   return (
     <TouchableOpacity
       style={[s.alert, { backgroundColor: bg, borderColor: color + "40" }]}
@@ -681,6 +715,8 @@ export default function OwnerDashboardScreen() {
     staleTime: 2 * 60_000,
   });
 
+  console.log("data", data);
+
   const firstName = profile?.fullName?.split(" ")[0] ?? "there";
   const rangeLabel =
     RANGES.find((r) => r.key === range)?.label ?? "Last 30 Days";
@@ -700,6 +736,7 @@ export default function OwnerDashboardScreen() {
       color: "#facc15",
       bg: "#eab308",
       screen: "OwnerTrainers",
+      params: { screen: "OwnerAddTrainer" } as any,
     },
     {
       icon: "calendar-check-outline",
@@ -776,16 +813,28 @@ export default function OwnerDashboardScreen() {
             <Icon name="menu" size={24} color={Colors.textPrimary} />
           </TouchableOpacity>
           <View style={{ flex: 1 }}>
-            <Text style={s.greeting}>Good {getGreeting()} 👋</Text>
+            <View style={{ flexDirection: "row" }}>
+              <Text style={s.greeting}>Good {getGreeting()} </Text>
+              <Text>👋</Text>
+            </View>
             <Text style={s.name}>{firstName}</Text>
           </View>
-          <TouchableOpacity onPress={() => navigation.navigate("Profile")}>
-            <Avatar
-              name={profile?.fullName ?? "O"}
-              url={profile?.avatarUrl}
-              size={42}
-            />
-          </TouchableOpacity>
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: Spacing.sm,
+            }}
+          >
+            <NotificationBell />
+            <TouchableOpacity onPress={() => navigation.navigate("Profile")}>
+              <Avatar
+                name={profile?.fullName ?? "O"}
+                url={profile?.avatarUrl}
+                size={42}
+              />
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* ── Gym filter ────────────────────────────────────────── */}
@@ -856,7 +905,11 @@ export default function OwnerDashboardScreen() {
               color={Colors.primary}
               bg={Colors.primaryFaded}
               sub="Membership + Supplements"
-              style={{ flex: 1 }}
+              style={{
+                flex: 1,
+                backgroundColor: Colors.primaryFaded,
+                borderColor: Colors.primary,
+              }}
             />
             <StatCard
               icon="calendar-check-outline"
@@ -918,7 +971,7 @@ export default function OwnerDashboardScreen() {
             <StatCard
               icon="shopping-outline"
               label="Supplement Rev"
-              value={fmt(data?.rangeSupplementRevenue ?? 0)}
+              value={fmt(data?.rangeSuppRevenue ?? 0)}
               color={Colors.success}
               bg={Colors.successFaded}
               sub={rangeLabel.toUpperCase()}
@@ -949,13 +1002,9 @@ export default function OwnerDashboardScreen() {
         )}
 
         {/* ── Chart ─────────────────────────────────────────────── */}
-        {!isLoading && (data?.dailyRevenue?.length ?? 0) > 0 && (
+        {!isLoading && (
           <Card style={{ marginTop: Spacing.md }}>
-            <View style={s.cardHeader}>
-              <Text style={s.cardTitle}>{rangeLabel}</Text>
-              <Text style={s.cardSub}>Revenue breakdown</Text>
-            </View>
-            <RevenueChart data={data!} />
+            <RevenueChart data={data!} rangeLabel={rangeLabel} />
           </Card>
         )}
 
@@ -1029,7 +1078,7 @@ export default function OwnerDashboardScreen() {
               <TouchableOpacity
                 onPress={() =>
                   navigation.navigate("Members", {
-                    screen: "OwnerAddMember",
+                    screen: "Members",
                   } as any)
                 }
               >

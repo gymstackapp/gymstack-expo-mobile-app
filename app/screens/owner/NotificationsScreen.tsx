@@ -136,7 +136,6 @@ export default function OwnerNotificationsScreen() {
 
   const announcements = notifData?.announcements ?? [];
   const totalPages = notifData?.pages ?? 1;
-
   const sendMutation = useMutation({
     mutationFn: () =>
       notificationsApi.send({
@@ -144,6 +143,7 @@ export default function OwnerNotificationsScreen() {
         title: form.title,
         body: `[${form.category}] ${form.body}`,
         targetRole: form.targetRole || undefined,
+        expiresAt: form.expiresAt || undefined,
       }),
     onSuccess: (data: any) => {
       qc.invalidateQueries({ queryKey: ["ownerNotifications"] });
@@ -430,11 +430,12 @@ export default function OwnerNotificationsScreen() {
                       {new Date(a.createdAt).toLocaleString("en-IN", {
                         day: "numeric",
                         month: "short",
+                        year: "numeric",
                         hour: "2-digit",
                         minute: "2-digit",
                       })}
                       {a.expiresAt
-                        ? ` · Expires ${new Date(a.expiresAt).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}`
+                        ? ` · Expires ${new Date(a.expiresAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}`
                         : ""}
                     </Text>
                   </View>
@@ -682,6 +683,14 @@ export default function OwnerNotificationsScreen() {
                 ))}
               </View>
             </View>
+
+            <Input
+              label="Expires On (optional)"
+              value={form.expiresAt}
+              onChangeText={(v) => set("expiresAt", v)}
+              placeholder="YYYY-MM-DD"
+              leftIcon="calendar-clock-outline"
+            />
 
             <Button
               label="Send Notification"

@@ -8,9 +8,9 @@ import {
 } from "@react-native-google-signin/google-signin";
 import { useNavigation } from "@react-navigation/native";
 import Constants from "expo-constants";
-import { Image } from "expo-image";
 import React, { useState } from "react";
 import {
+  Image,
   KeyboardAvoidingView,
   ScrollView,
   StyleSheet,
@@ -87,7 +87,6 @@ export function LoginScreen() {
         <View style={styles.logo}>
           <Image
             source={require("../../../assets/images/logo_bg2.png")}
-            contentFit="cover"
             style={{ width: 260, height: 130 }}
           />
           <Text style={styles.logoSub}>Manage your gym smarter</Text>

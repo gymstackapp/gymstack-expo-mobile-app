@@ -1,13 +1,20 @@
 // mobile/src/screens/owner/AddPaymentScreen.tsx
 import { membersApi, membershipPlansApi, paymentsApi } from "@/api/endpoints";
 import { Button, Card, Dropdown, Header, Input } from "@/components";
-import { Colors, Spacing } from "@/theme";
+import { Colors, Radius, Spacing, Typography } from "@/theme";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import React, { useEffect, useState } from "react";
-import { ScrollView, Text, View } from "react-native";
+import React, { useEffect, useRef, useState } from "react";
+import {
+  ScrollView,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
+import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 
 const PAYMENT_METHOD_OPTIONS = [
   { label: "Cash", value: "CASH" },
@@ -42,6 +49,13 @@ export default function AddPaymentScreen() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [plans, setPlans] = useState<any[]>([]);
 
+  // Member search (used when no memberId is pre-selected)
+  const [memberSearch, setMemberSearch] = useState("");
+  const [memberResults, setMemberResults] = useState<any[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [selectedMember, setSelectedMember] = useState<any>(null);
+  const searchRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // If memberId is provided, fetch member info for display
   const { data: member } = useQuery({
     queryKey: ["ownerMember", memberId],
@@ -56,7 +70,7 @@ export default function AddPaymentScreen() {
     if (gId) {
       membershipPlansApi
         .list(gId)
-        .then(setPlans)
+        .then((res: any) => setPlans(Array.isArray(res) ? res : (res?.plans ?? [])))
         .catch(() => setPlans([]));
     }
   }, [form.gymId, member]);
@@ -71,6 +85,30 @@ export default function AddPaymentScreen() {
     }
   }, [form.membershipPlanId, plans]);
 
+  // Debounced member search (only active when no memberId pre-provided)
+  useEffect(() => {
+    if (memberId) return;
+    if (!memberSearch.trim()) {
+      setMemberResults([]);
+      return;
+    }
+    setSearchLoading(true);
+    if (searchRef.current) clearTimeout(searchRef.current);
+    searchRef.current = setTimeout(async () => {
+      try {
+        const data: any = await membersApi.list({
+          search: memberSearch,
+          page: 1,
+        });
+        setMemberResults(data.members ?? []);
+      } catch {
+        setMemberResults([]);
+      } finally {
+        setSearchLoading(false);
+      }
+    }, 400);
+  }, [memberSearch, memberId]);
+
   const set = (k: string, v: string) => {
     setForm((f) => ({ ...f, [k]: v }));
     if (errors[k]) setErrors((e) => ({ ...e, [k]: "" }));
@@ -80,21 +118,28 @@ export default function AddPaymentScreen() {
     mutationFn: () =>
       paymentsApi.create({
         ...form,
-        gymId: form.gymId || (member as any)?.gym?.id,
+        gymId:
+          form.gymId || (member as any)?.gym?.id || selectedMember?.gym?.id,
         amount: parseFloat(form.amount),
       }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["ownerMember", memberId] });
+      qc.invalidateQueries({
+        queryKey: ["ownerMember", form.memberId || memberId],
+      });
       qc.invalidateQueries({ queryKey: ["ownerPayments"] });
       Toast.show({ type: "success", text1: "Payment recorded!" });
       navigation.goBack();
     },
     onError: (err: any) =>
-      Toast.show({ type: "error", text1: err.message ?? "Failed to record payment" }),
+      Toast.show({
+        type: "error",
+        text1: err.message ?? "Failed to record payment",
+      }),
   });
 
   const validate = (): boolean => {
     const e: Record<string, string> = {};
+    if (!memberId && !form.memberId) e.memberId = "Select a member";
     if (!form.amount || isNaN(parseFloat(form.amount)))
       e.amount = "Enter a valid amount";
     if (!form.paymentDate) e.paymentDate = "Payment date is required";
@@ -110,8 +155,7 @@ export default function AddPaymentScreen() {
     })),
   ];
 
-  const memberName =
-    (member as any)?.profile?.fullName ?? "Member";
+  const memberName = (member as any)?.profile?.fullName ?? "Member";
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: Colors.bg }}>
@@ -125,29 +169,203 @@ export default function AddPaymentScreen() {
       >
         <Header title="Add Payment" back />
 
-        {memberId && (
+        {memberId ? (
+          /* Pre-selected member banner */
           <View
             style={{
               backgroundColor: Colors.primaryFaded,
-              borderRadius: 10,
+              borderRadius: Radius.lg,
               padding: Spacing.md,
               marginBottom: Spacing.lg,
             }}
           >
             <Text
-              style={{
-                color: Colors.primary,
-                fontWeight: "700",
-                fontSize: 14,
-              }}
+              style={{ color: Colors.primary, fontWeight: "700", fontSize: 14 }}
             >
               {memberName}
             </Text>
             {(member as any)?.gym?.name ? (
-              <Text style={{ color: Colors.textMuted, fontSize: 12, marginTop: 2 }}>
+              <Text
+                style={{ color: Colors.textMuted, fontSize: 12, marginTop: 2 }}
+              >
                 {(member as any).gym.name}
               </Text>
             ) : null}
+          </View>
+        ) : (
+          /* Member search */
+          <View style={{ marginBottom: Spacing.lg }}>
+            <Text
+              style={{
+                color: Colors.textMuted,
+                fontSize: Typography.xs,
+                fontWeight: "500",
+                marginBottom: 6,
+              }}
+            >
+              Member *
+            </Text>
+            {selectedMember ? (
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  backgroundColor: Colors.primaryFaded,
+                  borderRadius: Radius.lg,
+                  padding: Spacing.md,
+                  borderWidth: 1,
+                  borderColor: Colors.primary + "33",
+                }}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text
+                    style={{
+                      color: Colors.primary,
+                      fontWeight: "700",
+                      fontSize: 14,
+                    }}
+                  >
+                    {selectedMember.profile.fullName}
+                  </Text>
+                  <Text
+                    style={{
+                      color: Colors.textMuted,
+                      fontSize: 12,
+                      marginTop: 2,
+                    }}
+                  >
+                    {selectedMember.gym?.name}
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  onPress={() => {
+                    setSelectedMember(null);
+                    setForm((f) => ({ ...f, memberId: "", gymId: "" }));
+                    setMemberSearch("");
+                  }}
+                >
+                  <Icon
+                    name="close-circle"
+                    size={18}
+                    color={Colors.textMuted}
+                  />
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    backgroundColor: Colors.surfaceRaised,
+                    borderRadius: Radius.lg,
+                    borderWidth: 1,
+                    borderColor: errors.memberId
+                      ? Colors.error + "60"
+                      : Colors.border,
+                    paddingHorizontal: Spacing.md,
+                    height: 48,
+                  }}
+                >
+                  <Icon
+                    name="magnify"
+                    size={18}
+                    color={Colors.textMuted}
+                    style={{ marginRight: 8 }}
+                  />
+                  <TextInput
+                    value={memberSearch}
+                    onChangeText={setMemberSearch}
+                    placeholder="Search member by name..."
+                    placeholderTextColor={Colors.textMuted}
+                    style={{
+                      flex: 1,
+                      color: Colors.textPrimary,
+                      fontSize: Typography.sm,
+                    }}
+                  />
+                </View>
+                {errors.memberId ? (
+                  <Text
+                    style={{
+                      color: Colors.error,
+                      fontSize: Typography.xs,
+                      marginTop: 4,
+                    }}
+                  >
+                    {errors.memberId}
+                  </Text>
+                ) : null}
+                {searchLoading && (
+                  <Text
+                    style={{
+                      color: Colors.textMuted,
+                      fontSize: Typography.xs,
+                      marginTop: 4,
+                    }}
+                  >
+                    Searching...
+                  </Text>
+                )}
+                {memberResults.length > 0 && (
+                  <View
+                    style={{
+                      backgroundColor: Colors.surfaceRaised,
+                      borderRadius: Radius.lg,
+                      borderWidth: 1,
+                      borderColor: Colors.border,
+                      marginTop: 4,
+                      overflow: "hidden",
+                    }}
+                  >
+                    {memberResults.slice(0, 6).map((m: any) => (
+                      <TouchableOpacity
+                        key={m.id}
+                        style={{
+                          padding: Spacing.md,
+                          borderBottomWidth: 1,
+                          borderBottomColor: Colors.border,
+                        }}
+                        onPress={() => {
+                          setSelectedMember(m);
+                          setForm((f) => ({
+                            ...f,
+                            memberId: m.id,
+                            gymId: m.gym?.id ?? "",
+                          }));
+                          setMemberSearch("");
+                          setMemberResults([]);
+                          if (m.gym?.id)
+                            membershipPlansApi
+                              .list(m.gym.id)
+                              .then((res: any) => setPlans(Array.isArray(res) ? res : (res?.plans ?? [])))
+                              .catch(() => setPlans([]));
+                        }}
+                      >
+                        <Text
+                          style={{
+                            color: Colors.textPrimary,
+                            fontSize: Typography.sm,
+                            fontWeight: "600",
+                          }}
+                        >
+                          {m.profile.fullName}
+                        </Text>
+                        <Text
+                          style={{
+                            color: Colors.textMuted,
+                            fontSize: Typography.xs,
+                            marginTop: 1,
+                          }}
+                        >
+                          {m.gym?.name}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
+              </>
+            )}
           </View>
         )}
 

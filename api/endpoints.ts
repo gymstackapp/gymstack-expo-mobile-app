@@ -2,7 +2,7 @@
 // Typed wrappers for every backend endpoint.
 // Mirrors the full web feature set — owner, member, trainer.
 
-import { api } from "./client";
+import { api, apiRequestFormData } from "./client";
 export { API_BASE } from "./client";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -112,18 +112,65 @@ export const membersApi = {
     page?: number;
   }) => api.get("/api/owner/members", params),
   get: (id: string) => api.get(`/api/owner/members/${id}`),
-  // Simplified create — backend handles check/create profile by mobile, sends SMS if INVITED
-  create: (data: { gymId: string; fullName: string; mobileNumber: string }) =>
-    api.post("/api/owner/members", data),
+  create: (data: {
+    gymId: string;
+    fullName: string;
+    mobileNumber: string;
+    membershipPlanId?: string;
+    startDate?: string;
+    endDate?: string;
+    paymentReceived?: boolean;
+    email?: string;
+    gender?: string;
+    dateOfBirth?: string;
+    address?: string;
+    goals?: string[];
+    avatarUrl?: string;
+  }) => api.post("/api/owner/members", data),
   update: (id: string, data: object) =>
     api.patch(`/api/owner/members/${id}`, data),
   renew: (id: string, data: object) =>
     api.post(`/api/owner/members/${id}/renew`, data),
-  // Bulk add members — backend handles SMS / in-app notifications per status
-  bulkAdd: (data: {
+  // Preview bulk add — returns categorised rows, no DB writes
+  bulkPreview: (data: {
     gymId: string;
-    members: { fullName: string; mobileNumber: string }[];
+    rows: { name: string; mobile: string }[];
   }) => api.post("/api/owner/members/bulk", data),
+  // Commit bulk add — transaction-wrapped DB writes
+  bulkConfirm: (data: {
+    gymId: string;
+    rows: {
+      name: string;
+      mobile: string;
+      startDate?: string;
+      endDate?: string;
+      membershipPlanId?: string;
+      paymentReceived?: boolean;
+    }[];
+  }) => api.post("/api/owner/members/bulk/confirm", data),
+  // upload EXCEL/CSV - returns same preview shape as bulkPreview (Pro+ plan required)
+  bulkUploadExcel: (
+    gymId: string,
+    file: { uri: string; name: string; mimeType: string },
+  ) => {
+    const fd = new FormData();
+    fd.append("gymId", gymId);
+    fd.append("file", {
+      uri: file.uri,
+      name: file.name,
+      type: file.mimeType,
+    } as any);
+    return apiRequestFormData("/api/owner/members/upload-excel", fd);
+  },
+  // Probe whether the plan allows Excel upload (no file needed - server returns upgradeRequired)
+  checkExcelFeature: () => {
+    const fd = new FormData();
+    return apiRequestFormData("/api/owner/members/upload-excel", fd).catch(
+      () => ({
+        upgradeRequired: true,
+      }),
+    );
+  },
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -207,9 +254,19 @@ export const supplementsApi = {
 
 export const workoutsApi = {
   list: (params?: { gymId?: string }) => api.get("/api/owner/workouts", params),
+  getById: (id: string) => api.get(`/api/owner/workouts/${id}`),
   create: (data: object) => api.post("/api/owner/workouts", data),
   update: (id: string, data: object) =>
     api.patch(`/api/owner/workouts/${id}`, data),
+  delete: (id: string) => api.delete(`/api/owner/workouts/${id}`),
+};
+
+export const planTemplatesApi = {
+  list: (params?: { type?: string }) =>
+    api.get("/api/owner/plan-templates", params),
+  create: (data: object) => api.post("/api/owner/plan-templates", data),
+  incrementUsage: (templateId: string) =>
+    api.post("/api/owner/plan-templates/use-count", { templateId }),
 };
 
 export const dietsApi = {
@@ -217,6 +274,7 @@ export const dietsApi = {
   create: (data: object) => api.post("/api/owner/diets", data),
   update: (id: string, data: object) =>
     api.patch(`/api/owner/diets/${id}`, data),
+  delete: (id: string) => api.delete(`/api/owner/diets/${id}`),
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -231,6 +289,7 @@ export const notificationsApi = {
     title: string;
     body: string;
     targetRole?: string;
+    expiresAt?: string;
   }) => api.post("/api/owner/notifications", data),
   delete: (id: string) => api.delete(`/api/owner/notifications?id=${id}`),
 };
@@ -240,8 +299,12 @@ export const notificationsApi = {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const reportsApi = {
-  get: (params?: { range?: string; gymId?: string }) =>
-    api.get<any>("/api/owner/reports", params),
+  get: (params?: {
+    range?: string;
+    gymId?: string;
+    customStart?: string;
+    customEnd?: string;
+  }) => api.get<any>("/api/owner/reports", params),
 };
 
 // ─────────────────────────────────────────────────────────────────────────────

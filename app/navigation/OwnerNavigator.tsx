@@ -26,6 +26,7 @@ import OwnerGymDetailScreen from "../screens/owner/GymDetailScreen";
 import OwnerGymsScreen from "../screens/owner/GymsScreen";
 // Members
 import AddMemberScreen from "../screens/owner/AddMemberScreen";
+import BulkAddMemberScreen from "../screens/owner/BulkAddMemberScreen";
 import OwnerMemberDetailScreen from "../screens/owner/MemberDetailScreen";
 import OwnerMembersScreen from "../screens/owner/MembersScreen";
 // Trainers
@@ -49,7 +50,7 @@ import ReportsScreen from "../screens/owner/ReportsScreen";
 // Notifications
 import OwnerNotificationsScreen from "../screens/owner/NotificationsScreen";
 // Referral
-import ReferralScreen from "../screens/owner/ReferralScreen";
+// import ReferralScreen from "../screens/owner/ReferralScreen";
 // Subscriptions
 import SubscriptionsScreen from "../screens/owner/SubscriptionsScreen";
 // Profile
@@ -112,6 +113,7 @@ function MembersStack() {
         component={OwnerMemberDetailScreen}
       />
       <Stack.Screen name="OwnerAddMember" component={AddMemberScreen} />
+      <Stack.Screen name="OwnerBulkAddMember" component={BulkAddMemberScreen} />
       <Stack.Screen name="OwnerAddPayment" component={AddPaymentScreen} />
     </Stack.Navigator>
   );
@@ -221,13 +223,13 @@ function NotificationsStack() {
   );
 }
 
-function ReferralStack() {
-  return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="OwnerReferralScreen" component={ReferralScreen} />
-    </Stack.Navigator>
-  );
-}
+// function ReferralStack() {
+//   return (
+//     <Stack.Navigator screenOptions={{ headerShown: false }}>
+//       <Stack.Screen name="OwnerReferralScreen" component={ReferralScreen} />
+//     </Stack.Navigator>
+//   );
+// }
 
 function SubscriptionsStack() {
   return (
@@ -341,7 +343,7 @@ export function OwnerNavigator() {
       <Drawer.Screen name="OwnerDiets" component={DietsStack} />
       <Drawer.Screen name="OwnerReports" component={ReportsStack} />
       <Drawer.Screen name="OwnerNotifications" component={NotificationsStack} />
-      <Drawer.Screen name="OwnerReferral" component={ReferralStack} />
+      {/* <Drawer.Screen name="OwnerReferral" component={ReferralStack} /> */}
       <Drawer.Screen name="OwnerSubscriptions" component={SubscriptionsStack} />
       <Drawer.Screen name="OwnerExpenses" component={ExpensesStack} />
       <Drawer.Screen name="OwnerLockers" component={LockersStack} />

@@ -154,12 +154,26 @@ const OwnerMembersScreen = () => {
                 </Text>
               </TouchableOpacity>
             ) : (
-              <TouchableOpacity
-                style={styles.addBtn}
-                onPress={() => (navigation as any).navigate("OwnerAddMember")}
-              >
-                <Icon name="account-plus-outline" size={20} color="#fff" />
-              </TouchableOpacity>
+              <View style={{ flexDirection: "row", gap: 8 }}>
+                <TouchableOpacity
+                  style={styles.addBtnSecondary}
+                  onPress={() =>
+                    (navigation as any).navigate("OwnerBulkAddMember")
+                  }
+                >
+                  <Icon
+                    name="account-multiple-plus-outline"
+                    size={18}
+                    color={Colors.primary}
+                  />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.addBtn}
+                  onPress={() => (navigation as any).navigate("OwnerAddMember")}
+                >
+                  <Icon name="account-plus-outline" size={20} color="#fff" />
+                </TouchableOpacity>
+              </View>
             )
           }
         />
@@ -334,6 +348,16 @@ const styles = StyleSheet.create({
     height: 38,
     borderRadius: Radius.lg,
     backgroundColor: Colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  addBtnSecondary: {
+    width: 38,
+    height: 38,
+    borderRadius: Radius.lg,
+    backgroundColor: Colors.primaryFaded,
+    borderWidth: 1,
+    borderColor: Colors.primary + "40",
     alignItems: "center",
     justifyContent: "center",
   },

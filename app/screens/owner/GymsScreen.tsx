@@ -119,7 +119,7 @@ const OwnerGymsScreen = () => {
         <Header
           menu
           title="My Gyms"
-          subtitle={`${gyms.length} location${gyms.length !== 1 ? "s" : ""}`}
+          subtitle="Manage all your gym locations"
           right={
             atLimit ? (
               <TouchableOpacity

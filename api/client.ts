@@ -136,7 +136,11 @@ export async function apiRequest<T = any>(
     if (!isAuthRoute) {
       await useAuthStore.getState().logout();
     }
-    throw new ApiError("Unauthorized. Please sign in again.", 401, "UNAUTHORIZED");
+    throw new ApiError(
+      "Unauthorized. Please sign in again.",
+      401,
+      "UNAUTHORIZED",
+    );
   }
 
   const data = await response.json().catch(() => ({}));
@@ -173,18 +177,66 @@ export class ApiError extends Error {
   code: string | undefined;
   upgradeRequired: boolean;
 
-  constructor(
-    message: string,
-    status: number,
-    code?: string,
-  ) {
+  constructor(message: string, status: number, code?: string) {
     super(message);
     this.name = "ApiError";
     this.status = status;
     this.code = code;
-    this.upgradeRequired =
-      code !== undefined && PLAN_GATE_CODES.has(code);
+    this.upgradeRequired = code !== undefined && PLAN_GATE_CODES.has(code);
   }
+}
+
+// ── FormData upload (multipart/form-data) ─────────────────────────────────────
+// Separate from apiRequest so we never force-set Content-Type — fetch must set
+// it automatically with the correct multipart boundary for file uploads.
+
+export async function apiRequestFormData<T = any>(
+  path: string,
+  formData: FormData,
+): Promise<T> {
+  const url = new URL(`${API_BASE}${path}`);
+  const token = await getValidToken();
+
+  const headers: Record<string, string> = {};
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+
+  const response = await fetch(url.toString(), {
+    method: "POST",
+    headers,
+    body: formData,
+  });
+
+  if (response.status === 401) {
+    const isAuthRoute = path.includes("/api/auth/");
+    if (!isAuthRoute) await useAuthStore.getState().logout();
+    throw new ApiError(
+      "Unauthorized. Please sign in again.",
+      401,
+      "UNAUTHORIZED",
+    );
+  }
+
+  const data = await response.json().catch(() => ({}));
+
+  if (response.status === 403) {
+    const { message, code } = parseErrorBody(data, 403);
+    if (code && PLAN_GATE_CODES.has(code)) _planUpgradeHandler?.(code, message);
+    throw new ApiError(message, 403, code);
+  }
+
+  if (response.status >= 500) {
+    const { code } = parseErrorBody(data, response.status);
+    const userMessage = "Something went wrong on our end. Please try again.";
+    _serverErrorHandler?.(userMessage);
+    throw new ApiError(userMessage, response.status, code ?? "INTERNAL_ERROR");
+  }
+
+  if (!response.ok) {
+    const { message, code } = parseErrorBody(data, response.status);
+    throw new ApiError(message, response.status, code);
+  }
+
+  return data as T;
 }
 
 // ── Typed shorthand helpers ───────────────────────────────────────────────────
@@ -198,4 +250,6 @@ export const api = {
     apiRequest<T>(path, { method: "PATCH", body }),
   delete: <T>(path: string, body?: object) =>
     apiRequest<T>(path, { method: "DELETE", body }),
+  postFormData: <T>(path: string, formData: FormData) =>
+    apiRequestFormData<T>(path, formData),
 };

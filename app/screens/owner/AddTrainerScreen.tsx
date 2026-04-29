@@ -3,13 +3,22 @@
 // Optional: experienceYears, certifications, bio, specializations
 // Backend handles: profile lookup by mobile, create/link trainer, send SMS/notification
 
+import { api } from "@/api/client";
 import { gymsApi, trainersApi } from "@/api/endpoints";
-import { Button, Card, Dropdown, Header, Input, PlanGate } from "@/components";
+import {
+  Button,
+  Card,
+  Dropdown,
+  Header,
+  ImageUpload,
+  Input,
+  PlanGate,
+} from "@/components";
 import { useSubscription } from "@/hooks/useSubsciption";
 import { Colors, Radius, Spacing, Typography } from "@/theme";
 import { useNavigation } from "@react-navigation/native";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import {
   ScrollView,
   StyleSheet,
@@ -22,9 +31,29 @@ import Toast from "react-native-toast-message";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 
 const SPECIALIZATIONS = [
-  "Weight Training", "Cardio", "Yoga", "Zumba", "CrossFit",
-  "Boxing", "HIIT", "Pilates", "Nutrition", "Swimming",
-  "Personal Training", "Stretching", "Rehabilitation", "Dance Fitness", "Martial Arts",
+  "Weight Training",
+  "Cardio",
+  "Yoga",
+  "Zumba",
+  "CrossFit",
+  "Boxing",
+  "HIIT",
+  "Pilates",
+  "Nutrition",
+  "Swimming",
+  "Personal Training",
+  "Stretching",
+  "Rehabilitation",
+  "Dance Fitness",
+  "Martial Arts",
+];
+
+const GENDER_OPTIONS = [
+  { label: "Select gender", value: "" },
+  { label: "Male", value: "Male" },
+  { label: "Female", value: "Female" },
+  { label: "Other", value: "Other" },
+  { label: "Prefer not to say", value: "Prefer not to say" },
 ];
 
 export default function OwnerAddTrainerScreen() {
@@ -33,19 +62,63 @@ export default function OwnerAddTrainerScreen() {
   const { canAddTrainer } = useSubscription();
 
   const [form, setForm] = useState({
-    gymId:          "",
-    fullName:       "",
-    mobileNumber:   "",
-    bio:            "",
+    gymId: "",
+    fullName: "",
+    mobileNumber: "",
+    email: "",
+    gender: "",
+    dateOfBirth: "",
+    address: "",
+    avatarUrl: "",
+    bio: "",
     experienceYears: "0",
     certifications: "",
     specializations: [] as string[],
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  type MobileStatus =
+    | "idle"
+    | "checking"
+    | "available"
+    | "exists_active"
+    | "exists_invited";
+  const [mobileStatus, setMobileStatus] = useState<MobileStatus>("idle");
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const checkMobile = (digits: string) => {
+    if (digits.length !== 10) {
+      setMobileStatus("idle");
+      return;
+    }
+    setMobileStatus("checking");
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const data: any = await api.get("/api/auth/check-mobile-status", {
+          mobile: digits,
+        });
+        if (data.status === "NOT_FOUND") setMobileStatus("available");
+        else if (data.status === "ACTIVE") setMobileStatus("exists_active");
+        else setMobileStatus("exists_invited");
+      } catch {
+        setMobileStatus("idle");
+      }
+    }, 500);
+  };
+
+  const mobileSuccess =
+    mobileStatus === "available" ? "New user — an SMS will be sent" : undefined;
+  const mobileHint =
+    mobileStatus === "exists_active"
+      ? "Existing GymStack user — will be linked to your gym"
+      : mobileStatus === "exists_invited"
+        ? "Already invited — a fresh SMS will be sent"
+        : undefined;
+
   const { data: gyms = [] } = useQuery({
     queryKey: ["ownerGyms"],
-    queryFn:  gymsApi.list,
+    queryFn: gymsApi.list,
     staleTime: 5 * 60_000,
   });
 
@@ -65,13 +138,21 @@ export default function OwnerAddTrainerScreen() {
   const mutation = useMutation({
     mutationFn: () =>
       trainersApi.create({
-        gymId:        form.gymId,
-        fullName:     form.fullName,
+        gymId: form.gymId,
+        fullName: form.fullName,
         mobileNumber: form.mobileNumber,
-        bio:          form.bio.trim() || undefined,
+        email: form.email.trim() || undefined,
+        gender: form.gender || undefined,
+        dateOfBirth: form.dateOfBirth || undefined,
+        address: form.address.trim() || undefined,
+        avatarUrl: form.avatarUrl.trim() || undefined,
+        bio: form.bio.trim() || undefined,
         experienceYears: parseInt(form.experienceYears) || 0,
         certifications: form.certifications
-          ? form.certifications.split(",").map((s) => s.trim()).filter(Boolean)
+          ? form.certifications
+              .split(",")
+              .map((s) => s.trim())
+              .filter(Boolean)
           : [],
         specializations: form.specializations,
       } as any),
@@ -82,7 +163,10 @@ export default function OwnerAddTrainerScreen() {
       navigation.goBack();
     },
     onError: (err: any) =>
-      Toast.show({ type: "error", text1: err.message ?? "Failed to add trainer" }),
+      Toast.show({
+        type: "error",
+        text1: err.message ?? "Failed to add trainer",
+      }),
   });
 
   const validate = () => {
@@ -90,6 +174,8 @@ export default function OwnerAddTrainerScreen() {
     if (!form.gymId) e.gymId = "Select a gym";
     if (!form.fullName.trim()) e.fullName = "Name is required";
     if (!form.mobileNumber.trim()) e.mobileNumber = "Mobile number is required";
+    else if (form.mobileNumber.length !== 10)
+      e.mobileNumber = "Enter a valid 10-digit mobile number";
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -103,7 +189,11 @@ export default function OwnerAddTrainerScreen() {
     <SafeAreaView style={{ flex: 1, backgroundColor: Colors.bg }}>
       <PlanGate allowed={canAddTrainer} featureLabel="Add Trainer">
         <ScrollView
-          contentContainerStyle={{ padding: Spacing.lg, paddingBottom: 40, gap: Spacing.md }}
+          contentContainerStyle={{
+            padding: Spacing.lg,
+            paddingBottom: 40,
+            gap: Spacing.md,
+          }}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
@@ -111,10 +201,15 @@ export default function OwnerAddTrainerScreen() {
 
           {/* SMS callout */}
           <View style={styles.callout}>
-            <Icon name="message-text-outline" size={16} color={Colors.primary} style={{ marginTop: 1 }} />
+            <Icon
+              name="message-text-outline"
+              size={16}
+              color={Colors.primary}
+              style={{ marginTop: 1 }}
+            />
             <Text style={styles.calloutText}>
-              The trainer will receive an SMS to complete their profile. You only
-              need their name and mobile number to get started.
+              The trainer will receive an SMS to complete their profile. You
+              only need their name and mobile number to get started.
             </Text>
           </View>
 
@@ -141,11 +236,67 @@ export default function OwnerAddTrainerScreen() {
             <Input
               label="Mobile Number *"
               value={form.mobileNumber}
-              onChangeText={(v) => set("mobileNumber", v)}
-              placeholder="+91 98765 43210"
+              onChangeText={(v) => {
+                const digits = v.replace(/\D/g, "").slice(0, 10);
+                set("mobileNumber", digits);
+                setMobileStatus("idle");
+                checkMobile(digits);
+              }}
+              placeholder="10-digit mobile number"
               keyboardType="phone-pad"
+              maxLength={10}
               leftIcon="phone-outline"
+              checking={mobileStatus === "checking"}
+              success={mobileSuccess}
+              hint={mobileHint}
               error={errors.mobileNumber}
+            />
+          </Card>
+
+          {/* Optional profile fields */}
+          <Card>
+            <Text style={styles.sectionTitle}>
+              Profile Details <Text style={styles.optional}>(optional)</Text>
+            </Text>
+            <ImageUpload
+              value={form.avatarUrl}
+              onChange={(v) => set("avatarUrl", v ?? "")}
+              folder="avatars"
+              size={80}
+              shape="circle"
+              placeholder="Add Photo"
+            />
+            <Input
+              label="Email"
+              value={form.email}
+              onChangeText={(v) => set("email", v)}
+              placeholder="trainer@example.com"
+              keyboardType="email-address"
+              autoCapitalize="none"
+              leftIcon="email-outline"
+            />
+            <Dropdown
+              label="Gender"
+              value={form.gender}
+              onChange={(v) => set("gender", v)}
+              options={GENDER_OPTIONS}
+              placeholder="Select gender"
+              leftIcon="gender-male-female"
+            />
+            <Input
+              label="Date of Birth"
+              value={form.dateOfBirth}
+              onChangeText={(v) => set("dateOfBirth", v)}
+              placeholder="YYYY-MM-DD"
+              leftIcon="cake-variant-outline"
+            />
+            <Input
+              label="Address"
+              value={form.address}
+              onChangeText={(v) => set("address", v)}
+              placeholder="Street, city, state"
+              leftIcon="map-marker-outline"
+              autoCapitalize="sentences"
             />
           </Card>
 
@@ -216,6 +367,7 @@ export default function OwnerAddTrainerScreen() {
               if (validate()) mutation.mutate();
             }}
             loading={mutation.isPending}
+            disabled={mobileStatus === "checking"}
           />
         </ScrollView>
       </PlanGate>

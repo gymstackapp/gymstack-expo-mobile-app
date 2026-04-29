@@ -503,7 +503,7 @@ const tps = StyleSheet.create({
     marginBottom: Spacing.xs,
     letterSpacing: 0.5,
   },
-  pickerScroll: { width: "100%", flex: 1 },
+  pickerScroll: { width: "100%", maxHeight: 164 },
   colon: {
     color: Colors.textPrimary,
     fontSize: Typography.xl,
@@ -2041,7 +2041,7 @@ export default function OwnerDietsScreen() {
   });
 
   const archiveMutation = useMutation({
-    mutationFn: (id: string) => dietsApi.update(id, { isActive: false }),
+    mutationFn: (id: string) => dietsApi.delete(id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["ownerDiets"] });
       Toast.show({ type: "success", text1: "Plan archived" });
